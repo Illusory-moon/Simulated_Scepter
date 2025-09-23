@@ -3,10 +3,7 @@ import os
 
 import pyuac
 import yaml
-import ctypes
 import threading
-
-
 # 导入项目模块
 from utils.simul.config import config as config_simul
 from utils.diver.config import config as config_diver
