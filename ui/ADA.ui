@@ -376,7 +376,7 @@ border:none</string>
             <number>0</number>
            </property>
            <item>
-            <layout class="QHBoxLayout" name="Lay_Tab1" stretch="5,3">
+            <layout class="QHBoxLayout" name="Lay_Tab1" stretch="5,0">
              <property name="sizeConstraint">
               <enum>QLayout::SetDefaultConstraint</enum>
              </property>
@@ -437,7 +437,10 @@ border:none</string>
               </layout>
              </item>
              <item>
-              <layout class="QVBoxLayout" name="Lay_Tab1_Right" stretch="1,1,1,1,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,2">
+              <layout class="QVBoxLayout" name="Lay_Tab1_Right" stretch="0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
+               <property name="spacing">
+                <number>6</number>
+               </property>
                <property name="leftMargin">
                 <number>0</number>
                </property>
@@ -1001,7 +1004,7 @@ border:none</string>
                 </layout>
                </item>
                <item>
-                <layout class="QVBoxLayout" name="verticalLayout_3" stretch="1">
+                <layout class="QVBoxLayout" name="verticalLayout_3" stretch="">
                  <property name="spacing">
                   <number>5</number>
                  </property>
@@ -1017,34 +1020,6 @@ border:none</string>
                  <property name="bottomMargin">
                   <number>5</number>
                  </property>
-                 <item>
-                  <widget class="QPushButton" name="Button_Hide">
-                   <property name="sizePolicy">
-                    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                     <horstretch>0</horstretch>
-                     <verstretch>0</verstretch>
-                    </sizepolicy>
-                   </property>
-                   <property name="minimumSize">
-                    <size>
-                     <width>0</width>
-                     <height>0</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>16777215</width>
-                     <height>16777215</height>
-                    </size>
-                   </property>
-                   <property name="autoFillBackground">
-                    <bool>true</bool>
-                   </property>
-                   <property name="text">
-                    <string>点击切换 - 将窗口拖到窗口底端~</string>
-                   </property>
-                  </widget>
-                 </item>
                 </layout>
                </item>
                <item>
@@ -2007,6 +1982,69 @@ border:none</string>
                 </spacer>
                </item>
                <item>
+                <layout class="QHBoxLayout" name="horizontalLayout_2">
+                 <item>
+                  <widget class="QPushButton" name="run_simul_btn">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="text">
+                    <string>运行模拟宇宙</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="config_simul_btn">
+                   <property name="text">
+                    <string>设置模拟宇宙</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="horizontalLayout_3">
+                 <item>
+                  <widget class="QPushButton" name="run_diver_btn">
+                   <property name="text">
+                    <string>运行差分宇宙</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="config_diver_btn">
+                   <property name="text">
+                    <string>设置差分宇宙</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <widget class="QPushButton" name="calibrate_btn">
+                 <property name="text">
+                  <string>校准角度</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="test_btn">
+                 <property name="text">
+                  <string>截图测试</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="stop_btn">
+                 <property name="text">
+                  <string>停止任务</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
                 <widget class="Line" name="line_101">
                  <property name="orientation">
                   <enum>Qt::Horizontal</enum>
@@ -2027,17 +2065,7 @@ border:none</string>
                 </spacer>
                </item>
                <item>
-                <widget class="QLabel" name="Label_CurrentPlan">
-                 <property name="text">
-                  <string>当前选中方案</string>
-                 </property>
-                 <property name="alignment">
-                  <set>Qt::AlignCenter</set>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <layout class="QHBoxLayout" name="Lay_CurrentPlan_1" stretch="0">
+                <layout class="QHBoxLayout" name="Lay_CurrentPlan_1" stretch="">
                  <property name="sizeConstraint">
                   <enum>QLayout::SetDefaultConstraint</enum>
                  </property>
@@ -2053,131 +2081,6 @@ border:none</string>
                  <property name="bottomMargin">
                   <number>0</number>
                  </property>
-                 <item>
-                  <widget class="QComboBox" name="CurrentPlan">
-                   <property name="sizePolicy">
-                    <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                     <horstretch>0</horstretch>
-                     <verstretch>0</verstretch>
-                    </sizepolicy>
-                   </property>
-                   <property name="minimumSize">
-                    <size>
-                     <width>0</width>
-                     <height>0</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>16777215</width>
-                     <height>16777215</height>
-                    </size>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-               <item>
-                <layout class="QHBoxLayout" name="Lay_CurrentPlan_2" stretch="0,0,0">
-                 <property name="sizeConstraint">
-                  <enum>QLayout::SetDefaultConstraint</enum>
-                 </property>
-                 <property name="leftMargin">
-                  <number>5</number>
-                 </property>
-                 <property name="topMargin">
-                  <number>0</number>
-                 </property>
-                 <property name="rightMargin">
-                  <number>5</number>
-                 </property>
-                 <property name="bottomMargin">
-                  <number>0</number>
-                 </property>
-                 <item>
-                  <widget class="QPushButton" name="Button_RenamePlan">
-                   <property name="sizePolicy">
-                    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                     <horstretch>0</horstretch>
-                     <verstretch>0</verstretch>
-                    </sizepolicy>
-                   </property>
-                   <property name="minimumSize">
-                    <size>
-                     <width>0</width>
-                     <height>0</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>16777215</width>
-                     <height>16777215</height>
-                    </size>
-                   </property>
-                   <property name="toolTip">
-                    <string>重命名当前选中的方案, 但Default方案不可更改哦~</string>
-                   </property>
-                   <property name="text">
-                    <string>重命名方案</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QPushButton" name="Button_DeletePlan">
-                   <property name="sizePolicy">
-                    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                     <horstretch>0</horstretch>
-                     <verstretch>0</verstretch>
-                    </sizepolicy>
-                   </property>
-                   <property name="minimumSize">
-                    <size>
-                     <width>0</width>
-                     <height>0</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>16777215</width>
-                     <height>16777215</height>
-                    </size>
-                   </property>
-                   <property name="toolTip">
-                    <string>删除当前选中的方案, 但Default方案不会被删哦~</string>
-                   </property>
-                   <property name="text">
-                    <string>删除此方案</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QPushButton" name="Button_CreatePlan">
-                   <property name="sizePolicy">
-                    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                     <horstretch>0</horstretch>
-                     <verstretch>0</verstretch>
-                    </sizepolicy>
-                   </property>
-                   <property name="minimumSize">
-                    <size>
-                     <width>0</width>
-                     <height>0</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>16777215</width>
-                     <height>16777215</height>
-                    </size>
-                   </property>
-                   <property name="toolTip">
-                    <string>新建的方案会继承Default的一切设置，但不能给新方案取名Default</string>
-                   </property>
-                   <property name="text">
-                    <string>创建新方案</string>
-                   </property>
-                  </widget>
-                 </item>
                 </layout>
                </item>
                <item>
@@ -2322,9 +2225,9 @@ Link Start</string>
            </item>
           </layout>
          </widget>
-         <widget class="QWidget" name="Tab2">
+         <widget class="QWidget" name="homeTab">
           <attribute name="title">
-           <string>任务列表</string>
+           <string>空白页</string>
           </attribute>
           <layout class="QVBoxLayout" name="verticalLayout_2">
            <property name="spacing">
@@ -2342,11 +2245,236 @@ Link Start</string>
            <property name="bottomMargin">
             <number>0</number>
            </property>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_8">
+             <item>
+              <layout class="QVBoxLayout" name="verticalLayout">
+               <item>
+                <widget class="QLabel" name="label_6">
+                 <property name="text">
+                  <string>模拟宇宙设置</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox_2">
+                 <property name="text">
+                  <string>沉浸奖励</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox_4">
+                 <property name="text">
+                  <string>调试模式</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox_3">
+                 <property name="text">
+                  <string>速通模式</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox">
+                 <property name="text">
+                  <string>慢速模式</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout">
+               <item>
+                <widget class="QLabel" name="label">
+                 <property name="text">
+                  <string>难度：</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="comboBox"/>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_14">
+               <item>
+                <widget class="QLabel" name="label_3">
+                 <property name="text">
+                  <string>命途：</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="comboBox_2"/>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_4">
+               <item>
+                <widget class="QLabel" name="label_4">
+                 <property name="text">
+                  <string>时区：</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="comboBox_3"/>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_13">
+               <item>
+                <widget class="QLabel" name="label_5">
+                 <property name="text">
+                  <string>本轮运行次数：</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="lineEdit"/>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QVBoxLayout" name="verticalLayout_12">
+               <item>
+                <widget class="QLabel" name="label_7">
+                 <property name="text">
+                  <string>差分宇宙设置</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox_8">
+                 <property name="text">
+                  <string>调试模式</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox_7">
+                 <property name="text">
+                  <string>速通模式</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox_6">
+                 <property name="text">
+                  <string>周期演算</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="checkBox_5">
+                 <property name="text">
+                  <string>禁用GPU加速</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_18">
+               <item>
+                <widget class="QLabel" name="label_10">
+                 <property name="text">
+                  <string>难度：</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="comboBox_4"/>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_21">
+               <item>
+                <widget class="QLabel" name="label_11">
+                 <property name="text">
+                  <string>队伍体系：</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="comboBox_5"/>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_19">
+               <item>
+                <widget class="QLabel" name="label_12">
+                 <property name="text">
+                  <string>存档数量：</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="comboBox_6"/>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_20">
+               <item>
+                <widget class="QLabel" name="label_17">
+                 <property name="text">
+                  <string>时区：</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="comboBox_7"/>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_17">
+               <item>
+                <widget class="QLabel" name="label_18">
+                 <property name="text">
+                  <string>本轮运行次数：</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="lineEdit_2"/>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QPushButton" name="pushButton">
+               <property name="text">
+                <string>保存</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
           </layout>
          </widget>
-         <widget class="QWidget" name="Tab3">
+         <widget class="QWidget" name="ConfigSimultab">
           <attribute name="title">
-           <string>进阶功能</string>
+           <string>页</string>
+          </attribute>
+         </widget>
+         <widget class="QWidget" name="ConfigDivertab">
+          <attribute name="title">
+           <string>页</string>
+          </attribute>
+         </widget>
+         <widget class="QWidget" name="AbyssTab">
+          <attribute name="title">
+           <string>模拟宇宙设置</string>
           </attribute>
           <layout class="QVBoxLayout" name="verticalLayout_6">
            <property name="spacing">
