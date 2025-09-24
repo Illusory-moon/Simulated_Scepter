@@ -2257,28 +2257,28 @@ Link Start</string>
                 </widget>
                </item>
                <item>
-                <widget class="QCheckBox" name="checkBox_2">
+                <widget class="QCheckBox" name="Simul_bonus_checkbox">
                  <property name="text">
                   <string>沉浸奖励</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QCheckBox" name="checkBox_4">
+                <widget class="QCheckBox" name="Simul_debug_checkbox">
                  <property name="text">
                   <string>调试模式</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QCheckBox" name="checkBox_3">
+                <widget class="QCheckBox" name="Simul_speed_checkbox">
                  <property name="text">
                   <string>速通模式</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QCheckBox" name="checkBox">
+                <widget class="QCheckBox" name="Simul_slow_checkbox">
                  <property name="text">
                   <string>慢速模式</string>
                  </property>
@@ -2296,7 +2296,7 @@ Link Start</string>
                 </widget>
                </item>
                <item>
-                <widget class="QComboBox" name="comboBox"/>
+                <widget class="QComboBox" name="Simul_difficulty_combo"/>
                </item>
               </layout>
              </item>
@@ -2310,7 +2310,7 @@ Link Start</string>
                 </widget>
                </item>
                <item>
-                <widget class="QComboBox" name="comboBox_2"/>
+                <widget class="QComboBox" name="Simul_fate_combo"/>
                </item>
               </layout>
              </item>
@@ -2324,7 +2324,7 @@ Link Start</string>
                 </widget>
                </item>
                <item>
-                <widget class="QComboBox" name="comboBox_3"/>
+                <widget class="QComboBox" name="Simul_timezone_combo"/>
                </item>
               </layout>
              </item>
@@ -2338,7 +2338,7 @@ Link Start</string>
                 </widget>
                </item>
                <item>
-                <widget class="QLineEdit" name="lineEdit"/>
+                <widget class="QLineEdit" name="Simul_max_run_input"/>
                </item>
               </layout>
              </item>
@@ -2352,28 +2352,28 @@ Link Start</string>
                 </widget>
                </item>
                <item>
-                <widget class="QCheckBox" name="checkBox_8">
+                <widget class="QCheckBox" name="Diver_debug_checkbox">
                  <property name="text">
                   <string>调试模式</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QCheckBox" name="checkBox_7">
+                <widget class="QCheckBox" name="Diver_speed_checkbox">
                  <property name="text">
                   <string>速通模式</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QCheckBox" name="checkBox_6">
+                <widget class="QCheckBox" name="Diver_weekly_checkbox">
                  <property name="text">
                   <string>周期演算</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QCheckBox" name="checkBox_5">
+                <widget class="QCheckBox" name="Diver_cpu_checkbox">
                  <property name="text">
                   <string>禁用GPU加速</string>
                  </property>
@@ -2391,7 +2391,7 @@ Link Start</string>
                 </widget>
                </item>
                <item>
-                <widget class="QComboBox" name="comboBox_4"/>
+                <widget class="QComboBox" name="Diver_difficulty_combo"/>
                </item>
               </layout>
              </item>
@@ -2405,7 +2405,7 @@ Link Start</string>
                 </widget>
                </item>
                <item>
-                <widget class="QComboBox" name="comboBox_5"/>
+                <widget class="QComboBox" name="Diver_team_combo"/>
                </item>
               </layout>
              </item>
@@ -2419,7 +2419,7 @@ Link Start</string>
                 </widget>
                </item>
                <item>
-                <widget class="QComboBox" name="comboBox_6"/>
+                <widget class="QComboBox" name="Diver_save_cnt_combo"/>
                </item>
               </layout>
              </item>
@@ -2433,7 +2433,7 @@ Link Start</string>
                 </widget>
                </item>
                <item>
-                <widget class="QComboBox" name="comboBox_7"/>
+                <widget class="QComboBox" name="Diver_timezone_combo"/>
                </item>
               </layout>
              </item>
@@ -2447,12 +2447,12 @@ Link Start</string>
                 </widget>
                </item>
                <item>
-                <widget class="QLineEdit" name="lineEdit_2"/>
+                <widget class="QLineEdit" name="Diver_max_run_input"/>
                </item>
               </layout>
              </item>
              <item>
-              <widget class="QPushButton" name="pushButton">
+              <widget class="QPushButton" name="config_save_btn">
                <property name="text">
                 <string>保存</string>
                </property>
