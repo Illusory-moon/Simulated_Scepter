@@ -437,7 +437,7 @@ border:none</string>
               </layout>
              </item>
              <item>
-              <layout class="QVBoxLayout" name="Lay_Tab1_Right" stretch="0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
+              <layout class="QVBoxLayout" name="Lay_Tab1_Right" stretch="0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
                <property name="spacing">
                 <number>6</number>
                </property>
@@ -1004,7 +1004,7 @@ border:none</string>
                 </layout>
                </item>
                <item>
-                <layout class="QVBoxLayout" name="verticalLayout_3" stretch="">
+                <layout class="QVBoxLayout" name="verticalLayout_3">
                  <property name="spacing">
                   <number>5</number>
                  </property>
@@ -2045,6 +2045,13 @@ border:none</string>
                 </widget>
                </item>
                <item>
+                <widget class="QPushButton" name="clear_logs_btn">
+                 <property name="text">
+                  <string>清除日志</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
                 <widget class="Line" name="line_101">
                  <property name="orientation">
                   <enum>Qt::Horizontal</enum>
@@ -2065,7 +2072,7 @@ border:none</string>
                 </spacer>
                </item>
                <item>
-                <layout class="QHBoxLayout" name="Lay_CurrentPlan_1" stretch="">
+                <layout class="QHBoxLayout" name="Lay_CurrentPlan_1">
                  <property name="sizeConstraint">
                   <enum>QLayout::SetDefaultConstraint</enum>
                  </property>
