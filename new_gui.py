@@ -159,9 +159,9 @@ class MainWindow(QMainWindowLoadUI):
         QMessageBox.information(self, "提示", "配置已保存")
 
 if __name__ == "__main__":
-    if not pyuac.isUserAdmin():
-        pyuac.runAsAdmin()
-    else:
+    # if not pyuac.isUserAdmin():
+    #     pyuac.runAsAdmin()
+    # else:
         app = QApplication(sys.argv)
         window = MainWindow()
         window.show()

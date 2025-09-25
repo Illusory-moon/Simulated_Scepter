@@ -385,7 +385,6 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
                     font_id = font_database.addApplicationFont(font_path)
                     if font_id != -1:
                         family_names = font_database.applicationFontFamilies(font_id)
-                        print(f"已加载字体: {font_file}, 字体族: {family_names}")
                         if i == 0 and family_names:
                             first_font_family = family_names[0]
         

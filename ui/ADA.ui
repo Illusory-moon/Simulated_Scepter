@@ -2227,7 +2227,7 @@ Link Start</string>
          </widget>
          <widget class="QWidget" name="homeTab">
           <attribute name="title">
-           <string>空白页</string>
+           <string>模拟宇宙设置</string>
           </attribute>
           <layout class="QVBoxLayout" name="verticalLayout_2">
            <property name="spacing">
@@ -2462,19 +2462,9 @@ Link Start</string>
            </item>
           </layout>
          </widget>
-         <widget class="QWidget" name="ConfigSimultab">
-          <attribute name="title">
-           <string>页</string>
-          </attribute>
-         </widget>
-         <widget class="QWidget" name="ConfigDivertab">
-          <attribute name="title">
-           <string>页</string>
-          </attribute>
-         </widget>
          <widget class="QWidget" name="AbyssTab">
           <attribute name="title">
-           <string>模拟宇宙设置</string>
+           <string>空白页</string>
           </attribute>
           <layout class="QVBoxLayout" name="verticalLayout_6">
            <property name="spacing">
