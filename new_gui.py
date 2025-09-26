@@ -3,6 +3,8 @@ import pyuac
 import threading
 import os
 import shutil
+
+
 from utils.simul.config import config as config_simul
 from utils.diver.config import config as config_diver
 from simul import SimulatedUniverse
@@ -11,7 +13,7 @@ from align_angle import main as align_angle_main
 from PyQt5.QtWidgets import (
     QApplication, QLineEdit, QMessageBox
 )
-
+from logger_printer import QMainWindowLog
 from load_new_ui import QMainWindowLoadUI
 
 
@@ -72,7 +74,7 @@ class TaskThread(threading.Thread):
         self.target(*self.args, **self.kwargs)
 
 
-class MainWindow(QMainWindowLoadUI):
+class MainWindow(QMainWindowLog):
     def __init__(self):
         super().__init__()
         self.task_manager = TaskManager()

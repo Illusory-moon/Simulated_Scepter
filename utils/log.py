@@ -14,6 +14,8 @@ from logging import (
 from pathlib import Path
 from datetime import datetime
 
+from config import Global
+
 logs_path = Path("logs")
 logs_path.mkdir(exist_ok=True, parents=True)
 
@@ -38,6 +40,28 @@ log.addHandler(stream_handler)
 log.addHandler(file_handler)
 log.addHandler(timestamped_file_handler)
 
+class UILogHandler(StreamHandler):
+    def __init__(self):
+        super().__init__()
+        self.setFormatter(formatter)
+
+    def emit(self, record):
+        if Global.PRINT_TO_UI is not None:
+            msg = self.format(record)
+            # 根据日志级别设置颜色
+            level_colors = {
+                'DEBUG': 4,
+                'INFO': 5,
+                'WARNING': 2,
+                'ERROR': 1,
+                'CRITICAL': 1
+            }
+            color_level = level_colors.get(record.levelname, 5)
+            Global.PRINT_TO_UI.emit(text=msg, color_level=color_level, time=True)
+
+ui_handler = UILogHandler()
+log.addHandler(ui_handler)
+
 flet = getLogger("flet")
 flet.setLevel(CRITICAL)
 flet_core = getLogger("flet_core")
@@ -52,6 +76,9 @@ set_debug()
 
 def my_print(*args, **kwargs):
     log.info(" ".join(map(str, args)))
+    # Global.PRINT_TO_UI.emit(
+    #     text=" ".join(map(str, args)),
+    #     time=False)
     if len(kwargs):
         print(*args, **kwargs)
 
