@@ -1,5 +1,5 @@
+import ctypes
 import sys
-import pyuac
 import threading
 import os
 import shutil
@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
     QApplication, QLineEdit, QMessageBox
 )
 from logger_printer import QMainWindowLog
-from load_new_ui import QMainWindowLoadUI
+from pathlib import Path
 
 
 class TaskManager:
@@ -283,9 +283,43 @@ class MainWindow(QMainWindowLog):
 
 
 if __name__ == "__main__":
-    # if not pyuac.isUserAdmin():
-    #     pyuac.runAsAdmin()
-    # else:
+    def is_admin():
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        except:
+            return False
+
+
+    # 以管理员权限重新运行程序，使用pythonw避免命令行窗口
+    def run_as_admin():
+        script = Path(sys.argv[0]).resolve()
+        try:
+            ctypes.windll.shell32.ShellExecuteW(
+                None,
+                "runas",
+                "pythonw.exe",
+                f'"{script}"',
+                None,
+                1
+            )
+            return True
+        except:
+            return False
+
+
+    if not is_admin():
+
+        if run_as_admin():
+            sys.exit(0)
+        else:
+            import tkinter
+            from tkinter import messagebox
+
+            root = tkinter.Tk()
+            root.withdraw()
+            messagebox.showerror("权限错误", "此程序需要管理员权限才能正常运行。请右键点击程序并选择'以管理员身份运行'。")
+            root.destroy()
+    else:
         app = QApplication(sys.argv)
         window = MainWindow()
         window.show()
