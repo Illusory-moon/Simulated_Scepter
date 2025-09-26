@@ -3,6 +3,8 @@ import sys
 import threading
 import os
 import shutil
+import keyboard
+from functools import partial
 
 
 from utils.simul.config import config as config_simul
@@ -13,6 +15,7 @@ from align_angle import main as align_angle_main
 from PyQt5.QtWidgets import (
     QApplication, QLineEdit, QMessageBox
 )
+from PyQt5.QtCore import Qt
 from logger_printer import QMainWindowLog
 from pathlib import Path
 
@@ -79,6 +82,7 @@ class MainWindow(QMainWindowLog):
         super().__init__()
         self.task_manager = TaskManager()
         self.init_ui()
+        self.setup_keyboard_listener()
 
     def init_ui(self):
         # 连接按钮信号
@@ -121,6 +125,27 @@ class MainWindow(QMainWindowLog):
         # 连接配置保存按钮
         self.config_save_btn.clicked.connect(self.save_config)
 
+    def setup_keyboard_listener(self):
+        """
+        设置键盘监听器，监听F5按键以停止任务
+        """
+        keyboard.on_press_key("f5", self._on_f5_pressed)
+        
+    def _on_f5_pressed(self, event):
+        """
+        当F5按键被按下时的回调函数
+        """
+        # 检查是否有任务正在运行，如果有则停止任务
+        if self.task_manager.is_task_running():
+            self.run_on_main_thread(self.stop_task)
+        
+    def closeEvent(self, event):
+        """
+        窗口关闭事件，清理键盘监听器
+        """
+        keyboard.unhook_all()
+        super().closeEvent(event)
+        
     def clear_logs(self):
         """
         清除logs目录下的所有文件，跳过被占用的文件
@@ -179,9 +204,16 @@ class MainWindow(QMainWindowLog):
     def stop_task(self):
         try:
             if self.task_manager.stop_task():
+                # 只在有任务运行时显示提示信息
                 QMessageBox.information(self, "提示", "已发送停止信号...")
             else:
-                QMessageBox.warning(self, "警告", "当前没有运行中的任务")
+                # 只在用户手动点击按钮且没有任务运行时显示警告
+                # 当通过键盘快捷键调用时不显示警告
+                import inspect
+                caller_frame = inspect.currentframe().f_back
+                caller_name = caller_frame.f_code.co_name
+                if caller_name != '_on_f5_pressed':
+                    QMessageBox.warning(self, "警告", "当前没有运行中的任务")
         except Exception as e:
             QMessageBox.critical(self, "错误", f"停止失败: {e}")
 
