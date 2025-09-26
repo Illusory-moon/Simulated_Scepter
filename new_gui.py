@@ -61,11 +61,11 @@ class TaskManager:
 
 
 class TaskThread(threading.Thread):
-    def __init__(self, target, *args, **kwargs):
+    def __init__(self, target, args=None, kwargs=None):
         super().__init__()
         self.target = target
-        self.args = args
-        self.kwargs = kwargs
+        self.args = args if args is not None else ()
+        self.kwargs = kwargs if kwargs is not None else {}
         self.daemon = True
 
     def run(self):
