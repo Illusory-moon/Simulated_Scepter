@@ -597,7 +597,7 @@ class SimulatedUniverse(UniverseUtils):
                 tx, ty = self.tx, self.ty
                 try:
                     import yaml
-                    with open("info.yml", "r", encoding="utf-8", errors="ignore") as f:
+                    with open("config/config/info.yml", "r", encoding="utf-8", errors="ignore") as f:
                         event_prior = yaml.safe_load(f)["prior"]["事件"]
                 except:
                     event_prior = [

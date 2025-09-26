@@ -10,7 +10,7 @@ from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import QApplication
 
 from config import Global
-from load_new_ui import QMainWindowLoadUI
+from load_ui import QMainWindowLoadUI
 from utils.log import log
 
 

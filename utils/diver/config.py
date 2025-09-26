@@ -4,11 +4,14 @@ import yaml
 import sys
 import json
 
+from route import PATHS
+
+
 class Config:
     def __init__(self):
-        self.abspath = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # 获取项目根目录../Auto_Simulated_Universe
+        self.abspath = PATHS["config"]+"//config"
         if getattr(sys, 'frozen', False):
-            self.abspath = '.'
+            self.abspath = './config/config'
         self.angle = "1.0"
         self.difficult = "5"
         self.allow_difficult = [1, 2, 3, 4, 5]
@@ -90,6 +93,7 @@ class Config:
                     self.difficult = config['difficulty']
                     self.team = config['team']
                     self.speed_mode = config['speed_mode']
+                    self.debug_mode = config['debug_mode']
                     self.weekly_mode = config['weekly_mode']
                     self.cpu_mode = config['cpu_mode']
                     self.update_skill(config['skill'])
@@ -117,6 +121,7 @@ class Config:
                     "difficulty": self.diffi,
                     "team": self.team,
                     "speed_mode": self.speed_mode,
+                    "debug_mode": self.debug_mode,
                     "weekly_mode": self.weekly_mode,
                     "cpu_mode": self.cpu_mode,
                     "skill": self.skill_char,

@@ -3,12 +3,14 @@ from typing import List, Dict, Union
 import yaml
 import sys
 
+from route import PATHS
+
 
 class Config:
     def __init__(self):
-        self.abspath = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # 获取项目根目录../Auto_Simulated_Universe
+        self.abspath = PATHS["config"]+"//config"
         if getattr(sys, 'frozen', False):
-            self.abspath = '.'
+            self.abspath = './config/config'
         self.order_text = "1 2 3 4"
         self.angle = "1.0"
         self.difficult = "5"
