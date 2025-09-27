@@ -15,7 +15,7 @@ from align_angle import main as align_angle_main
 from PyQt5.QtWidgets import (
     QApplication, QLineEdit, QMessageBox
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from logger_printer import QMainWindowLog
 from pathlib import Path
 
@@ -78,9 +78,13 @@ class TaskThread(threading.Thread):
 
 
 class MainWindow(QMainWindowLog):
+    # 定义校准完成信号
+    calibration_finished = pyqtSignal(object)
+    
     def __init__(self):
         super().__init__()
         self.task_manager = TaskManager()
+
         self.init_ui()
         self.setup_keyboard_listener()
 
@@ -124,6 +128,8 @@ class MainWindow(QMainWindowLog):
 
         # 连接配置保存按钮
         self.config_save_btn.clicked.connect(self.save_config)
+
+        self.calibration_finished.connect(self.show_calibration_result)
 
     def setup_keyboard_listener(self):
         """
@@ -259,20 +265,27 @@ class MainWindow(QMainWindowLog):
 
     def calibrate(self):
         def task():
-            res = align_angle_main()
-            # 在主线程中显示结果
-            self.run_on_main_thread(lambda: self.show_calibration_result(res))
+            try:
+                res = align_angle_main()
+                # 通过信号在主线程中显示结果
+                self.calibration_finished.emit(res)
+            except Exception as e:
+                # 通过信号在主线程中显示错误信息
+                self.calibration_finished.emit(e)
             
         try:
             self.task_manager.start_task(task)
         except RuntimeError as e:
             QMessageBox.warning(self, "警告", str(e))
 
-    def show_calibration_result(self, res):
-        if res == 1:
-            QMessageBox.information(None, "成功", "校准成功！")
+    def show_calibration_result(self, result):
+        # 检查result是返回值还是异常
+        if isinstance(result, Exception):
+            QMessageBox.critical(self, "错误", f"校准失败: {str(result)}")
+        elif result == 1:
+            QMessageBox.information(self, "成功", "校准成功！")
         else:
-            QMessageBox.warning(None, "失败", "校准失败，请重试。")
+            QMessageBox.warning(self, "失败", "校准失败，请重试。")
 
     def run_on_main_thread(self, func):
         """
