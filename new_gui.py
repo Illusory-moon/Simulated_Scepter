@@ -4,7 +4,7 @@ import threading
 import os
 import shutil
 import keyboard
-from functools import partial
+import time
 
 
 from utils.simul.config import config as config_simul
@@ -15,7 +15,7 @@ from align_angle import main as align_angle_main
 from PyQt5.QtWidgets import (
     QApplication, QLineEdit, QMessageBox
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import pyqtSignal
 from logger_printer import QMainWindowLog
 from pathlib import Path
 
@@ -84,6 +84,7 @@ class MainWindow(QMainWindowLog):
     def __init__(self):
         super().__init__()
         self.task_manager = TaskManager()
+        self._last_f5_time = 0
 
         self.init_ui()
         self.setup_keyboard_listener()
@@ -141,9 +142,14 @@ class MainWindow(QMainWindowLog):
         """
         当F5按键被按下时的回调函数
         """
-        # 检查是否有任务正在运行，如果有则停止任务
-        if self.task_manager.is_task_running():
-            self.run_on_main_thread(self.stop_task)
+        current_time = time.time()
+        # 防止频繁触发，限制1秒内只能触发一次
+        if current_time - self._last_f5_time > 1:
+            self._last_f5_time = current_time
+            # 检查是否有任务正在运行，如果有则停止任务
+            if self.task_manager.is_task_running():
+                # 使用Qt的信号机制在主线程中安全地调用stop_task
+                self.stop_btn.click()
         
     def closeEvent(self, event):
         """
@@ -210,19 +216,10 @@ class MainWindow(QMainWindowLog):
     def stop_task(self):
         try:
             if self.task_manager.stop_task():
-                # 只在有任务运行时显示提示信息
                 QMessageBox.information(self, "提示", "已发送停止信号...")
-            else:
-                # 只在用户手动点击按钮且没有任务运行时显示警告
-                # 当通过键盘快捷键调用时不显示警告
-                import inspect
-                caller_frame = inspect.currentframe().f_back
-                caller_name = caller_frame.f_code.co_name
-                if caller_name != '_on_f5_pressed':
-                    QMessageBox.warning(self, "警告", "当前没有运行中的任务")
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"停止失败: {e}")
-
+            pass
+        
     def run_simul(self):
         def task():
             su = SimulatedUniverse(
