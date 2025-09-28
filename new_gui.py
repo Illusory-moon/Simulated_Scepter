@@ -61,6 +61,7 @@ class TaskManager:
         """
         if self.current_task and hasattr(self.current_task, 'stop'):
             self.current_task.stop()
+            self.task_thread=None
             return True
         return False
 
@@ -345,8 +346,11 @@ class MainWindow(QMainWindowLog):
         config_simul.save()
         config_diver.save()
         QMessageBox.information(self, "提示", "配置已保存")
+
     def set_FPS(self,TimePerFrame):
-        Fps = 1/int(TimePerFrame)
+        # 修复FPS计算精度问题，使用浮点数而不是整数
+        Fps = 1.0 / float(TimePerFrame)
+        Fps = round(Fps, 2)
         self.FPS_Input.setText(str(Fps))
 
 if __name__ == "__main__":

@@ -72,6 +72,9 @@ class SimulatedUniverse(UniverseUtils):
         self.floor_init = 0
         self.confirm_time = 0
         self.threshold = 0.97
+        # 添加用于计算FPS的变量
+        self.last_get_screen_time = None
+        self.fps_list = []
         ex_notif = ""
         if debug != 2:
             pyautogui.FAILSAFE = False
@@ -118,6 +121,7 @@ class SimulatedUniverse(UniverseUtils):
         fail_cnt = 0
         fail_time = 0
         fp = 1
+        set_forground()
         while not self._stop:
             hwnd,Text = get_hwnd_and_text()
             warn_game = False
@@ -136,6 +140,24 @@ class SimulatedUniverse(UniverseUtils):
                 hwnd,Text = get_hwnd_and_text()
             if self._stop:
                 break
+            
+            # 计算get_screen调用间隔时间
+            current_time = time.time()
+            if self.last_get_screen_time is not None:
+                interval = current_time - self.last_get_screen_time
+                self.fps_list.append(interval)
+                # 保持列表只包含最新的30个数据点
+                if len(self.fps_list) > 30:
+                    self.fps_list.pop(0)
+                # 当有GUI实例时，计算平均FPS并更新GUI
+                if self.gui is not None and hasattr(self.gui, 'set_FPS'):
+                    avg_interval = sum(self.fps_list) / len(self.fps_list)
+                    try:
+                        self.gui.set_FPS(avg_interval)
+                    except:
+                        pass  # 忽略任何GUI更新错误
+            self.last_get_screen_time = current_time
+            
             self.get_screen()# 从全屏截屏中裁剪得到游戏窗口截屏
             # self.click_target('imgs/fail.jpg',0.9,True) # 如果需要输出某张图片在游戏窗口中的坐标，可以用这个
             res = self.normal()
@@ -880,7 +902,8 @@ class SimulatedUniverse(UniverseUtils):
 
 
     def show_map(self):
-        cv.namedWindow("Map", cv.WINDOW_AUTOSIZE)
+        # 创建窗口时使用 WINDOW_FREERATIO 标志以避免自动获取焦点
+        cv.namedWindow("Map", cv.WINDOW_FREERATIO | cv.WINDOW_NORMAL)
 
         # Update the image every second
         while not self._stop:
