@@ -883,7 +883,7 @@ border:none</string>
                <item>
                 <widget class="QPushButton" name="test_btn">
                  <property name="text">
-                  <string>截图测试</string>
+                  <string>截图测试 F6</string>
                  </property>
                 </widget>
                </item>

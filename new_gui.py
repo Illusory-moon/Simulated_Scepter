@@ -6,6 +6,8 @@ import shutil
 import keyboard
 import time
 
+import pyuac
+
 from utils.simul.config import config as config_simul
 from utils.diver.config import config as config_diver
 from simul import SimulatedUniverse
@@ -81,14 +83,21 @@ class TaskThread(threading.Thread):
 class MainWindow(QMainWindowLog):
     # 定义校准完成信号
     calibration_finished = pyqtSignal(object)
+    # 定义F5/F6按键触发信号
+    f5_pressed = pyqtSignal()
+    f6_pressed = pyqtSignal()
 
     def __init__(self):
         super().__init__()
         self.task_manager = TaskManager()
         self._last_f5_time = 0
+        self._last_f6_time = 0
 
         self.init_ui()
         self.setup_keyboard_listener()
+        # 连接F5/F6按键信号到处理函数
+        self.f5_pressed.connect(self.handle_f5_pressed)
+        self.f6_pressed.connect(self.handle_f6_pressed)
 
     def init_ui(self):
         # 连接按钮信号
@@ -138,22 +147,41 @@ class MainWindow(QMainWindowLog):
 
     def setup_keyboard_listener(self):
         """
-        设置键盘监听器，监听F5按键以停止任务
+        设置键盘监听器，监听F5/F6按键
         """
-        keyboard.on_press_key("f5", self._on_f5_pressed)
+        keyboard.on_press_key("f5", self._on_key_pressed)
+        keyboard.on_press_key("f6", self._on_key_pressed)
         
-    def _on_f5_pressed(self, event):
+    def _on_key_pressed(self, event):
         """
-        当F5按键被按下时的回调函数
+        当F5/F6按键被按下时的回调函数
         """
         current_time = time.time()
-        # 防止频繁触发，限制1秒内只能触发一次
-        if current_time - self._last_f5_time > 1:
-            self._last_f5_time = current_time
-            # 检查是否有任务正在运行，如果有则停止任务
-            if self.task_manager.is_task_running():
-                # 使用Qt的信号机制在主线程中安全地调用stop_task
-                self.stop_btn.click()
+        
+        if event.name == "f5":
+            if current_time - self._last_f5_time > 1:
+                self._last_f5_time = current_time
+                self.f5_pressed.emit()
+        elif event.name == "f6":
+            if current_time - self._last_f6_time > 1:
+                self._last_f6_time = current_time
+                self.f6_pressed.emit()
+            
+    def handle_f5_pressed(self):
+        """
+        在主线程中处理F5按键事件
+        """
+        if self.task_manager.is_task_running():
+            self.stop_btn.click()
+                
+    def handle_f6_pressed(self):
+        """
+        在主线程中处理F6按键事件
+        """
+        if self.task_manager.is_task_running():
+            QMessageBox.warning(self, "警告", "已有任务正在运行")
+        else:
+            self.test_btn.click()
         
     def closeEvent(self, event):
         """
@@ -350,8 +378,15 @@ class MainWindow(QMainWindowLog):
         Fps = 1.0 / float(TimePerFrame)
         Fps = round(Fps, 2)
         self.FPS_Input.setText(str(Fps))
-
-if __name__ == "__main__":
+def old_main():
+    if not pyuac.isUserAdmin():
+        pyuac.runAsAdmin()
+    else:
+        app = QApplication(sys.argv)
+        window = MainWindow()
+        window.show()
+        sys.exit(app.exec_())
+def main():
     def is_admin():
         try:
             return ctypes.windll.shell32.IsUserAnAdmin()
@@ -393,3 +428,5 @@ if __name__ == "__main__":
         window = MainWindow()
         window.show()
         sys.exit(app.exec_())
+if __name__ == "__main__":
+    main()

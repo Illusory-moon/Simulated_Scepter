@@ -874,31 +874,21 @@ class SimulatedUniverse(UniverseUtils):
                 traceback.print_stack()
         except:
             pass
-        # self._stop = True
-        # self._stop = 1
-        # self._stop = True
         self._stop = 1
-        # self._stop = True
 
 
     def show_map(self):
         # 创建窗口时使用 WINDOW_FREERATIO 标志以避免自动获取焦点
         cv.namedWindow("Map", cv.WINDOW_FREERATIO | cv.WINDOW_NORMAL)
-
-        # Update the image every second
         while not self._stop:
             if self.debug_map.shape[0] == 8192:
                 continue
-            # Load the updated image
             updated_image = self.debug_map.copy()
-
-            # 灰度图转RGB
             updated_image = cv.cvtColor(updated_image, cv.COLOR_GRAY2RGB)
             updated_image[
                 self.real_loc[0] - 2 : self.real_loc[0] + 3,
                 self.real_loc[1] - 2 : self.real_loc[1] + 3,
             ] = [49, 49, 140]
-
             # 将图片放大两倍
             updated_image = cv.resize(
                 updated_image, None, fx=2, fy=2, interpolation=cv.INTER_LINEAR
@@ -927,44 +917,3 @@ class SimulatedUniverse(UniverseUtils):
                 self.stop()
 
 
-def main():
-    global speed, consumable, slow, bonus, nums, update
-    if speed == -1:
-        speed = config.speed_mode
-    if consumable == -1:
-        consumable = config.use_consumable
-    if slow == -1:
-        slow = config.slow_mode
-    if nums == 34:
-        nums = config.max_run
-    log.info(f"find: {find}, debug: {debug}, show_map: {show_map}, consumable: {consumable}")
-    su = SimulatedUniverse(find, debug, show_map, speed, consumable, slow, nums, bonus=bonus, update=update)
-    try:
-        su.start()
-    except ValueError as e:
-        pass
-    except Exception:
-        traceback.print_exc()
-    finally:
-        su.stop()
-
-
-if __name__ == "__main__":
-    if not pyuac.isUserAdmin():
-        pyuac.runAsAdmin()
-    else:
-        find = 1
-        debug = 0
-        show_map = 0
-        update = 0
-        speed = -1
-        consumable = -1
-        slow = -1
-        bonus = 0
-        nums = 34
-        for i in sys.argv[1:]:
-            st = i.split("-")[-1]
-            if "=" not in st:
-                st = st + "=1"
-            exec(st)
-        main()
