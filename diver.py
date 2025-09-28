@@ -1199,7 +1199,7 @@ class DivergentUniverse(UniverseUtils):
             self.stop()
 
     def screen_test(self):
-        cv.imshow("screen", self.get_screen())
+        cv.imshow("screen", self.save_screen())
         cv.waitKey(0)
 
 def main():

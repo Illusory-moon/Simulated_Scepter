@@ -550,27 +550,26 @@ class UniverseUtils:
         self.screen = self.sct.grab(self.x0, self.y0)
         return self.screen
     
-    def save_screen(self, save_path=r"D:\debug", name=""):
+    def save_screen(self, save_path=r"./temp",force=False):
         """
         获取截图并保存到指定路径
         :param save_path: 保存截图的路径
+        :param force: 是否展示
         """
-        # 获取截图
-        sc = self.screen
+        sc = self.get_screen()
 
         # 如果截图是 numpy.ndarray 类型，将其转换为 PIL.Image
         if isinstance(sc, np.ndarray):
-            sc = Image.fromarray(sc)
-
-        # 确保路径存在
+            # OpenCV使用BGR格式，PIL使用RGB格式，需要转换
+            rgb_img = cv.cvtColor(sc, cv.COLOR_BGR2RGB)
+            nc = Image.fromarray(rgb_img)
+        else:
+            nc = sc
         save_path = Path(save_path)
         save_path.mkdir(parents=True, exist_ok=True)
-
-        # 构造文件名，使用当前时间戳
-        filename = name + datetime.now().strftime("%Y%m%d_%H%M%S") + ".png"
-
-        # 保存截图
-        sc.save(save_path / filename)
+        filename = datetime.now().strftime("%Y%m%d_%H%M%S") + ".png"
+        nc.save(save_path / filename)
+        return sc if force else nc
 
     # 移动视角，获得小地图中不变的部分（白线、灰块）
     def take_fine_minimap(self, n=5, dt=0.01, dy=200):
