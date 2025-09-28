@@ -6,11 +6,11 @@ import shutil
 import keyboard
 import time
 
-
 from utils.simul.config import config as config_simul
 from utils.diver.config import config as config_diver
 from simul import SimulatedUniverse
 from diver import DivergentUniverse
+from iron_blood import IronBloodUniverse
 from align_angle import main as align_angle_main
 from PyQt5.QtWidgets import (
     QApplication, QLineEdit, QMessageBox
@@ -59,8 +59,8 @@ class TaskManager:
         """
         停止当前任务
         """
-        if self.current_task and hasattr(self.current_task, '_stop'):
-            self.current_task._stop = 1
+        if self.current_task and hasattr(self.current_task, 'stop'):
+            self.current_task.stop()
             return True
         return False
 
@@ -80,7 +80,7 @@ class TaskThread(threading.Thread):
 class MainWindow(QMainWindowLog):
     # 定义校准完成信号
     calibration_finished = pyqtSignal(object)
-    
+
     def __init__(self):
         super().__init__()
         self.task_manager = TaskManager()
@@ -93,6 +93,7 @@ class MainWindow(QMainWindowLog):
         # 连接按钮信号
         self.run_simul_btn.clicked.connect(self.run_simul)
         self.run_diver_btn.clicked.connect(self.run_diver)
+        self.iron_blood_btn.clicked.connect(self.run_iron_blood)
         self.calibrate_btn.clicked.connect(self.calibrate)
         self.test_btn.clicked.connect(self.test)
         self.stop_btn.clicked.connect(self.stop_task)
@@ -131,6 +132,8 @@ class MainWindow(QMainWindowLog):
         self.config_save_btn.clicked.connect(self.save_config)
 
         self.calibration_finished.connect(self.show_calibration_result)
+
+
 
     def setup_keyboard_listener(self):
         """
@@ -225,14 +228,13 @@ class MainWindow(QMainWindowLog):
             su = SimulatedUniverse(
                 1,
                 int(config_simul.debug_mode),
-                int(config_simul.show_map_mode),
                 int(config_simul.speed_mode),
                 int(config_simul.use_consumable),
                 int(config_simul.slow_mode),
                 int(config_simul.max_run),
                 unlock=True,
                 bonus=config_simul.bonus,
-                gui=1
+                gui=self
             )
             self.task_manager.current_task = su
             su.start()
@@ -255,6 +257,27 @@ class MainWindow(QMainWindowLog):
             self.task_manager.current_task = su
             su.start()
             
+        try:
+            self.task_manager.start_task(task)
+        except RuntimeError as e:
+            QMessageBox.warning(self, "警告", str(e))
+
+    def run_iron_blood(self):
+        def task():
+            su = IronBloodUniverse(
+                1,
+                int(config_simul.debug_mode),
+                int(config_simul.speed_mode),
+                int(config_simul.use_consumable),
+                int(config_simul.slow_mode),
+                int(config_simul.max_run),
+                unlock=True,
+                bonus=config_simul.bonus,
+                gui=self
+            )
+            self.task_manager.current_task = su
+            su.start()
+
         try:
             self.task_manager.start_task(task)
         except RuntimeError as e:
@@ -322,7 +345,9 @@ class MainWindow(QMainWindowLog):
         config_simul.save()
         config_diver.save()
         QMessageBox.information(self, "提示", "配置已保存")
-
+    def set_FPS(self,TimePerFrame):
+        Fps = 1/int(TimePerFrame)
+        self.FPS_Input.setText(str(Fps))
 
 if __name__ == "__main__":
     def is_admin():

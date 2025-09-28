@@ -437,7 +437,7 @@ border:none</string>
               </layout>
              </item>
              <item>
-              <layout class="QVBoxLayout" name="Lay_Tab1_Right" stretch="0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
+              <layout class="QVBoxLayout" name="Lay_Tab1_Right" stretch="0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
                <property name="spacing">
                 <number>6</number>
                </property>
@@ -498,7 +498,7 @@ border:none</string>
                     <number>5</number>
                    </property>
                    <item>
-                    <widget class="QLabel" name="GameName_Text">
+                    <widget class="QLabel" name="FPS_Text">
                      <property name="sizePolicy">
                       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                        <horstretch>0</horstretch>
@@ -518,12 +518,12 @@ border:none</string>
                       </size>
                      </property>
                      <property name="text">
-                      <string>游戏名称</string>
+                      <string>每秒帧数FPS</string>
                      </property>
                     </widget>
                    </item>
                    <item>
-                    <widget class="QLineEdit" name="GameName_Input">
+                    <widget class="QLineEdit" name="FPS_Input">
                      <property name="enabled">
                       <bool>false</bool>
                      </property>
@@ -865,6 +865,13 @@ border:none</string>
                   </widget>
                  </item>
                 </layout>
+               </item>
+               <item>
+                <widget class="QPushButton" name="iron_blood_btn">
+                 <property name="text">
+                  <string>获取铁血战士</string>
+                 </property>
+                </widget>
                </item>
                <item>
                 <widget class="QPushButton" name="calibrate_btn">

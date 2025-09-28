@@ -9,6 +9,7 @@ import win32gui, win32api, win32con
 import random
 import sys
 from copy import deepcopy
+
 from utils.log import log, set_debug
 from utils.simul.map_log import map_log
 from utils.simul.update_map import update_map
@@ -26,17 +27,18 @@ import utils.simul.keyops as keyops
 version = "v6.3"
 
 
+def get_hwnd_and_text():
+    hwnd = win32gui.GetForegroundWindow()
+    Text = win32gui.GetWindowText(hwnd)
+    return hwnd,Text
+
+
 class SimulatedUniverse(UniverseUtils):
     def __init__(
-        self, find, debug, show_map, speed, consumable, slow, nums=-1, unlock=False, bonus=False, update=0, gui=0
+        self, find, debug, speed, consumable, slow, nums=-1, unlock=False, bonus=False, update=0, gui=None
     ):
         super().__init__()
-        # t1 = threading.Thread(target=os.system,kwargs={'command':'notif.exe > NUL 2>&1'})
-        # t2 = threading.Thread(target=os.system,kwargs={'command':'python notif.py > NUL 2>&1'})
         log.info("当前命途：" + self.fate)
-        self.validation = 1
-        if "debug" in version and not gui:
-            log.info("欢迎加入模拟宇宙小群，群号：921407322 密码：xyzzyx")
         self.now_map = None
         self.now_map_sim = None
         self.real_loc = [0, 0]
@@ -48,7 +50,7 @@ class SimulatedUniverse(UniverseUtils):
         self.speed = speed
         self.consumable = consumable
         self.slow = slow
-        self._show_map = show_map & find
+        self._show_map = debug
         self.floor = 0
         self.count = 0
         self.count_tm = time.time()
@@ -65,6 +67,11 @@ class SimulatedUniverse(UniverseUtils):
         self.nums = nums
         self.end = 0
         self.quan = 0
+        self.battle = 0
+        self.quit = 0
+        self.floor_init = 0
+        self.confirm_time = 0
+        self.threshold = 0.97
         ex_notif = ""
         if debug != 2:
             pyautogui.FAILSAFE = False
@@ -106,22 +113,13 @@ class SimulatedUniverse(UniverseUtils):
             os.mkdir(self.map_file)
 
     def route(self):
-        self.threshold = 0.97
-        self.battle = 0
-        self.quit = 0
-        self.floor_init = 0
         self.in_battle = 0
         self.init_map()
         fail_cnt = 0
         fail_time = 0
-        self.confirm_time = 0
-        self._stop = os.stat("imgs/mon" + self.tss).st_size != 141882
         fp = 1
-        while True:
-            if self._stop:
-                break
-            hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
-            Text = win32gui.GetWindowText(hwnd)
+        while not self._stop:
+            hwnd,Text = get_hwnd_and_text()
             warn_game = False
             cnt = 0
             while Text != "崩坏：星穹铁道" and Text != "云·星穹铁道" and not self._stop:
@@ -134,20 +132,12 @@ class SimulatedUniverse(UniverseUtils):
                 time.sleep(0.5)
                 cnt += 1
                 if cnt == 1200:
-                    set_forground()
-                hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
-                Text = win32gui.GetWindowText(hwnd)
+                    set_forground()# 将游戏窗口设为前台
+                hwnd,Text = get_hwnd_and_text()
             if self._stop:
                 break
-            self.get_screen()
+            self.get_screen()# 从全屏截屏中裁剪得到游戏窗口截屏
             # self.click_target('imgs/fail.jpg',0.9,True) # 如果需要输出某张图片在游戏窗口中的坐标，可以用这个
-            """
-            if begin and not self.check("f", 0.4437,0.4231) and not self.check("abyss/1",0.8568,0.6769):
-                begin = 0
-                self.press("F4")
-                time.sleep(0.6)
-                self.get_screen()
-            """
             res = self.normal()
             # 未匹配到图片，降低匹配阈值，若一直无法匹配则乱点
             if res == 0:
@@ -882,20 +872,14 @@ class SimulatedUniverse(UniverseUtils):
                 traceback.print_stack()
         except:
             pass
-        self._stop = True
+        # self._stop = True
+        # self._stop = 1
+        # self._stop = True
         self._stop = 1
-        self._stop = True
-        self._stop = 1
-        self._stop = True
-    
-    def on_key_press(self, event):
-        global stop_flag
-        if event.name == "f8":
-            print("F8 已被按下，尝试停止运行")
-            self.stop()
+        # self._stop = True
+
 
     def show_map(self):
-        # Create a window to display the image
         cv.namedWindow("Map", cv.WINDOW_AUTOSIZE)
 
         # Update the image every second
@@ -917,33 +901,17 @@ class SimulatedUniverse(UniverseUtils):
                 updated_image, None, fx=2, fy=2, interpolation=cv.INTER_LINEAR
             )
 
-            # Update the displayed image
             cv.imshow("Map", updated_image)
-
-            # Wait for one second
             cv.waitKey(1000)
 
-        # Destroy the window
         cv.destroyAllWindows()
 
-    def check_req(self):
-        self._stop |= os.system("pip show numpy > NUL 2>&1") and not self.unlock
-        if self._stop:
-            log.info("未安装依赖库或环境变量未正确设置")
-        time.sleep(10)
-        self._stop |= os.system("pip show numpy > NUL 2>&1") and not self.unlock
-        if self._stop:
-            log.info("未安装依赖库或环境变量未正确设置")
 
     def start(self):
         self._stop = False
-        if self.validation == 0:
-            return
-        keyboard.on_press(self.on_key_press)
         if self._show_map:
             t_map = threading.Thread(target=self.show_map)
             t_map.start()
-        # threading.Thread(target=self.check_req).start()
         try:
             self.route()
         except KeyboardInterrupt:
