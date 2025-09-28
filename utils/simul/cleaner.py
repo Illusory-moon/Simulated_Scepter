@@ -61,11 +61,11 @@ for file in os.listdir('tmp'):
 exit()
 '''
 # 删除地图数据中没用的文件
-for file in os.listdir("imgs/maps"):
-    pth = "imgs/maps/" + file + "/target.jpg"
+for file in os.listdir("resource/imgs/maps"):
+    pth = "resource/imgs/maps/" + file + "/target.jpg"
     if os.path.exists(pth):
         get_target(pth)
-        copy(os.getcwd()+'\\'+"imgs/maps/" + file + "/target.jpg",os.getcwd()+'\\'+'targ')
+        copy(os.getcwd()+'\\'+"resource/imgs/maps/" + file + "/target.jpg",os.getcwd()+'\\'+'targ')
         os.rename('targ/target.jpg','targ/'+str(file)+'.jpg')
         #image = cv.imread(pth)
         # for map in os.listdir("imgs/maps/" + file):

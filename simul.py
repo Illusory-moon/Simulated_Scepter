@@ -86,8 +86,8 @@ class SimulatedUniverse(UniverseUtils):
             update_map()
         self.lst_changed = time.time()
         log.info("加载地图")
-        for file in os.listdir("imgs/maps"):
-            pth = "imgs/maps/" + file + "/init.jpg"
+        for file in os.listdir("resource/imgs/maps"):
+            pth = "resource/imgs/maps/" + file + "/init.jpg"
             if os.path.exists(pth):
                 image = cv.imread(pth)
                 self.img_set.append((file, self.extract_features(image)))
@@ -109,7 +109,7 @@ class SimulatedUniverse(UniverseUtils):
         self.ang_neg = 0
         self.first_mini = 1
         self.in_battle = time.time()
-        self.map_file = "imgs/maps/my_" + str(random.randint(0, 99999)) + "/"
+        self.map_file = "resource/imgs/maps/my_" + str(random.randint(0, 99999)) + "/"
         if self.find == 0 and not os.path.exists(self.map_file):
             os.mkdir(self.map_file)
 
@@ -411,7 +411,7 @@ class SimulatedUniverse(UniverseUtils):
                                     fh.write(str(s))
                             except:
                                 pass
-                        self.now_pth = "imgs/maps/" + self.now_map + "/"
+                        self.now_pth = "resource/imgs/maps/" + self.now_map + "/"
                         files = self.find_latest_modified_file(self.now_pth)
                         print("地图文件：", files)
                         self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)

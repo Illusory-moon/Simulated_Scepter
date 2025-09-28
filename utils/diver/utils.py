@@ -164,10 +164,10 @@ class UniverseUtils:
                 pass
         self.sct = Screen()
 
-    def gen_hotkey_img(self,hotkey="e",bg="imgs/f_bg.jpg"):
+    def gen_hotkey_img(self,hotkey="e",bg="resource/imgs/f_bg.jpg"):
         hotkey = hotkey.upper()
         image = Image.open(bg)
-        font = ImageFont.truetype("imgs/base.ttf", 24)
+        font = ImageFont.truetype("resource/imgs/base.ttf", 24)
         d = ImageDraw.Draw(image)
         position = (2,-3)
         color = (152, 214, 241)
@@ -368,7 +368,7 @@ class UniverseUtils:
         ]
 
     def format_path(self, path):
-        return f"imgs/{path}.jpg"
+        return f"resource/imgs/{path}.jpg"
 
     # 判断截图中匹配中心点附近是否存在匹配模板
     # path：匹配模板的路径，x,y：匹配中心点，mask：如果存在，则以mask大小为基准裁剪截图，threshold：匹配阈值
@@ -377,7 +377,7 @@ class UniverseUtils:
             threshold = self.threshold
         path = self.format_path(path)
         target = cv.imread(path)
-        if path == 'imgs/f.jpg' and config.mapping[0]!='f':
+        if path == 'resource/imgs/f.jpg' and config.mapping[0]!='f':
             target = self.gen_hotkey_img(config.mapping[0])
             threshold -= 0.01
         target = cv.resize(
@@ -399,7 +399,7 @@ class UniverseUtils:
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
         self.tx = x - (max_loc[0] - 0.5 * local_screen.shape[1] + 0.5 * target.shape[1]) / self.xx
         self.ty = y - (max_loc[1] - 0.5 * local_screen.shape[0] + 0.5 * target.shape[0]) / self.yy
-        if path == "./imgs/run.jpg" and 0:
+        if path == "./resource/imgs/run.jpg" and 0:
             print(max_val)
             cv.imwrite('target.jpg',target)
             cv.imwrite('local.jpg',local_screen)
@@ -460,7 +460,7 @@ class UniverseUtils:
                 bw_map[:, cen + 350 // mask :] = 0
             except:
                 pass
-        region = cv.imread("imgs/region.jpg", cv.IMREAD_GRAYSCALE)
+        region = cv.imread("resource/imgs/region.jpg", cv.IMREAD_GRAYSCALE)
         result = cv.matchTemplate(bw_map, region, cv.TM_CCORR_NORMED)
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
         if max_val < 0.6:
@@ -599,8 +599,8 @@ class UniverseUtils:
             total_img = cv.bitwise_and(total_mask, total_img)
             time.sleep(dt)
 
-        cv.imwrite("imgs/fine_minimap.jpg", total_img)
-        cv.imwrite("imgs/fine_mask.jpg", total_mask)
+        cv.imwrite("resource/imgs/fine_minimap.jpg", total_img)
+        cv.imwrite("resource/imgs/fine_mask.jpg", total_mask)
         return total_img, total_mask
 
     # 进一步得到小地图的黑白格式
@@ -958,7 +958,7 @@ class UniverseUtils:
                         self.real_loc[1] - 1 : self.real_loc[1] + 2,
                     ] = 49
                     # 轨迹图
-                    cv.imwrite("imgs/bigmap.jpg", self.big_map)
+                    cv.imwrite("resource/imgs/bigmap.jpg", self.big_map)
                 nds = self.get_dis(self.real_loc, loc)
                 # 1秒内没有离目标点更近：开始尝试绕过障碍
                 if dls[0] <= nds:
@@ -1629,8 +1629,8 @@ class UniverseUtils:
 
     def get_text_position(self, clean=0):
         if self.event_mask is None:
-            self.event_mask = (cv.imread('imgs/divergent/event_mask.jpg', cv.IMREAD_GRAYSCALE) > 70)[:497]
-            self.event_mask_clean = (cv.imread('imgs/divergent/event_mask_clean.jpg', cv.IMREAD_GRAYSCALE) > 70)[:497]
+            self.event_mask = (cv.imread('resource/imgs/divergent/event_mask.jpg', cv.IMREAD_GRAYSCALE) > 70)[:497]
+            self.event_mask_clean = (cv.imread('resource/imgs/divergent/event_mask_clean.jpg', cv.IMREAD_GRAYSCALE) > 70)[:497]
         scr = self.screen[:497]
         mask = np.zeros((497, scr.shape[1]), dtype=np.uint8)
         mask_zero = np.zeros((497, scr.shape[1]), dtype=np.uint8)

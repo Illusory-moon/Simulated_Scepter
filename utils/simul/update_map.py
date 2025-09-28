@@ -104,7 +104,7 @@ def update_map(force=False):
     if remote_sha == local_sha:
         print("map无需更新")
         return "地图已是最新版本", "green"
-    map_path = os.path.join(root_path, "imgs\\maps")
+    map_path = os.path.join(root_path, "resource\\imgs\\maps")
     print("Map path: " + map_path)
     # 下载map仓库并解压
     status = sync_github_repo(repo_url, root_path)

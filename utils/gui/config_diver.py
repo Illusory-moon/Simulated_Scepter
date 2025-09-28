@@ -47,7 +47,7 @@ def config_view(page: Page):
     
     def go_money(e=None):
         dlg = ft.AlertDialog(
-            title=ft.Text("送杯咖啡喵 QWQ"), content=ft.Image("imgs/money.jpg")
+            title=ft.Text("送杯咖啡喵 QWQ"), content=ft.Image("resource/imgs/money.jpg")
         )
         page.dialog = dlg
         dlg.open = True
