@@ -242,8 +242,10 @@ class MainWindow(QMainWindowLog):
             
         try:
             self.task_manager.start_task(task)
-        except RuntimeError as e:
-            QMessageBox.warning(self, "警告", str(e))
+        except RuntimeError as r:
+            QMessageBox.warning(self, "警告", str(r))
+        except Exception as e:
+            QMessageBox.critical(self, "错误", str(e))
 
     def run_diver(self):
         from utils.diver.args import args
@@ -260,8 +262,10 @@ class MainWindow(QMainWindowLog):
             
         try:
             self.task_manager.start_task(task)
-        except RuntimeError as e:
-            QMessageBox.warning(self, "警告", str(e))
+        except RuntimeError as r:
+            QMessageBox.warning(self, "警告", str(r))
+        except Exception as e:
+            QMessageBox.critical(self, "错误", str(e))
 
     def run_iron_blood(self):
         def task():
@@ -281,17 +285,17 @@ class MainWindow(QMainWindowLog):
 
         try:
             self.task_manager.start_task(task)
-        except RuntimeError as e:
-            QMessageBox.warning(self, "警告", str(e))
+        except RuntimeError as r:
+            QMessageBox.warning(self, "警告", str(r))
+        except Exception as e:
+            QMessageBox.critical(self, "错误", str(e))
 
     def calibrate(self):
         def task():
             try:
                 res = align_angle_main()
-                # 通过信号在主线程中显示结果
                 self.calibration_finished.emit(res)
             except Exception as e:
-                # 通过信号在主线程中显示错误信息
                 self.calibration_finished.emit(e)
             
         try:
@@ -308,11 +312,6 @@ class MainWindow(QMainWindowLog):
         else:
             QMessageBox.warning(self, "失败", "校准失败，请重试。")
 
-    def run_on_main_thread(self, func):
-        """
-        在主线程中执行函数，用于更新UI
-        """
-        func()
 
     def save_config(self):
         # 保存模拟宇宙配置
@@ -348,7 +347,6 @@ class MainWindow(QMainWindowLog):
         QMessageBox.information(self, "提示", "配置已保存")
 
     def set_FPS(self,TimePerFrame):
-        # 修复FPS计算精度问题，使用浮点数而不是整数
         Fps = 1.0 / float(TimePerFrame)
         Fps = round(Fps, 2)
         self.FPS_Input.setText(str(Fps))

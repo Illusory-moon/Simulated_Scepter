@@ -1,11 +1,10 @@
 import threading
 import traceback
-import keyboard
 import pyautogui
 import cv2 as cv
 import numpy as np
 import time
-import win32gui, win32api, win32con
+import win32gui
 import random
 import sys
 from copy import deepcopy
@@ -37,7 +36,7 @@ class SimulatedUniverse(UniverseUtils):
     def __init__(
         self, find, debug, speed, consumable, slow, nums=-1, unlock=False, bonus=False, update=0, gui=None
     ):
-        super().__init__()
+        super().__init__(gui)
         log.info("当前命途：" + self.fate)
         self.now_map = None
         self.now_map_sim = None
@@ -62,7 +61,6 @@ class SimulatedUniverse(UniverseUtils):
         self.check_bonus = bonus
         self.bonus = bonus
         self.kl = 0
-        self.gui = gui
         self.fail_count = 0
         self.nums = nums
         self.end = 0
@@ -140,23 +138,6 @@ class SimulatedUniverse(UniverseUtils):
                 hwnd,Text = get_hwnd_and_text()
             if self._stop:
                 break
-            
-            # 计算get_screen调用间隔时间
-            current_time = time.time()
-            if self.last_get_screen_time is not None:
-                interval = current_time - self.last_get_screen_time
-                self.fps_list.append(interval)
-                # 保持列表只包含最新的30个数据点
-                if len(self.fps_list) > 30:
-                    self.fps_list.pop(0)
-                # 当有GUI实例时，计算平均FPS并更新GUI
-                if self.gui is not None and hasattr(self.gui, 'set_FPS'):
-                    avg_interval = sum(self.fps_list) / len(self.fps_list)
-                    try:
-                        self.gui.set_FPS(avg_interval)
-                    except:
-                        pass  # 忽略任何GUI更新错误
-            self.last_get_screen_time = current_time
             
             self.get_screen()# 从全屏截屏中裁剪得到游戏窗口截屏
             # self.click_target('imgs/fail.jpg',0.9,True) # 如果需要输出某张图片在游戏窗口中的坐标，可以用这个
@@ -239,8 +220,6 @@ class SimulatedUniverse(UniverseUtils):
                 self.floor -= 1
                 self.restore_map()
             if self.fate == "丰饶":
-                if random.randint(0, 5) == 3:
-                    self.press("3")
                 if random.randint(0, 6) == 3:
                     self.press("r")
             # self.battle：最后一次处于战斗状态的时间，0表示处于非战斗状态
@@ -452,6 +431,7 @@ class SimulatedUniverse(UniverseUtils):
                     self.press("1")
                 # 录制模式，保存初始小地图
                 else:
+                    log.info("未找到匹配地图")
                     time.sleep(3)
                     self.mini_state = 0
                     self.exist_minimap()

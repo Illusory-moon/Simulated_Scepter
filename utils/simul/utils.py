@@ -78,7 +78,8 @@ def set_forground():
 
 
 class UniverseUtils:
-    def __init__(self):
+    def __init__(self,gui):
+        self.fps_list = []
         set_forground()
         self.check_bonus = 1
         self._stop = False
@@ -99,6 +100,7 @@ class UniverseUtils:
         self.allow_e = 1
         self.quan = 0
         self.img_map = dict()
+        self.gui=gui
         # 用户选择的命途
         for i in range(len(config.fates)):
             if config.fates[i] == self.fate:
@@ -507,6 +509,20 @@ class UniverseUtils:
 
     # 从全屏截屏中裁剪得到游戏窗口截屏
     def get_screen(self):
+        current_time = time.time()
+        if hasattr(self, 'last_get_screen_time') and self.last_get_screen_time is not None:
+            interval = current_time - self.last_get_screen_time
+            self.fps_list.append(interval)
+            if len(self.fps_list) > 30:
+                self.fps_list.pop(0)
+            if hasattr(self, 'gui') and self.gui is not None and hasattr(self.gui, 'set_FPS'):
+                avg_interval = sum(self.fps_list) / len(self.fps_list)
+                try:
+                    self.gui.set_FPS(avg_interval)
+                    # log.info(f"平均FPS: {1 / avg_interval:.2f}")
+                except:
+                    pass
+        self.last_get_screen_time = current_time
         self.screen = self.sct.grab(self.x0, self.y0)
         return self.screen
 
