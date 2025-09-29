@@ -73,6 +73,8 @@ class SimulatedUniverse(UniverseUtils):
         # 添加用于计算FPS的变量
         self.last_get_screen_time = None
         self.fps_list = []
+        # 添加地图线程引用
+        self.map_thread = None
         ex_notif = ""
         if debug != 2:
             pyautogui.FAILSAFE = False
@@ -877,6 +879,25 @@ class SimulatedUniverse(UniverseUtils):
         except:
             pass
         self._stop = 1
+        
+        # 等待地图线程结束
+        if self.map_thread and self.map_thread.is_alive():
+            # 等待最多2秒让线程自行结束
+            timeout = 2
+            start_time = time.time()
+            while self.map_thread.is_alive() and (time.time() - start_time) < timeout:
+                time.sleep(0.1)
+            
+            # 如果线程仍未结束，强制终止
+            if self.map_thread.is_alive():
+                import ctypes
+                res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                    ctypes.c_long(self.map_thread.ident),
+                    ctypes.py_object(SystemExit)
+                )
+                time.sleep(0.5)  # 短暂等待
+                
+        self.map_thread = None
 
     def goto_herta_office(self):
         log.info("前往黑塔办公室")
@@ -917,8 +938,6 @@ class SimulatedUniverse(UniverseUtils):
             time.sleep(3)
             keyops.keyUp("w")
 
-
-
     def show_map(self):
         # 创建窗口时使用 WINDOW_FREERATIO 标志以避免自动获取焦点
         cv.namedWindow("Map", cv.WINDOW_FREERATIO | cv.WINDOW_NORMAL)
@@ -945,8 +964,8 @@ class SimulatedUniverse(UniverseUtils):
     def start(self):
         self._stop = False
         if self._show_map:
-            t_map = threading.Thread(target=self.show_map)
-            t_map.start()
+            self.map_thread = threading.Thread(target=self.show_map)
+            self.map_thread.start()
         try:
             self.route()
         except KeyboardInterrupt:

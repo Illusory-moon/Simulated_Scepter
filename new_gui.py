@@ -8,7 +8,6 @@ import time
 
 import pyuac
 
-from utils.log import log
 from utils.simul.config import config as config_simul
 from utils.diver.config import config as config_diver
 from simul import SimulatedUniverse
@@ -68,6 +67,45 @@ class TaskManager:
             return True
         return False
 
+    def kill_task(self):
+        """
+        直接终止当前任务线程，包括其创建的所有子线程
+        """
+        if self.task_thread and self.task_thread.is_alive():
+            import ctypes
+            import time
+            
+            # 首先尝试正常方式通知任务停止
+            if self.current_task and hasattr(self.current_task, 'stop'):
+                try:
+                    self.current_task.stop()
+                    time.sleep(0.2)
+                except:
+                    pass
+            if self.task_thread.is_alive():
+                thread_id = self.task_thread.ident
+                res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                    ctypes.c_long(thread_id),
+                    ctypes.py_object(SystemExit)
+                )
+
+                timeout = 3
+                start_time = time.time()
+                while self.task_thread.is_alive() and (time.time() - start_time) < timeout:
+                    time.sleep(0.1)
+
+                if self.task_thread.is_alive():
+                    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                        ctypes.c_long(thread_id),
+                        ctypes.py_object(SystemExit)
+                    )
+                    time.sleep(0.5)
+                    
+            self.task_thread = None
+            self.current_task = None
+            return True
+        return False
+
 
 class TaskThread(threading.Thread):
     def __init__(self, target, args=None, kwargs=None):
@@ -108,7 +146,7 @@ class MainWindow(QMainWindowLog):
         self.test_btn.clicked.connect(self.test)
         self.print_btn.clicked.connect(self.test_2)
         self.stop_btn.clicked.connect(self.stop_task)
-        self.clear_logs_btn.clicked.connect(self.clear_logs)  # 新增清除日志按钮连接
+        self.clear_logs_btn.clicked.connect(self.clear_logs)
 
         # 初始化模拟宇宙配置界面
         self.Simul_bonus_checkbox.setChecked(bool(config_simul.bonus))
@@ -178,17 +216,14 @@ class MainWindow(QMainWindowLog):
         统一处理F5/F6/F7按键事件
         """
         if key == "f5":
-            # F5: 停止任务
             if self.task_manager.is_task_running():
                 self.stop_btn.click()
         elif key == "f6":
-            # F6: 运行test
             if self.task_manager.is_task_running():
                 QMessageBox.warning(self, "警告", "已有任务正在运行")
             else:
                 self.test_btn.click()
         elif key == "f7":
-            # F7: 运行test_2
             if self.task_manager.is_task_running():
                 QMessageBox.warning(self, "警告", "已有任务正在运行")
             else:
@@ -275,8 +310,8 @@ class MainWindow(QMainWindowLog):
             QMessageBox.warning(self, "警告", str(e))
     def stop_task(self):
         try:
-            if self.task_manager.stop_task():
-                QMessageBox.information(self, "提示", "已发送停止信号...")
+            if self.task_manager.kill_task():
+                QMessageBox.information(self, "提示", "任务线程已终止")
         except Exception as e:
             pass
         
@@ -360,7 +395,6 @@ class MainWindow(QMainWindowLog):
             QMessageBox.warning(self, "警告", str(e))
 
     def show_calibration_result(self, result):
-        # 检查result是返回值还是异常
         if isinstance(result, Exception):
             QMessageBox.critical(self, "错误", f"校准失败: {str(result)}")
         elif result == 1:
@@ -381,7 +415,7 @@ class MainWindow(QMainWindowLog):
         try:
             config_simul.max_run = int(self.Simul_max_run_input.text())
         except ValueError:
-            pass  # 保持原值
+            pass
             
         # 保存差分宇宙配置
         config_diver.debug_mode = int(self.Diver_debug_checkbox.isChecked())
@@ -395,7 +429,7 @@ class MainWindow(QMainWindowLog):
         try:
             config_diver.max_run = int(self.Diver_max_run_input.text())
         except ValueError:
-            pass  # 保持原值
+            pass
 
         # 保存配置到文件
         config_simul.save()
