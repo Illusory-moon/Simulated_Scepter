@@ -318,6 +318,23 @@ class UniverseUtils:
             raise ValueError("正在退出")
         time.sleep(0.3)
 
+    # 滚轮滚动
+    def scroll(self, points, direct=1):
+        x, y = points
+        # 如果是浮点数表示，则计算实际坐标
+        if type(x) != type(0):
+            x, y = self.x1 - int(x * self.xx), self.y1 - int(y * self.yy)
+        # 全屏模式会有一个偏移
+        if self.full:
+            x += 9
+            y += 9
+        if self._stop == 0:
+            win32api.SetCursorPos((x, y))
+            pyautogui.scroll(direct)
+        else:
+            raise ValueError("正在退出")
+        time.sleep(0.3)
+
     # 拖动
     def drag(self, pt1, pt2):
         x1, y1 = pt1
@@ -365,7 +382,9 @@ class UniverseUtils:
 
     # 判断截图中匹配中心点附近是否存在匹配模板
     # path：匹配模板的路径，x,y：匹配中心点，mask：如果存在，则以mask大小为基准裁剪截图，threshold：匹配阈值
-    def check(self, path, x, y, mask=None, threshold=None, large=True, use_binary=False):
+    def check(self, path, x, y, mask=None, threshold=None, large=True, use_binary=False,fresh=False):
+        if fresh:
+            self.get_screen()
         if threshold is None:
             threshold = self.threshold
         path = self.format_path(path)

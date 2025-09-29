@@ -120,6 +120,7 @@ class SimulatedUniverse(UniverseUtils):
         fail_time = 0
         fp = 1
         set_forground()
+        self.goto_herta_office()
         while not self._stop:
             hwnd,Text = get_hwnd_and_text()
             warn_game = False
@@ -876,6 +877,47 @@ class SimulatedUniverse(UniverseUtils):
         except:
             pass
         self._stop = 1
+
+    def goto_herta_office(self):
+        log.info("前往黑塔办公地点")
+        if self.check("smartphone", 0.9833,0.9380, threshold=0.95,fresh=True):
+            log.info("打开地图")
+            self.press('m')
+            while not self.check("world_map", 0.1521,0.8620, threshold=0.985,fresh=True):
+                log.info("查找世界地图")
+                time.sleep(0.5)
+            self.click((0.1521,0.8620))
+            time.sleep(0.5)
+            #拖拽地图到最左
+            self.drag((0.8521,0.5620),(0.1521,0.5620))
+            self.drag((0.8521,0.5620),(0.1521,0.5620))
+            while not self.check("herta_space_station", 0.7526,0.3500, threshold=0.9,fresh=True):
+                time.sleep(0.5)
+            self.click((0.7526,0.3500))
+            while not self.check("control_room_2", 0.1953,0.6806, threshold=0.985,fresh=True):
+                if self.check("control_room", 0.1953,0.6806, threshold=0.985,fresh=True):
+                    self.click((0.1953,0.6806))
+                time.sleep(0.5)
+            self.scroll((0.5,0.5),-1)#放大地图
+            self.drag((0.5,0.1520),(0.5,0.8620))
+            self.drag((0.5,0.1520),(0.5,0.8620))
+            time.sleep(0.5)
+            while not self.check("herta_office", 0.7740,0.2824, threshold=0.95,fresh=True):
+                time.sleep(0.5)
+            self.click((0.7740,0.2824))
+            while not self.check("herta_office_2", 0.5349,0.3102, threshold=0.985,fresh=True):
+                time.sleep(0.5)
+            self.click((0.5349,0.3102))
+            while not self.check("tp", 0.1448,0.1111, threshold=0.985,fresh=True):
+                time.sleep(0.5)
+            self.click((0.1448,0.1111))
+            time.sleep(5)
+            self.mouse_move(15)
+            keyops.keyDown("w")
+            self.sprint()
+            time.sleep(3)
+            keyops.keyUp("w")
+
 
 
     def show_map(self):

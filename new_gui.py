@@ -272,7 +272,7 @@ class MainWindow(QMainWindowLog):
                 int(config_diver.speed_mode)
             )
             self.task_manager.current_task = su
-            su.click_target('resource/imgs/run.jpg',0.9,True,refine_mask_path='resource/imgs/run.jpg',use_binary= True)
+            su.click_target('resource/imgs/herta_office.jpg',0.9,True,use_binary= False)
 
         try:
             self.task_manager.start_task(task)
