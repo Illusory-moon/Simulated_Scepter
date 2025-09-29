@@ -879,12 +879,11 @@ class SimulatedUniverse(UniverseUtils):
         self._stop = 1
 
     def goto_herta_office(self):
-        log.info("前往黑塔办公地点")
+        log.info("前往黑塔办公室")
         if self.check("smartphone", 0.9833,0.9380, threshold=0.95,fresh=True):
             log.info("打开地图")
             self.press('m')
             while not self.check("world_map", 0.1521,0.8620, threshold=0.985,fresh=True):
-                log.info("查找世界地图")
                 time.sleep(0.5)
             self.click((0.1521,0.8620))
             time.sleep(0.5)

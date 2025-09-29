@@ -90,16 +90,14 @@ class MainWindow(QMainWindowLog):
     def __init__(self):
         super().__init__()
         self.task_manager = TaskManager()
-        self._last_f5_time = 0
-        self._last_f6_time = 0
-        self._last_f7_time = 0
+        self._last_key_time = {}  # 合并f5,f6,f7时间记录
 
         self.init_ui()
         self.setup_keyboard_listener()
-        # 连接F5/F6按键信号到处理函数
-        self.f5_pressed.connect(self.handle_f5_pressed)
-        self.f6_pressed.connect(self.handle_f6_pressed)
-        self.f7_pressed.connect(self.handle_f7_pressed)
+        # 连接F5/F6/F7按键信号到处理函数
+        self.f5_pressed.connect(lambda: self.handle_key_pressed("f5"))
+        self.f6_pressed.connect(lambda: self.handle_key_pressed("f6"))
+        self.f7_pressed.connect(lambda: self.handle_key_pressed("f7"))
 
     def init_ui(self):
         # 连接按钮信号
@@ -150,7 +148,7 @@ class MainWindow(QMainWindowLog):
 
     def setup_keyboard_listener(self):
         """
-        设置键盘监听器，监听F5/F6按键
+        设置键盘监听器，监听F5/F6/F7按键
         """
         keyboard.on_press_key("f5", self._on_key_pressed)
         keyboard.on_press_key("f6", self._on_key_pressed)
@@ -158,46 +156,43 @@ class MainWindow(QMainWindowLog):
 
     def _on_key_pressed(self, event):
         """
-        当F5/F6按键被按下时的回调函数
+        当F5/F6/F7按键被按下时的回调函数
         """
         current_time = time.time()
+        key = event.name.lower()
         
-        if event.name == "f5":
-            if current_time - self._last_f5_time > 1:
-                self._last_f5_time = current_time
-                self.f5_pressed.emit()
-        elif event.name == "f6":
-            if current_time - self._last_f6_time > 1:
-                self._last_f6_time = current_time
-                self.f6_pressed.emit()
-        elif event.name == "f7":
-            if current_time - self._last_f7_time > 1:
-                self._last_f7_time = current_time
-                self.f7_pressed.emit()
+        # 只处理F5/F6/F7按键
+        if key in ["f5", "f6", "f7"]:
+            last_time = self._last_key_time.get(key, 0)
+            if current_time - last_time > 1:  # 1秒防重复
+                self._last_key_time[key] = current_time
+                if key == "f5":
+                    self.f5_pressed.emit()
+                elif key == "f6":
+                    self.f6_pressed.emit()
+                elif key == "f7":
+                    self.f7_pressed.emit()
             
-    def handle_f5_pressed(self):
+    def handle_key_pressed(self, key):
         """
-        在主线程中处理F5按键事件
+        统一处理F5/F6/F7按键事件
         """
-        if self.task_manager.is_task_running():
-            self.stop_btn.click()
-                
-    def handle_f6_pressed(self):
-        """
-        在主线程中处理F6按键事件
-        """
-        if self.task_manager.is_task_running():
-            QMessageBox.warning(self, "警告", "已有任务正在运行")
-        else:
-            self.test_btn.click()
-    def handle_f7_pressed(self):
-        """
-        在主线程中处理F7按键事件
-        """
-        if self.task_manager.is_task_running():
-            QMessageBox.warning(self, "警告", "已有任务正在运行")
-        else:
-            self.print_btn.click()
+        if key == "f5":
+            # F5: 停止任务
+            if self.task_manager.is_task_running():
+                self.stop_btn.click()
+        elif key == "f6":
+            # F6: 运行test
+            if self.task_manager.is_task_running():
+                QMessageBox.warning(self, "警告", "已有任务正在运行")
+            else:
+                self.test_btn.click()
+        elif key == "f7":
+            # F7: 运行test_2
+            if self.task_manager.is_task_running():
+                QMessageBox.warning(self, "警告", "已有任务正在运行")
+            else:
+                self.print_btn.click()
         
     def closeEvent(self, event):
         """
