@@ -8,6 +8,7 @@ import time
 
 import pyuac
 
+from utils.log import log
 from utils.simul.config import config as config_simul
 from utils.diver.config import config as config_diver
 from simul import SimulatedUniverse
@@ -81,23 +82,24 @@ class TaskThread(threading.Thread):
 
 
 class MainWindow(QMainWindowLog):
-    # 定义校准完成信号
     calibration_finished = pyqtSignal(object)
-    # 定义F5/F6按键触发信号
     f5_pressed = pyqtSignal()
     f6_pressed = pyqtSignal()
+    f7_pressed = pyqtSignal()
 
     def __init__(self):
         super().__init__()
         self.task_manager = TaskManager()
         self._last_f5_time = 0
         self._last_f6_time = 0
+        self._last_f7_time = 0
 
         self.init_ui()
         self.setup_keyboard_listener()
         # 连接F5/F6按键信号到处理函数
         self.f5_pressed.connect(self.handle_f5_pressed)
         self.f6_pressed.connect(self.handle_f6_pressed)
+        self.f7_pressed.connect(self.handle_f7_pressed)
 
     def init_ui(self):
         # 连接按钮信号
@@ -106,6 +108,7 @@ class MainWindow(QMainWindowLog):
         self.iron_blood_btn.clicked.connect(self.run_iron_blood)
         self.calibrate_btn.clicked.connect(self.calibrate)
         self.test_btn.clicked.connect(self.test)
+        self.print_btn.clicked.connect(self.test_2)
         self.stop_btn.clicked.connect(self.stop_task)
         self.clear_logs_btn.clicked.connect(self.clear_logs)  # 新增清除日志按钮连接
 
@@ -151,7 +154,8 @@ class MainWindow(QMainWindowLog):
         """
         keyboard.on_press_key("f5", self._on_key_pressed)
         keyboard.on_press_key("f6", self._on_key_pressed)
-        
+        keyboard.on_press_key("f7", self._on_key_pressed)
+
     def _on_key_pressed(self, event):
         """
         当F5/F6按键被按下时的回调函数
@@ -166,6 +170,10 @@ class MainWindow(QMainWindowLog):
             if current_time - self._last_f6_time > 1:
                 self._last_f6_time = current_time
                 self.f6_pressed.emit()
+        elif event.name == "f7":
+            if current_time - self._last_f7_time > 1:
+                self._last_f7_time = current_time
+                self.f7_pressed.emit()
             
     def handle_f5_pressed(self):
         """
@@ -182,6 +190,14 @@ class MainWindow(QMainWindowLog):
             QMessageBox.warning(self, "警告", "已有任务正在运行")
         else:
             self.test_btn.click()
+    def handle_f7_pressed(self):
+        """
+        在主线程中处理F7按键事件
+        """
+        if self.task_manager.is_task_running():
+            QMessageBox.warning(self, "警告", "已有任务正在运行")
+        else:
+            self.print_btn.click()
         
     def closeEvent(self, event):
         """
@@ -245,6 +261,23 @@ class MainWindow(QMainWindowLog):
         except RuntimeError as e:
             QMessageBox.warning(self, "警告", str(e))
 
+    def test_2(self):
+        from utils.diver.args import args
+
+        def task():
+            args.cpu = int(config_diver.cpu_mode)
+            su = DivergentUniverse(
+                int(config_diver.debug_mode),
+                int(config_diver.max_run),
+                int(config_diver.speed_mode)
+            )
+            self.task_manager.current_task = su
+            su.click_target('resource/imgs/run.jpg',0.9,True,refine_mask_path='resource/imgs/run.jpg',use_binary= True)
+
+        try:
+            self.task_manager.start_task(task)
+        except RuntimeError as e:
+            QMessageBox.warning(self, "警告", str(e))
     def stop_task(self):
         try:
             if self.task_manager.stop_task():
@@ -429,4 +462,8 @@ def main():
         window.show()
         sys.exit(app.exec_())
 if __name__ == "__main__":
-    main()
+    x=0
+    if x:
+        old_main()
+    else:
+        main()

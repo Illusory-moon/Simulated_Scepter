@@ -341,14 +341,13 @@ class UniverseUtils:
         while True:
             result = self.scan_screenshot(target)
             if result["max_val"] > threshold:
-                print(result["max_val"])
+                log.info(result["max_val"])
                 points = self.calculated(result, target.shape)
                 self.get_point(*points)
-                exit()
                 # log.info("target shape: %s" % target.shape)
                 # self.click(points)
                 return
-            if flag == False:
+            if not flag:
                 return
 
     # 在截图中裁剪需要匹配的部分
@@ -366,7 +365,7 @@ class UniverseUtils:
 
     # 判断截图中匹配中心点附近是否存在匹配模板
     # path：匹配模板的路径，x,y：匹配中心点，mask：如果存在，则以mask大小为基准裁剪截图，threshold：匹配阈值
-    def check(self, path, x, y, mask=None, threshold=None, large=True):
+    def check(self, path, x, y, mask=None, threshold=None, large=True, use_binary=False):
         if threshold is None:
             threshold = self.threshold
         path = self.format_path(path)
@@ -389,7 +388,26 @@ class UniverseUtils:
         local_screen = self.get_local(x, y, shape, large)
         if large == False:
             return local_screen
-        result = cv.matchTemplate(local_screen, target, cv.TM_CCORR_NORMED)
+        if use_binary:
+            # 将截图和模板图像转换为灰度图
+            if len(local_screen.shape) == 3:
+                gray_screen = cv.cvtColor(local_screen, cv.COLOR_BGR2GRAY)
+            else:
+                gray_screen = local_screen
+                
+            if len(target.shape) == 3:
+                gray_target = cv.cvtColor(target, cv.COLOR_BGR2GRAY)
+            else:
+                gray_target = target
+            
+            # 对截图和模板进行二值化处理
+            _, binary_screen = cv.threshold(gray_screen, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+            _, binary_target = cv.threshold(gray_target, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+            
+            # 使用二值化图像进行匹配
+            result = cv.matchTemplate(binary_screen, binary_target, cv.TM_CCORR_NORMED)
+        else:
+            result = cv.matchTemplate(local_screen, target, cv.TM_CCORR_NORMED)
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
         self.tx = x - (max_loc[0] - 0.5 * local_screen.shape[1] + 0.5 * target.shape[1]) / self.xx
         self.ty = y - (max_loc[1] - 0.5 * local_screen.shape[0] + 0.5 * target.shape[0]) / self.yy

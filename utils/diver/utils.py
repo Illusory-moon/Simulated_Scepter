@@ -250,7 +250,7 @@ class UniverseUtils:
         # 得到一个点的浮点表示
         x = self.x1 - x
         y = self.y1 - y
-        print("获取到点：{:.4f},{:.4f}".format(x / self.xx, y / self.yy))
+        log.debug("获取到点：{:.4f},{:.4f}".format(x / self.xx, y / self.yy))
 
     def calc_point(self, point, offset):
         return (point[0] - offset[0] / self.xx, point[1] - offset[1] / self.yy)
@@ -279,12 +279,59 @@ class UniverseUtils:
         return 0
 
     # 由click_target调用，返回图片匹配结果
-    def scan_screenshot(self, prepared):
+    def scan_screenshot(self, prepared, mask=None, refine_mask=None, use_binary=False):
         temp = pyautogui.screenshot()
         screenshot = np.array(temp)
         screenshot = cv.cvtColor(screenshot, cv.COLOR_BGR2RGB)
-        result = cv.matchTemplate(screenshot, prepared, cv.TM_CCOEFF_NORMED)
+        if use_binary:
+            if len(screenshot.shape) == 3:
+                gray_screenshot = cv.cvtColor(screenshot, cv.COLOR_RGB2GRAY)
+            else:
+                gray_screenshot = screenshot
+                
+            if len(prepared.shape) == 3:
+                gray_prepared = cv.cvtColor(prepared, cv.COLOR_RGB2GRAY)
+            else:
+                gray_prepared = prepared
+
+            _, binary_screenshot = cv.threshold(gray_screenshot, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+            _, binary_prepared = cv.threshold(gray_prepared, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+            if mask is not None:
+                result = cv.matchTemplate(binary_screenshot, binary_prepared, cv.TM_CCOEFF_NORMED, mask=mask)
+            else:
+                result = cv.matchTemplate(binary_screenshot, binary_prepared, cv.TM_CCOEFF_NORMED)
+        else:
+            if mask is not None:
+                result = cv.matchTemplate(screenshot, prepared, cv.TM_CCOEFF_NORMED, mask=mask)
+            else:
+                result = cv.matchTemplate(screenshot, prepared, cv.TM_CCOEFF_NORMED)
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
+        
+        # 如果提供了refine_mask，则在最佳匹配点位置使用refine_mask进行更精确的匹配度计算
+        if refine_mask is not None:
+            # 获取最佳匹配点位置
+            best_x, best_y = max_loc[0], max_loc[1]
+
+            if refine_mask.shape[:2] == prepared.shape[:2]:
+                if (best_y + prepared.shape[0] <= screenshot.shape[0] and 
+                    best_x + prepared.shape[1] <= screenshot.shape[1]):
+                    region = screenshot[best_y:best_y+prepared.shape[0], best_x:best_x+prepared.shape[1]]
+
+                    refined_result = cv.matchTemplate(region, prepared, cv.TM_CCOEFF_NORMED, mask=refine_mask)
+                    refined_min_val, refined_max_val, _, _ = cv.minMaxLoc(refined_result)
+                    
+                    # 显示叠加后的效果
+                    if hasattr(self, 'debug') and self.debug:
+                        # 应用掩码到区域
+                        masked_region = cv.bitwise_and(region, region, mask=refine_mask)
+                        # 创建一个合并显示的图像
+                        display_img = np.hstack((masked_region, prepared))
+                        cv.imshow("Match Region and Template (Masked)", display_img)
+                        cv.waitKey(0)
+                    
+                    # 使用更精确的匹配度
+                    max_val = refined_max_val
+        
         return {
             "screenshot": screenshot,
             "min_val": min_val,
@@ -342,20 +389,31 @@ class UniverseUtils:
         time.sleep(0.3)
 
     # 点击与模板匹配的点，flag=True表示必须匹配，不匹配就会一直寻找直到出现匹配
-    def click_target(self, target_path, threshold, flag=True):
+    def click_target(self, target_path, threshold, flag=True,sub=True,click=False, mask_path=None, refine_mask_path=None, use_binary=False):
         target = cv.imread(target_path)
+        mask = None
+        refine_mask = None
+        
+        if mask_path is not None:
+            mask = cv.imread(mask_path, cv.IMREAD_GRAYSCALE)
+            
+        if refine_mask_path is not None:
+            refine_mask = cv.imread(refine_mask_path, cv.IMREAD_GRAYSCALE)
+            
         while True:
-            result = self.scan_screenshot(target)
+            result = self.scan_screenshot(target, mask, refine_mask, use_binary)
             if result["max_val"] > threshold:
-                print(result["max_val"])
+                log.info(f"匹配度{result['max_val']}")
                 points = self.calculated(result, target.shape)
                 self.get_point(*points)
-                # exit()
                 log.info(f"target shape: {target.shape}")
-                # self.click(points)
+                if click:
+                    self.click(points)
                 return
             if not flag:
                 return
+            elif sub:#降低阈值直到匹配到为止
+                threshold-=0.01
 
     # 在截图中裁剪需要匹配的部分
     def get_local(self, x, y, size, large=True):
@@ -850,7 +908,7 @@ class UniverseUtils:
                 self.floor += 1
                 self.f_time = time.time()
                 self.lst_changed = time.time()
-                map_log.info(f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor+1}层")
+                log.info(f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor+1}层")
             else:
                 if self.ts.sim("黑塔"):
                     self.quit = time.time()

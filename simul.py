@@ -338,6 +338,7 @@ class SimulatedUniverse(UniverseUtils):
                     return 1
         # 跑图状态
         if self.isrun():
+            log.info("开始跑图")
             if not self.quan and self.check("huangquan", 0.0578,0.7083):
                 self.quan = 1
             if self.floor_init == 0:
