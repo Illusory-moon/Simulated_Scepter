@@ -74,8 +74,13 @@ class KeyMouseManager:
         log.info("停止键鼠管理器线程")
         self.running = False
         if self.worker_thread and self.worker_thread.is_alive():
-            # 等待队列中的操作执行完毕
-            self.operation_queue.join()
+            # 清空队列中的操作
+            while not self.operation_queue.empty():
+                try:
+                    self.operation_queue.get_nowait()
+                    self.operation_queue.task_done()
+                except queue.Empty:
+                    break
             # 发送停止信号
             self.operation_queue.put(None)
             self.worker_thread.join()
@@ -86,6 +91,7 @@ class KeyMouseManager:
         """
         while self.running:
             try:
+                #未获取到信号则一直阻塞
                 operation = self.operation_queue.get(timeout=0.1)
                 # None作为停止信号
                 if operation is None:
