@@ -14,7 +14,8 @@ from utils.log import log, set_debug
 from utils.log import my_print as print
 from utils.log import print_exc
 from utils.diver.args import args
-from utils.diver.utils import UniverseUtils, set_forground, notif
+from utils.diver.utils import UniverseUtils, set_forground
+from config.Global import key_mouse_manager
 import os
 from align_angle import main as align_angle
 from utils.diver.config import config
@@ -34,6 +35,12 @@ version = "v8.042"
 class DivergentUniverse(UniverseUtils):
     def __init__(self, debug=0, nums=-1, speed=0):
         super().__init__()
+        # 设置并启动键鼠管理器
+        key_mouse_manager.set_config(config)
+        # 设置屏幕参数以支持坐标转换
+        key_mouse_manager.set_screen_params(self.x1, self.y1, self.xx, self.yy, self.full)
+        key_mouse_manager.start()
+        
         self.is_get_team = True #首次进入差分宇宙后,获取队伍成员
         self.team_detect = {} #队伍成员检测
 
@@ -83,7 +90,7 @@ class DivergentUniverse(UniverseUtils):
         if debug != 2:
             pyautogui.FAILSAFE = False
         self.update_count()
-        notif("开始运行", f"初始计数：{self.count}")
+        log.info(f"开始运行:初始计数：{self.count}")
         set_debug(debug > 0)
 
     def route(self):
@@ -300,12 +307,13 @@ class DivergentUniverse(UniverseUtils):
         return None
     
     def test(self):
-        self.find_team_member()
+        self.find_team_member(self.team_member)
 
 
-    def find_team_member(self):
+    def find_team_member(self,team_member=None):
         boxes = [[1620, 1790, 289, 335],[1620, 1790, 384, 427],[1620, 1790, 478, 521],[1620, 1790, 570, 618]]
-        team_member = {}
+        if not team_member:
+            team_member = {}
         for i,b in enumerate(boxes):
             name = self.clean_text(self.ts.ocr_one_row(self.get_screen(), b))
             if name in self.character_prior:
@@ -313,7 +321,7 @@ class DivergentUniverse(UniverseUtils):
         return team_member
 
     def get_now_area(self, deep=0):
-        team_member = self.find_team_member()
+        team_member = self.find_team_member(self.team_member)
         self.area_text = self.clean_text(self.ts.ocr_one_row(self.screen, [50, 350, 3, 35]), char=0)
         print('area_text:', self.area_text, 'deep:', deep)
         if '位面' in self.area_text or '区域' in self.area_text or '第' in self.area_text:
@@ -1113,9 +1121,8 @@ class DivergentUniverse(UniverseUtils):
         else:
             remain = 0
             remain_round = -1
-        notif(
-            "已完成",
-            f"计数:{self.count} 剩余:{remain_round} 已使用：{tm//60}小时{tm%60}分钟  平均{tm//self.my_cnt}分钟一次  预计剩余{remain//60}小时{remain%60}分钟",
+        log.info(
+            f"已完成,计数:{self.count} 剩余:{remain_round} 已使用：{tm//60}小时{tm%60}分钟  平均{tm//self.my_cnt}分钟一次  预计剩余{remain//60}小时{remain%60}分钟",
             cnt=str(self.count),
         )
         if self.nums <= self.my_cnt and self.nums >= 0:
@@ -1186,7 +1193,8 @@ class DivergentUniverse(UniverseUtils):
         except:
             pass
         self._stop = True
-    
+        key_mouse_manager.stop()
+
     def on_key_press(self, event):
         if event.name == "f8":
             print("F8 已被按下，尝试停止运行")

@@ -6,9 +6,9 @@ import numpy as np
 import time
 import win32gui
 import random
-import sys
 from copy import deepcopy
 
+from config.Global import key_mouse_manager
 from utils.log import log, set_debug
 from utils.simul.map_log import map_log
 from utils.simul.update_map import update_map
@@ -17,9 +17,7 @@ import os
 from align_angle import main as align_angle
 from utils.simul.config import config
 import datetime
-import requests
 import pytz
-import pyuac
 import utils.simul.keyops as keyops
 
 # 版本号
@@ -38,6 +36,10 @@ class SimulatedUniverse(UniverseUtils):
     ):
         super().__init__(gui)
         log.info("当前命途：" + self.fate)
+        key_mouse_manager.set_config(config)
+        # 设置屏幕参数以支持坐标转换
+        key_mouse_manager.set_screen_params(self.x1, self.y1, self.xx, self.yy, self.full)
+        key_mouse_manager.start()
         self.now_map = None
         self.now_map_sim = None
         self.real_loc = [0, 0]
@@ -342,13 +344,17 @@ class SimulatedUniverse(UniverseUtils):
         # 跑图状态
         if self.isrun():
             log.info("开始跑图")
+            #检查黄泉
             if not self.quan and self.check("huangquan", 0.0578,0.7083):
                 self.quan = 1
+            #长时间离开或者未初始化层数？则重新初始化
             if self.floor_init == 0:
                 if self.get_level() == -1:
                     return 1
                 self.floor_init = 1
+            #上次交互时间
             self.lst_changed = bk_lst_changed
+            # self.battle：最后一次处于战斗状态的时间，0表示处于非战斗状态
             self.battle = 0
             # 刚进图，初始化一些数据
             if self.big_map_c == 0:
@@ -871,72 +877,47 @@ class SimulatedUniverse(UniverseUtils):
                 self.press('f')
                 break
 
-    def stop(self, *_, **__):
-        log.info("尝试停止运行")
-        try:
-            if self.debug:
-                traceback.print_stack()
-        except:
-            pass
-        self._stop = 1
-        
-        # 等待地图线程结束
-        if self.map_thread and self.map_thread.is_alive():
-            # 等待最多2秒让线程自行结束
-            timeout = 2
-            start_time = time.time()
-            while self.map_thread.is_alive() and (time.time() - start_time) < timeout:
-                time.sleep(0.1)
-            
-            # 如果线程仍未结束，强制终止
-            if self.map_thread.is_alive():
-                import ctypes
-                res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
-                    ctypes.c_long(self.map_thread.ident),
-                    ctypes.py_object(SystemExit)
-                )
-                time.sleep(0.5)  # 短暂等待
-                
-        self.map_thread = None
+
 
     def goto_herta_office(self):
         log.info("前往黑塔办公室")
         if self.check("smartphone", 0.9833,0.9380, threshold=0.95,fresh=True):
             log.info("打开地图")
-            self.press('m')
+            key_mouse_manager.press('m')
             while not self.check("world_map", 0.1521,0.8620, threshold=0.985,fresh=True):
                 time.sleep(0.5)
-            self.click((0.1521,0.8620))
+            key_mouse_manager.click(0.1521,0.8620)
             time.sleep(0.5)
             #拖拽地图到最左
-            self.drag((0.8521,0.5620),(0.1521,0.5620))
-            self.drag((0.8521,0.5620),(0.1521,0.5620))
+            key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
+            key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
             while not self.check("herta_space_station", 0.7526,0.3500, threshold=0.9,fresh=True):
                 time.sleep(0.5)
-            self.click((0.7526,0.3500))
+            key_mouse_manager.click(0.7526,0.3500)
             while not self.check("control_room_2", 0.1953,0.6806, threshold=0.985,fresh=True):
                 if self.check("control_room", 0.1953,0.6806, threshold=0.985,fresh=True):
-                    self.click((0.1953,0.6806))
+                    key_mouse_manager.click(0.1953,0.6806)
                 time.sleep(0.5)
-            self.scroll((0.5,0.5),-1)#放大地图
-            self.drag((0.5,0.1520),(0.5,0.8620))
-            self.drag((0.5,0.1520),(0.5,0.8620))
+            time.sleep(2)
+            key_mouse_manager.scroll(-10)#放大地图
+            key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
+            key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
             time.sleep(0.5)
             while not self.check("herta_office", 0.7740,0.2824, threshold=0.95,fresh=True):
                 time.sleep(0.5)
-            self.click((0.7740,0.2824))
+            key_mouse_manager.click(0.7740,0.2824)
             while not self.check("herta_office_2", 0.5349,0.3102, threshold=0.985,fresh=True):
                 time.sleep(0.5)
-            self.click((0.5349,0.3102))
+            key_mouse_manager.click(0.5349,0.3102)
             while not self.check("tp", 0.1448,0.1111, threshold=0.985,fresh=True):
                 time.sleep(0.5)
-            self.click((0.1448,0.1111))
+            key_mouse_manager.click(0.1448,0.1111)
             time.sleep(5)
-            self.mouse_move(15)
-            keyops.keyDown("w")
+            key_mouse_manager.mouse_move(20)
+            key_mouse_manager.keyDown("w")
             self.sprint()
-            time.sleep(3)
-            keyops.keyUp("w")
+            time.sleep(4)
+            key_mouse_manager.keyUp("w")
 
     def show_map(self):
         # 创建窗口时使用 WINDOW_FREERATIO 标志以避免自动获取焦点
@@ -977,4 +958,31 @@ class SimulatedUniverse(UniverseUtils):
             if not self._stop:
                 self.stop()
 
+    def stop(self, *_, **__):
+        log.info("尝试停止运行")
+        try:
+            if self.debug:
+                traceback.print_stack()
+        except:
+            pass
+        self._stop = 1
+        key_mouse_manager.stop()
 
+        # 等待地图线程结束
+        if self.map_thread and self.map_thread.is_alive():
+            # 等待最多2秒让线程自行结束
+            timeout = 2
+            start_time = time.time()
+            while self.map_thread.is_alive() and (time.time() - start_time) < timeout:
+                time.sleep(0.1)
+
+            # 如果线程仍未结束，强制终止
+            if self.map_thread.is_alive():
+                import ctypes
+                res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                    ctypes.c_long(self.map_thread.ident),
+                    ctypes.py_object(SystemExit)
+                )
+                time.sleep(0.5)  # 短暂等待
+
+        self.map_thread = None

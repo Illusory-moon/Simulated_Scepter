@@ -491,7 +491,7 @@ def main():
         window.show()
         sys.exit(app.exec_())
 if __name__ == "__main__":
-    x=0
+    x=1
     if x:
         old_main()
     else:

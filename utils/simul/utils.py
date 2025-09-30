@@ -78,7 +78,7 @@ def set_forground():
 
 
 class UniverseUtils:
-    def __init__(self,gui):
+    def __init__(self,gui=None):
         self.fps_list = []
         set_forground()
         self.check_bonus = 1
@@ -328,12 +328,16 @@ class UniverseUtils:
         if self.full:
             x += 9
             y += 9
-        if self._stop == 0:
-            win32api.SetCursorPos((x, y))
-            pyautogui.scroll(direct)
-        else:
-            raise ValueError("正在退出")
-        time.sleep(0.3)
+        count =abs(direct)
+        win32api.SetCursorPos((x, y))
+        for _ in range(count):
+            if self._stop == 0:
+                if direct > 0:
+                    pyautogui.scroll(120)
+                else:
+                    pyautogui.scroll(-120)
+            else:
+                raise ValueError("正在退出")
 
     # 拖动
     def drag(self, pt1, pt2):
@@ -675,13 +679,14 @@ class UniverseUtils:
 
     def get_level(self):
         tm = time.time()
+        #等待检测到正在跑图标志或者超时
         while not self.isrun() and time.time() - tm < 8:
             time.sleep(0.1)
             self.get_screen()
         if time.time() - tm >= 8:
             return -1
-        time.sleep(max(0, (self.fail_count - 1) * 10))
-        time.sleep(1)
+        time.sleep(max(0, (self.fail_count - 1) * 10)+1)
+        #检测当前层数
         self.press("m", 0.2)
         time.sleep(2.5)
         tm = time.time()
