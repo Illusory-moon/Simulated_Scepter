@@ -9,10 +9,11 @@ import random
 from copy import deepcopy
 
 from config.Global import key_mouse_manager
+from diver import load_actions, merge_text, clean_text
 from utils.log import log, set_debug
 from utils.simul.map_log import map_log
 from utils.simul.update_map import update_map
-from utils.simul.utils import UniverseUtils, set_forground, notif
+from utils.simul.utils import UniverseUtils, set_forground, notif, sprint
 import os
 from align_angle import main as align_angle
 from utils.simul.config import config
@@ -39,7 +40,6 @@ class SimulatedUniverse(UniverseUtils):
         key_mouse_manager.set_config(config)
         # 设置屏幕参数以支持坐标转换
         key_mouse_manager.set_screen_params(self.x1, self.y1, self.xx, self.yy, self.full)
-        key_mouse_manager.start()
         self.now_map = None
         self.now_map_sim = None
         self.real_loc = [0, 0]
@@ -77,6 +77,10 @@ class SimulatedUniverse(UniverseUtils):
         self.fps_list = []
         # 添加地图线程引用
         self.map_thread = None
+
+        self.default_json_path = "config/config/default.json"
+        self.default_json = load_actions(self.default_json_path)
+        self.action_history = []
         ex_notif = ""
         if debug != 2:
             pyautogui.FAILSAFE = False
@@ -215,10 +219,10 @@ class SimulatedUniverse(UniverseUtils):
         bk_lst_changed = self.lst_changed
         self.lst_changed = time.time()
         # 战斗界面
-        if self.check("c", 0.9464, 0.1287, threshold=0.985) or self.check(
+        if self.check("c", 0.988, 0.1028, threshold=0.985) or self.check(
             "auto_2", 0.0583, 0.0769):
             # 需要打开自动战斗
-            if self.check("c", 0.9464, 0.1287, threshold=0.985):
+            if self.check("c", 0.988, 0.1028, threshold=0.985):
                 self.press("v")
             if time.time() - self.f_time < 20:
                 self.f_time = 0
@@ -887,7 +891,7 @@ class SimulatedUniverse(UniverseUtils):
             while not self.check("world_map", 0.1521,0.8620, threshold=0.985,fresh=True):
                 time.sleep(0.5)
             key_mouse_manager.click(0.1521,0.8620)
-            time.sleep(0.5)
+            key_mouse_manager.sleep(0.5)
             #拖拽地图到最左
             key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
             key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
@@ -898,11 +902,11 @@ class SimulatedUniverse(UniverseUtils):
                 if self.check("control_room", 0.1953,0.6806, threshold=0.985,fresh=True):
                     key_mouse_manager.click(0.1953,0.6806)
                 time.sleep(0.5)
-            time.sleep(2)
+            key_mouse_manager.sleep(2)
             key_mouse_manager.scroll(-10)#放大地图
             key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
             key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
-            time.sleep(0.5)
+            key_mouse_manager.sleep(0.5)
             while not self.check("herta_office", 0.7740,0.2824, threshold=0.95,fresh=True):
                 time.sleep(0.5)
             key_mouse_manager.click(0.7740,0.2824)
@@ -915,10 +919,103 @@ class SimulatedUniverse(UniverseUtils):
             time.sleep(5)
             key_mouse_manager.mouse_move(20)
             key_mouse_manager.keyDown("w")
-            self.sprint()
-            time.sleep(4)
+            sprint()
+            key_mouse_manager.sleep(4)
             key_mouse_manager.keyUp("w")
+    def loop(self):
+        #截图并识别文本
+        self.ts.forward(self.get_screen())
+        # self.ts.find_with_box()
+        # exit()
+        res = self.run_static()
+        # self.click_target("imgs/c.jpg", threshold=0.9, flag=False)
+        #没有检测到已有的存在的文字
+        if res == '':
+            area_text = clean_text(self.ts.ocr_one_row(self.screen, [50, 350, 3, 35]), char=0)
+            if '位面' in area_text or '区域' in area_text or '第' in area_text:
+                # self.area()
+                self.last_action_time = time.time()
 
+            elif self.check("c", 0.988, 0.1028, threshold=0.925):
+                # 未检查到自动战斗,已经入站,清除秘技持续
+                self.da_hei_ta_effecting = False
+                self.press('v')
+            # else:
+                # text = merge_text(self.ts.find_with_box([400, 1920, 100, 600], redundancy=0))
+                #速通模式跳过转化
+                # if self.speed and '转化' in text and '继续战斗' not in text and ('数据' in text or '过量' in text):
+                #     log.info('ready to stop')
+                #     time.sleep(6)
+                #     tm = time.time()
+                #     while time.time() - tm < 15:
+                #         log.info('trying to stop')
+                #         self.press('esc')
+                #         time.sleep(2)
+                #         self.ts.forward(self.get_screen())
+                #         static_res = self.run_static(action_list=['过量转化'])
+                #         if static_res != '':
+                #             print(static_res)
+                #             break
+                # else:
+                #     if time.time() - self.last_action_time > 60:
+                #         self.click((0.5, 0.1))
+                #         self.click((0.5, 0.25))
+                #         self.last_action_time = time.time()
+        else:
+            self.last_action_time = time.time()
+        if self.end and res == '加载界面':
+            self.press('esc')
+            time.sleep(2)
+            self.press('esc')
+            self._stop = True
+    def run_static(self, json_path=None, json_file=None, action_list=[], skip_check=0) -> str:
+        if json_file is None:
+            if json_path is None:
+                json_file = self.default_json
+            else:
+                json_file = load_actions(json_path)
+        #查找指定项或者默认项
+        for j in action_list if len(action_list) else json_file:
+            for i in json_file[j]:
+                trigger = i["trigger"]
+                #获取指定范围的文字
+                text = self.ts.find_with_box(trigger["box"], redundancy=trigger.get("redundancy", 30))
+                #强制跳过或者检查是否存在子串
+                if skip_check or (len(text) and trigger["text"] in merge_text(text)):
+                    log.info(f"触发 {i['name']}:{trigger['text']}")
+                    for j in i["actions"]:
+                        self.do_action(j)
+                    self.action_history.append(i["name"])
+                    #记录最近10个动作
+                    self.action_history = self.action_history[-10:]
+                    #返回触发的名字
+                    return i['name']
+        return ''
+    def do_action(self, action) -> int:
+        if type(action) == str:
+            return getattr(self, action)()
+        if "text" in action:
+            if "box" in action:
+                box = action["box"]
+            else:
+                box = [0, 1920, 0, 1080]
+            text = self.ts.find_with_box(box, redundancy=action.get("redundancy", 30))
+            for i in text:
+                if action["text"] in i["raw_text"]:
+                    log.info(f"点击 {action['text']}:{i['box']}")
+                    self.click_box(i["box"])
+                    return 1
+        elif "position" in action:
+            log.info(f"点击 {action['position']}")
+            self.click_position(action["position"])
+            return 1
+        elif "sleep" in action:
+            self.sleep(float(action["sleep"]))
+            return 1
+        elif "press" in action:
+            self.press(action["press"], action["time"] if "time" in action else 0)
+            return 1
+        return 0
     def show_map(self):
         # 创建窗口时使用 WINDOW_FREERATIO 标志以避免自动获取焦点
         cv.namedWindow("Map", cv.WINDOW_FREERATIO | cv.WINDOW_NORMAL)
@@ -944,6 +1041,7 @@ class SimulatedUniverse(UniverseUtils):
 
     def start(self):
         self._stop = False
+        key_mouse_manager.start()
         if self._show_map:
             self.map_thread = threading.Thread(target=self.show_map)
             self.map_thread.start()

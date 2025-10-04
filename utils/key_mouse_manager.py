@@ -4,6 +4,7 @@ import time
 import pyautogui
 import win32api
 import win32con
+from collections import deque
 
 from utils.log import log
 
@@ -14,7 +15,8 @@ class KeyMouseManager:
     """
 
     def __init__(self):
-        self.operation_queue = queue.Queue()
+        self.operation_queue = deque()  # 使用deque支持在队首插入操作
+        self.queue_lock = threading.Lock()  # 保护队列的锁
         self.worker_thread = None
         self.running = False
         #键鼠配置
@@ -26,6 +28,9 @@ class KeyMouseManager:
         self.full = False
         self.multi = 1.0
         self.scale = 1.0
+        # 用于支持强制操作中断睡眠
+        self.sleep_start_time = None
+        self.sleep_duration = 0
 
     def set_config(self, config):
         """
@@ -74,15 +79,9 @@ class KeyMouseManager:
         log.info("停止键鼠管理器线程")
         self.running = False
         if self.worker_thread and self.worker_thread.is_alive():
-            # 清空队列中的操作
-            while not self.operation_queue.empty():
-                try:
-                    self.operation_queue.get_nowait()
-                    self.operation_queue.task_done()
-                except queue.Empty:
-                    break
             # 发送停止信号
-            self.operation_queue.put(None)
+            with self.queue_lock:
+                self.operation_queue.append("stop")
             self.worker_thread.join()
 
     def _worker(self):
@@ -90,20 +89,21 @@ class KeyMouseManager:
         工作线程，处理队列中的操作
         """
         while self.running:
-            try:
-                #未获取到信号则一直阻塞
-                operation = self.operation_queue.get(timeout=0.1)
+            operation = None
+            with self.queue_lock:
+                if self.operation_queue:
+                    operation = self.operation_queue.popleft()
+            
+            if operation is "stop":
                 # None作为停止信号
-                if operation is None:
-                    self.operation_queue.task_done()
-                    break
-                    
+                break
+            
+            if operation is not "stop" and operation is not None:
                 self._execute_operation(operation)
-                self.operation_queue.task_done()
-            except queue.Empty:
-                continue
-            except Exception as e:
-                print(f"键鼠操作执行出错: {e}")
+            else:
+                # 队列为空，短暂休眠
+                time.sleep(0.01)
+        log.info("键鼠管理器线程已停止")
 
     def _get_mapping(self, key):
         """
@@ -152,6 +152,7 @@ class KeyMouseManager:
             operation: 操作字典，包含操作类型和参数
         """
         op_type = operation['type']
+        force = operation.get('force', False)
         log.info(f"执行操作{operation}")
         if op_type == 'keyDown':
             key = self._get_mapping(operation['key'])
@@ -179,8 +180,8 @@ class KeyMouseManager:
                 
             pyautogui.keyDown(key)
             if duration > 0:
-                time.sleep(duration)
-                pyautogui.keyUp(key)
+                self._sleep(duration, force)
+            pyautogui.keyUp(key)
                 
         elif op_type == 'click':
             x, y = operation['x'], operation['y']
@@ -217,8 +218,12 @@ class KeyMouseManager:
             actual_start_x, actual_start_y = self._convert_coordinates(start_x, start_y)
             actual_end_x, actual_end_y = self._convert_coordinates(end_x, end_y)
             win32api.SetCursorPos((actual_start_x, actual_start_y))
-            time.sleep(0.2)
+            self._sleep(0.2, force)
             pyautogui.drag(actual_end_x - actual_start_x, actual_end_y - actual_start_y, duration)
+            
+        elif op_type == 'sleep':
+            duration = operation.get('duration', 0)
+            self._sleep(duration, force)
 
     def _direct_mouse_move(self, x, fine=1):
         """
@@ -236,36 +241,103 @@ class KeyMouseManager:
             y = x
         dx = int(16.5 * y * self.multi * self.scale)
         win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, dx, 0)  # 进行视角移动
-        time.sleep(0.05 * fine)
+        self._sleep(0.05 * fine, False)
         if x != y:
             self._direct_mouse_move(x - y, fine)
 
+    def _sleep(self, duration, force=False):
+        """
+        可中断的sleep方法，支持强制操作中断
+        
+        Args:
+            duration: 睡眠时间（秒）
+            force: 是否为强制操作
+        """
+        if duration <= 0:
+            return
+            
+        # 记录睡眠开始时间和总时长
+        self.sleep_start_time = time.time()
+        self.sleep_duration = duration
+        
+        # 循环检查是否需要中断睡眠
+        end_time = self.sleep_start_time + duration
+        while time.time() < end_time and self.running:
+            time.sleep(0.01)  # 短暂休眠以避免占用过多CPU
+            
+        # 清除睡眠状态
+        self.sleep_start_time = None
+        self.sleep_duration = 0
 
-    def keyDown(self, key):
+    def _handle_force_operation(self, operation):
+        """
+        处理强制操作，如果当前正在睡眠则中断并重新安排剩余时间
+        
+        Args:
+            operation: 强制操作
+        """
+        # 检查当前是否正在睡眠
+        if self.sleep_start_time is not None and self.sleep_duration > 0:
+            # 计算剩余睡眠时间
+            elapsed = time.time() - self.sleep_start_time
+            remaining = self.sleep_duration - elapsed
+            
+            # 如果还有剩余时间，将其作为sleep操作插入队首
+            if remaining > 0:
+                sleep_operation = {
+                    'type': 'sleep',
+                    'duration': remaining
+                }
+                with self.queue_lock:
+                    self.operation_queue.appendleft(sleep_operation)
+            
+            # 清除睡眠状态
+            self.sleep_start_time = None
+            self.sleep_duration = 0
+        
+        # 将强制操作插入队首
+        with self.queue_lock:
+            self.operation_queue.appendleft(operation)
+
+    def keyDown(self, key, force=False):
         """
         按下按键
         
         Args:
             key: 要按下的键
+            force: 是否为强制操作
         """
-        self.operation_queue.put({
+        operation = {
             'type': 'keyDown',
-            'key': key
-        })
+            'key': key,
+            'force': force
+        }
+        if force:
+            self._handle_force_operation(operation)
+        else:
+            with self.queue_lock:
+                self.operation_queue.append(operation)
 
-    def keyUp(self, key):
+    def keyUp(self, key, force=False):
         """
         释放按键
         
         Args:
             key: 要释放的键
+            force: 是否为强制操作
         """
-        self.operation_queue.put({
+        operation = {
             'type': 'keyUp',
-            'key': key
-        })
+            'key': key,
+            'force': force
+        }
+        if force:
+            self._handle_force_operation(operation)
+        else:
+            with self.queue_lock:
+                self.operation_queue.append(operation)
 
-    def press(self, key, duration=0, allow_e=1):
+    def press(self, key, duration=0, allow_e=1, force=False):
         """
         按下并释放按键
         
@@ -273,43 +345,64 @@ class KeyMouseManager:
             key: 要按下的键
             duration: 按下持续时间（秒）
             allow_e: 是否允许按下'e'键（用于特殊场景）
+            force: 是否为强制操作
         """
-        self.operation_queue.put({
+        operation = {
             'type': 'press',
             'key': key,
             'duration': duration,
-            'allow_e': allow_e
-        })
+            'allow_e': allow_e,
+            'force': force
+        }
+        if force:
+            self._handle_force_operation(operation)
+        else:
+            with self.queue_lock:
+                self.operation_queue.append(operation)
 
-    def click(self, x, y):
+    def click(self, x, y, force=False):
         """
         点击指定位置
         
         Args:
             x: 屏幕x坐标（支持浮点数比例坐标和实际坐标）
             y: 屏幕y坐标（支持浮点数比例坐标和实际坐标）
+            force: 是否为强制操作
         """
-        self.operation_queue.put({
+        operation = {
             'type': 'click',
             'x': x,
-            'y': y
-        })
+            'y': y,
+            'force': force
+        }
+        if force:
+            self._handle_force_operation(operation)
+        else:
+            with self.queue_lock:
+                self.operation_queue.append(operation)
 
-    def mouse_move(self, dx, fine=1):
+    def mouse_move(self, dx, fine=1, force=False):
         """
         移动鼠标
         
         Args:
             dx: x轴移动距离
             fine: 精细度控制参数
+            force: 是否为强制操作
         """
-        self.operation_queue.put({
+        operation = {
             'type': 'mouse_move',
             'dx': dx,
-            'fine': fine
-        })
+            'fine': fine,
+            'force': force
+        }
+        if force:
+            self._handle_force_operation(operation)
+        else:
+            with self.queue_lock:
+                self.operation_queue.append(operation)
 
-    def scroll(self, direct=1,x=0.5,y=0.5):
+    def scroll(self, direct=1, x=0.5, y=0.5, force=False):
         """
         滚动鼠标滚轮
         
@@ -317,16 +410,22 @@ class KeyMouseManager:
             x: 滚动位置x坐标（支持浮点数比例坐标和实际坐标）
             y: 滚动位置y坐标（支持浮点数比例坐标和实际坐标）
             direct: 滚动方向和次数，正数向上滚动，负数向下滚动
+            force: 是否为强制操作
         """
-
-        self.operation_queue.put({
+        operation = {
             'type': 'scroll',
             'x': x,
             'y': y,
-            'direct': direct
-        })
+            'direct': direct,
+            'force': force
+        }
+        if force:
+            self._handle_force_operation(operation)
+        else:
+            with self.queue_lock:
+                self.operation_queue.append(operation)
 
-    def drag(self, start_x, start_y, end_x, end_y, duration=0.4):
+    def drag(self, start_x, start_y, end_x, end_y, duration=0.4, force=False):
         """
         拖拽操作
         
@@ -336,12 +435,38 @@ class KeyMouseManager:
             end_x: 结束点x坐标（支持浮点数比例坐标和实际坐标）
             end_y: 结束点y坐标（支持浮点数比例坐标和实际坐标）
             duration: 拖拽持续时间（秒）
+            force: 是否为强制操作
         """
-        self.operation_queue.put({
+        operation = {
             'type': 'drag',
             'start_x': start_x,
             'start_y': start_y,
             'end_x': end_x,
             'end_y': end_y,
-            'duration': duration
-        })
+            'duration': duration,
+            'force': force
+        }
+        if force:
+            self._handle_force_operation(operation)
+        else:
+            with self.queue_lock:
+                self.operation_queue.append(operation)
+
+    def sleep(self, duration, force=False):
+        """
+        可中断的sleep操作
+        
+        Args:
+            duration: 睡眠时间（秒）
+            force: 是否为强制操作
+        """
+        operation = {
+            'type': 'sleep',
+            'duration': duration,
+            'force': force
+        }
+        if force:
+            self._handle_force_operation(operation)
+        else:
+            with self.queue_lock:
+                self.operation_queue.append(operation)

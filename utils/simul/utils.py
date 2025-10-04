@@ -18,6 +18,7 @@ from PIL import Image, ImageDraw, ImageFont
 from math import sin, cos
 import traceback
 
+from config.Global import key_mouse_manager
 from utils.simul.map_log import map_log
 from utils.simul.config import config
 from utils.log import log
@@ -75,6 +76,13 @@ def set_forground():
         win32gui.SetForegroundWindow(game_nd)
     except:
         pass
+
+
+def sprint():
+    if config.long_press_sprint:
+        key_mouse_manager.keyDown('shift')
+    else:
+        key_mouse_manager.press('shift')
 
 
 class UniverseUtils:
@@ -192,12 +200,6 @@ class UniverseUtils:
             raise ValueError("正在退出")
         time.sleep(t)
         keyops.keyUp(c)
-
-    def sprint(self):
-        if config.long_press_sprint:
-            keyops.keyDown('shift')
-        else:
-            self.press('shift')
 
     # example: self.wait_fig(lambda:self.check("strange", 0.9417, 0.9481), 1.4)
     def wait_fig(self, f, timeout=3):
@@ -915,7 +917,7 @@ class UniverseUtils:
             time.sleep(0.25)
             sft = 0
             if sft == 0 and type != 3:
-                self.sprint()
+                sprint()
                 sft = 1
             time.sleep(0.25)
             bw_map = self.get_bw_map()
@@ -978,7 +980,7 @@ class UniverseUtils:
                         t -= 1
                         dls = [100000]
                         dtm = [time.time()]
-                        self.sprint()
+                        sprint()
                         c = 0
                         sft = 1
                     else:
@@ -993,7 +995,7 @@ class UniverseUtils:
                         self.lst_changed = time.time()
                         loc, type = self.get_tar()
                         if type == 3:
-                            self.sprint()
+                            sprint()
                             sft = 0
                         ds = self.get_dis(self.real_loc, loc)
                         t = 2
@@ -1409,7 +1411,7 @@ class UniverseUtils:
         if self.mini_state==1:
             wt += 1
             if self.mini_target!=2:
-                self.sprint()
+                sprint()
                 sft = 1
             if self.mini_target==1:
                 wt += 0.8

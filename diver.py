@@ -1,15 +1,12 @@
-import threading
 import traceback
-import keyboard
 import pyautogui
 import cv2 as cv
 import numpy as np
 import time
 import win32gui, win32api, win32con
-import random
 import json
-import sys
-from copy import deepcopy
+
+from utils.diver.ocr import sort_text
 from utils.log import log, set_debug
 from utils.log import my_print as print
 from utils.log import print_exc
@@ -17,7 +14,6 @@ from utils.diver.args import args
 from utils.diver.utils import UniverseUtils, set_forground
 from config.Global import key_mouse_manager
 import os
-from align_angle import main as align_angle
 from utils.diver.config import config
 import datetime
 import csv
@@ -30,6 +26,29 @@ from collections import defaultdict
 
 # 版本号
 version = "v8.042"
+
+
+def load_actions(json_path):
+    res = defaultdict(list)
+    with open(json_path, "r", encoding="utf-8") as f:
+        for i in json.load(f):
+            res[i["name"]].append(i)
+    return res
+
+
+def clean_text(text, char=1):
+    """
+    清除内容中的特殊字符
+    """
+    symbols = r"[!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~—“”‘’«»„…·¿¡£¥€©®™°±÷×¶§‰]，。！？；：（）【】「」《》、￥ "
+    if char:
+        symbols += r"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    translator = str.maketrans('', '', symbols)
+    return text.translate(translator)
+
+
+def merge_text(text, char=1):
+    return clean_text(''.join([i['raw_text'] for i in sort_text(text)]), char)
 
 
 class DivergentUniverse(UniverseUtils):
@@ -84,7 +103,7 @@ class DivergentUniverse(UniverseUtils):
         self.init_floor()
         self.saved_num = 0
         self.default_json_path = "actions/default.json"
-        self.default_json = self.load_actions(self.default_json_path)
+        self.default_json = load_actions(self.default_json_path)
         if config.weekly_mode:
             self.default_json['模式选择'][0]['actions'][1]['text'] = '周期演算'
         if debug != 2:
@@ -94,7 +113,6 @@ class DivergentUniverse(UniverseUtils):
         set_debug(debug > 0)
 
     def route(self):
-        self.threshold = 0.97
         self.is_get_team = True #启动后重置状态
         while True:
             if self._stop:
@@ -123,13 +141,15 @@ class DivergentUniverse(UniverseUtils):
         log.info("停止运行")
 
     def loop(self):
+        #截图并识别文本
         self.ts.forward(self.get_screen())
         # self.ts.find_with_box()
         # exit()
         res = self.run_static()
         # self.click_target("imgs/c.jpg", threshold=0.9, flag=False)
+        #没有检测到已有的存在的文字
         if res == '':
-            area_text = self.clean_text(self.ts.ocr_one_row(self.screen, [50, 350, 3, 35]), char=0)
+            area_text = clean_text(self.ts.ocr_one_row(self.screen, [50, 350, 3, 35]), char=0)
             if '位面' in area_text or '区域' in area_text or '第' in area_text:
                 self.area()
                 self.last_action_time = time.time()
@@ -139,13 +159,14 @@ class DivergentUniverse(UniverseUtils):
                 self.da_hei_ta_effecting = False
                 self.press('v')
             else:
-                text = self.merge_text(self.ts.find_with_box([400, 1920, 100, 600], redundancy=0))
+                text = merge_text(self.ts.find_with_box([400, 1920, 100, 600], redundancy=0))
+                #速通模式跳过转化
                 if self.speed and '转化' in text and '继续战斗' not in text and ('数据' in text or '过量' in text):
-                    print('ready to stop')
+                    log.info('ready to stop')
                     time.sleep(6)
                     tm = time.time()
                     while time.time() - tm < 15:
-                        print('trying to stop')
+                        log.info('trying to stop')
                         self.press('esc')
                         time.sleep(2)
                         self.ts.forward(self.get_screen())
@@ -191,30 +212,28 @@ class DivergentUniverse(UniverseUtils):
             self.press(action["press"], action["time"] if "time" in action else 0)
             return 1
         return 0
-    
-    def load_actions(self, json_path):
-        res = defaultdict(list)
-        with open(json_path, "r", encoding="utf-8") as f:
-            for i in json.load(f):
-                res[i["name"]].append(i)
-        return res
 
     def run_static(self, json_path=None, json_file=None, action_list=[], skip_check=0) -> str:
         if json_file is None:
             if json_path is None:
                 json_file = self.default_json
             else:
-                json_file = self.load_actions(json_path)
+                json_file = load_actions(json_path)
+        #查找指定项或者默认项
         for j in action_list if len(action_list) else json_file:
             for i in json_file[j]:
                 trigger = i["trigger"]
+                #获取指定范围的文字
                 text = self.ts.find_with_box(trigger["box"], redundancy=trigger.get("redundancy", 30))
-                if skip_check or (len(text) and trigger["text"] in self.merge_text(text)):
+                #强制跳过或者检查是否存在子串
+                if skip_check or (len(text) and trigger["text"] in merge_text(text)):
                     log.info(f"触发 {i['name']}:{trigger['text']}")
                     for j in i["actions"]:
                         self.do_action(j)
                     self.action_history.append(i["name"])
+                    #记录最近10个动作
                     self.action_history = self.action_history[-10:]
+                    #返回触发的名字
                     return i['name']
         return ''
     
@@ -235,16 +254,6 @@ class DivergentUniverse(UniverseUtils):
                 data = {row[0]:[s.replace('，',',') for s in row[1:]] for row in reader}
         return data
 
-    def clean_text(self, text, char=1):
-        symbols = r"[!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~—“”‘’«»„…·¿¡£¥€©®™°±÷×¶§‰]，。！？；：（）【】「」《》、￥ "
-        if char:
-            symbols += r"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        translator = str.maketrans('', '', symbols)
-        return text.translate(translator)
-
-    def merge_text(self, text, char=1):
-        return self.clean_text(''.join([i['raw_text'] for i in self.ts.sort_text(text)]), char)
-    
     def init_floor(self):
         self.portal_cnt = 0 
         self.area_state = 0
@@ -273,7 +282,7 @@ class DivergentUniverse(UniverseUtils):
         # self.click_position([186, 237 + int((self.saved_num-1) * (622 - 237) / 3)])
         time.sleep(0.5)
         self.ts.forward(self.get_screen())
-        txt = self.merge_text(self.ts.find_with_box([0, 1920, 0, 1080], redundancy=0))
+        txt = merge_text(self.ts.find_with_box([0, 1920, 0, 1080], redundancy=0))
         empty_saves = len(txt.split('无存档')) - 1
         if self.total_empty_saves == 1:
             self.total_empty_saves = empty_saves
@@ -315,14 +324,14 @@ class DivergentUniverse(UniverseUtils):
         if not team_member:
             team_member = {}
         for i,b in enumerate(boxes):
-            name = self.clean_text(self.ts.ocr_one_row(self.get_screen(), b))
+            name = clean_text(self.ts.ocr_one_row(self.get_screen(), b))
             if name in self.character_prior:
                 team_member[name] = i
         return team_member
 
     def get_now_area(self, deep=0):
         team_member = self.find_team_member(self.team_member)
-        self.area_text = self.clean_text(self.ts.ocr_one_row(self.screen, [50, 350, 3, 35]), char=0)
+        self.area_text = clean_text(self.ts.ocr_one_row(self.screen, [50, 350, 3, 35]), char=0)
         print('area_text:', self.area_text, 'deep:', deep)
         if '位面' in self.area_text or '区域' in self.area_text or '第' in self.area_text:
             check_ok = 1
@@ -426,7 +435,7 @@ class DivergentUniverse(UniverseUtils):
                         tmm = time.time()
                         while time.time() - tmm < 8:
                             self.ts.forward(self.get_screen())
-                            area_text = self.clean_text(self.ts.ocr_one_row(self.screen, [50, 350, 3, 35]), char=0)
+                            area_text = clean_text(self.ts.ocr_one_row(self.screen, [50, 350, 3, 35]), char=0)
                             if '位面' in area_text or '区域' in area_text or '第' in area_text:
                                 break
                             self.run_static()
@@ -535,7 +544,7 @@ class DivergentUniverse(UniverseUtils):
         self.event_solved = 1
         tm = time.time()
         while time.time() - tm < 20:
-            title_text = self.clean_text(self.ts.ocr_one_row(self.screen, [185, 820, 945, 1005]), char=0)
+            title_text = clean_text(self.ts.ocr_one_row(self.screen, [185, 820, 945, 1005]), char=0)
             print(title_text)
             if event_id[0] == -1:
                 for i, e in enumerate(self.event_prior):
@@ -544,7 +553,7 @@ class DivergentUniverse(UniverseUtils):
                 start = self.now_event == event_id[1]
                 self.now_event = event_id[1]
                 log.info(f"event:{event_id},start:{start}")
-            if '事件' not in self.merge_text(self.ts.find_with_box([92, 195, 54, 88])):
+            if '事件' not in merge_text(self.ts.find_with_box([92, 195, 54, 88])):
                 return
             
             self.get_screen()
@@ -584,7 +593,7 @@ class DivergentUniverse(UniverseUtils):
                                 event_now = {'raw_text': i['raw_text'], 'box': i['box']}
                     events.append(event_now)
                     for e in events:
-                        e['raw_text'] = self.clean_text(e['raw_text'], 0)
+                        e['raw_text'] = clean_text(e['raw_text'], 0)
                         e['score'] = self.event_score(e['raw_text'], self.event_prior[event_id[1]])
                     events = sorted(events, key=lambda x: x['score'], reverse=True)
                     print([{k: v for k, v in event.items() if k != 'box'} for event in events])
@@ -609,7 +618,7 @@ class DivergentUniverse(UniverseUtils):
                 if not start:
                     time.sleep(0.6)
                     self.ts.forward(self.get_screen())
-                    if '事件' not in self.merge_text(self.ts.find_with_box([92, 195, 54, 88])):
+                    if '事件' not in merge_text(self.ts.find_with_box([92, 195, 54, 88])):
                         return
                 self.click((0.9479, 0.9565))
                 self.click((0.9479, 0.9565))
@@ -637,7 +646,7 @@ class DivergentUniverse(UniverseUtils):
             if 'ms' in i['raw_text'] or '状态效' in i['raw_text'] or len(i['raw_text']) < 2 or (box[0] > 1470 and box[2] < 75)\
                   or (box[0] > 1800 and box[2] < 120) or (box[0] > 1600 and box[2] > 290) or (box[1] < 400 and box[3] < 160):
                 continue
-            if '?' not in i['raw_text'] and '？' not in i['raw_text'] and len(self.clean_text(i['raw_text'], 1)) == 0:
+            if '?' not in i['raw_text'] and '？' not in i['raw_text'] and len(clean_text(i['raw_text'], 1)) == 0:
                 continue
             w, h = box[1] - box[0], box[3] - box[2]
             if w < 40 or h > 45:
@@ -1098,7 +1107,7 @@ class DivergentUniverse(UniverseUtils):
             x, y = (box[0] + box[1]) // 2, (box[2] + box[3]) // 2
             box = [x - 220, x + 220, 450, 850]
             bless_text = self.ts.find_with_box(box)
-            bless_raw_text = self.merge_text(bless_text, char=0)
+            bless_raw_text = merge_text(bless_text, char=0)
             blesses.append({'raw_text': bless_raw_text, 'box': box, 'score': self.bless_score(bless_raw_text)})
         blesses = sorted(blesses, key=lambda x: x['score'], reverse=reverse)
         print(blesses)
@@ -1195,14 +1204,9 @@ class DivergentUniverse(UniverseUtils):
         self._stop = True
         key_mouse_manager.stop()
 
-    def on_key_press(self, event):
-        if event.name == "f8":
-            print("F8 已被按下，尝试停止运行")
-            self.stop()
 
     def start(self):
         self._stop = False
-        keyboard.on_press(self.on_key_press)
         self.keys = KeyController(self)
         try:
             self.route()
