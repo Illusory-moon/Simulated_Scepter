@@ -58,7 +58,6 @@ class DivergentUniverse(UniverseUtils):
         key_mouse_manager.set_config(config)
         # 设置屏幕参数以支持坐标转换
         key_mouse_manager.set_screen_params(self.x1, self.y1, self.xx, self.yy, self.full)
-        key_mouse_manager.start()
         
         self.is_get_team = True #首次进入差分宇宙后,获取队伍成员
         self.team_detect = {} #队伍成员检测
@@ -113,6 +112,7 @@ class DivergentUniverse(UniverseUtils):
         set_debug(debug > 0)
 
     def route(self):
+        self.goto_diver_universe()
         self.is_get_team = True #启动后重置状态
         while True:
             if self._stop:
@@ -1208,6 +1208,7 @@ class DivergentUniverse(UniverseUtils):
     def start(self):
         self._stop = False
         self.keys = KeyController(self)
+        key_mouse_manager.start()
         try:
             self.route()
         except KeyboardInterrupt:
@@ -1228,6 +1229,14 @@ class DivergentUniverse(UniverseUtils):
     def screen_test(self):
         cv.imshow("screen", self.save_screen())
         cv.waitKey(0)
+
+    def goto_diver_universe(self):
+        log.info("前往差分宇宙")
+        if self.check("smartphone", 0.9833,0.9380, threshold=0.95,fresh=True):
+            key_mouse_manager.press('f4')
+            self.click_target('resource/imgs/universe.jpg',threshold=0.9,click=True)
+            self.click_text(text="前往参与",after_delay=5,box=[1443, 1539, 856, 884])
+
 
 def main():
     log.info(f"debug: {args.debug}")

@@ -18,6 +18,7 @@ from PIL import Image, ImageDraw, ImageFont
 from math import sin, cos
 import traceback
 
+from config.Global import key_mouse_manager
 from utils.diver.config import config
 from utils.diver.args import args
 from utils.log import log
@@ -264,18 +265,30 @@ class UniverseUtils:
     def click_position(self, position):
         self.click_box([position[0], position[0], position[1], position[1]])
 
-    def click_text(self, text, click=1):
+    def click_text(self, text, delay=0, box=None, after_delay=0, click=1):
+        if delay:
+            time.sleep(delay)
         img = self.get_screen()
-        pt = self.ts.find_with_text([text])
-        if pt:
-            pt = pt[0]['box']
-            if click:
-                self.click(
-                    (
-                        1 - (pt[0][0] + pt[1][0]) / 2 / self.xx,
-                        1 - (pt[0][1] + pt[2][1]) / 2 / self.yy,
-                    )
+        if box:
+            match = self.ts.ocr_one_row(img, box)
+            log.info(f"匹配结果：{match}")
+            if len(match) and click:
+                key_mouse_manager.click(
+                    (box[0] + box[1]) // 2,
+                    (box[2] + box[3]) // 2
                 )
+                if after_delay:
+                    time.sleep(after_delay)
+                return 1
+        pt = self.ts.find_text(img, text)
+        if pt is not None:
+            if click:
+                key_mouse_manager.click(
+                    1 - (pt[0][0] + pt[1][0]) / 2 / self.xx,
+                    1 - (pt[0][1] + pt[2][1]) / 2 / self.yy
+                )
+            if after_delay:
+                time.sleep(after_delay)
             return 1
         return 0
 
@@ -448,7 +461,9 @@ class UniverseUtils:
 
     # 判断截图中匹配中心点附近是否存在匹配模板
     # path：匹配模板的路径，x,y：匹配中心点，mask：如果存在，则以mask大小为基准裁剪截图，threshold：匹配阈值
-    def check(self, path, x, y, mask=None, threshold=None, large=True):
+    def check(self, path, x, y, mask=None, threshold=None, large=True,fresh=False):
+        if fresh:
+            self.get_screen()
         if threshold is None:
             threshold = self.threshold
         path = self.format_path(path)

@@ -115,6 +115,33 @@ class My_TS:
                     ans.append({'text':text, **res})
         return sorted(ans, key=lambda x: x['score'], reverse=True)
 
+    def find_text(self, img, text):
+        self.nothing = 1
+        results = self.ts.ocr(img)
+        # log.debug(f"识别到文本：{results}")
+        for res in results:
+            res = {'raw_text': res[1][0], 'box': np.array(res[0]), 'score': res[1][1]}
+            self.text = res['raw_text']
+            if len(self.text.strip()) > 1 and 'UID' not in self.text:
+                self.nothing = 0
+            # 处理text可能是列表的情况
+            found = False
+            matched_text = text
+            if isinstance(text, list):
+                for t in text:
+                    if t in self.text:
+                        found = True
+                        matched_text = t
+                        break
+            else:
+                found = text in self.text
+
+            if found:
+                log.debug(
+                    f"识别到文本：{matched_text}匹配文本：{self.text},位置：{[int(res['box'][0][0]), int(res['box'][1][0]), int(res['box'][0][1]), int(res['box'][2][1])]}")
+                return res['box']
+        return None
+
     def find_with_box(self, box=None, redundancy=10, forward=0, mode=0):
         """
         在指定文本框内
