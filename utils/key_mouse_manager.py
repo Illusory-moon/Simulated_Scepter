@@ -81,6 +81,7 @@ class KeyMouseManager:
         if self.worker_thread and self.worker_thread.is_alive():
             # 发送停止信号
             with self.queue_lock:
+                self.operation_queue.clear()  # 清空队列中的所有操作
                 self.operation_queue.append("stop")
             self.worker_thread.join()
 
@@ -94,11 +95,11 @@ class KeyMouseManager:
                 if self.operation_queue:
                     operation = self.operation_queue.popleft()
             
-            if operation is "stop":
+            if operation == "stop":
                 # None作为停止信号
                 break
             
-            if operation is not "stop" and operation is not None:
+            if operation != "stop" and operation is not None:
                 self._execute_operation(operation)
             else:
                 # 队列为空，短暂休眠
@@ -219,7 +220,8 @@ class KeyMouseManager:
             actual_end_x, actual_end_y = self._convert_coordinates(end_x, end_y)
             win32api.SetCursorPos((actual_start_x, actual_start_y))
             self._sleep(0.2, force)
-            pyautogui.drag(actual_end_x - actual_start_x, actual_end_y - actual_start_y, duration)
+            pyautogui.dragTo(actual_end_x, actual_end_y, duration, button='left')
+            # pyautogui.drag(actual_end_x - actual_start_x, actual_end_y - actual_start_y, duration)
             
         elif op_type == 'sleep':
             duration = operation.get('duration', 0)

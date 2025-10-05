@@ -1,3 +1,4 @@
+import cv2
 import pyautogui
 import cv2 as cv
 import numpy as np
@@ -99,7 +100,7 @@ class UniverseUtils:
         self.my_fate = -1
         self.fail_count = 0
         self.first_mini = 1
-        self.ts = ocr.My_TS()
+        self.ts = ocr.My_TS(father=self)
         self.last_info = ''
         self.mini_target = 0
         self.f_time = 0
@@ -129,8 +130,8 @@ class UniverseUtils:
                 self.yy = self.y1 - self.y0
                 self.x0, self.y0, self.x1, self.y1 = win32gui.GetWindowRect(hwnd)
                 self.full = self.x0 == 0 and self.y0 == 0
-                self.x0 = max(0, self.x1 - self.xx) + 9 * self.full
-                self.y0 = max(0, self.y1 - self.yy) + 9 * self.full
+                self.x0 = max(0, self.x1 - self.xx) #+ 9 * self.full
+                self.y0 = max(0, self.y1 - self.yy) #+ 9 * self.full
                 if (
                     (self.xx == 1920 or self.yy == 1080)
                     and self.xx >= 1920
@@ -262,17 +263,30 @@ class UniverseUtils:
     def calc_point(self, point, offset):
         return (point[0] - offset[0] / self.xx, point[1] - offset[1] / self.yy)
 
-    def click_text(self, text, env=None, click=1):
+    def click_text(self, text,delay=0,box=None,after_delay=0,click=1):
+        if delay:
+            time.sleep(delay)
         img = self.get_screen()
-        pt = self.ts.find_text(img, text, env=env)
+        if box:
+            match=self.ts.ocr_one_row(img,box)
+            log.info(f"匹配结果：{match}")
+            if len(match) and click:
+                key_mouse_manager.click(
+                    (box[0]+box[1])//2,
+                    (box[2]+box[3])//2
+                )
+                if after_delay:
+                    time.sleep(after_delay)
+                return 1
+        pt = self.ts.find_text(img, text)
         if pt is not None:
             if click:
-                self.click(
-                    (
+                key_mouse_manager.click(
                         1 - (pt[0][0] + pt[1][0]) / 2 / self.xx,
-                        1 - (pt[0][1] + pt[2][1]) / 2 / self.yy,
-                    )
+                        1 - (pt[0][1] + pt[2][1]) / 2 / self.yy
                 )
+            if after_delay:
+                time.sleep(after_delay)
             return 1
         return 0
 

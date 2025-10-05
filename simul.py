@@ -624,7 +624,7 @@ class SimulatedUniverse(UniverseUtils):
                         '选择里奥'
                     ]
                 event_prior = [self.fate] + event_prior
-                success = self.click_text(event_prior,env='event')
+                success = self.click_text(event_prior)
                 time.sleep(0.3)
                 self.get_screen()
                 if success and self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
@@ -888,21 +888,15 @@ class SimulatedUniverse(UniverseUtils):
         if self.check("smartphone", 0.9833,0.9380, threshold=0.95,fresh=True):
             log.info("打开地图")
             key_mouse_manager.press('m')
-            while not self.check("world_map", 0.1521,0.8620, threshold=0.985,fresh=True):
+            while not self.click_text(text="星轨航图",delay=1,after_delay=0.5,box=[1625, 1732, 143, 176]):
                 time.sleep(0.5)
-            key_mouse_manager.click(0.1521,0.8620)
-            key_mouse_manager.sleep(0.5)
             #拖拽地图到最左
             key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
             key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
-            while not self.check("herta_space_station", 0.7526,0.3500, threshold=0.9,fresh=True):
+            while not self.click_text(text="空间站",delay=3):
                 time.sleep(0.5)
-            key_mouse_manager.click(0.7526,0.3500)
-            while not self.check("control_room_2", 0.1953,0.6806, threshold=0.985,fresh=True):
-                if self.check("control_room", 0.1953,0.6806, threshold=0.985,fresh=True):
-                    key_mouse_manager.click(0.1953,0.6806)
+            while not self.click_text(text="主控舱段",delay=1,after_delay=1,box=[1456, 1600, 338, 367]):
                 time.sleep(0.5)
-            key_mouse_manager.sleep(2)
             key_mouse_manager.scroll(-10)#放大地图
             key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
             key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
@@ -910,13 +904,10 @@ class SimulatedUniverse(UniverseUtils):
             while not self.check("herta_office", 0.7740,0.2824, threshold=0.95,fresh=True):
                 time.sleep(0.5)
             key_mouse_manager.click(0.7740,0.2824)
-            while not self.check("herta_office_2", 0.5349,0.3102, threshold=0.985,fresh=True):
+            while not self.click_text(text="黑塔的办公室",delay=0.5,after_delay=0.5,box=[844, 998, 739, 768]):
                 time.sleep(0.5)
-            key_mouse_manager.click(0.5349,0.3102)
-            while not self.check("tp", 0.1448,0.1111, threshold=0.985,fresh=True):
+            while not self.click_text(text="传送",after_delay=5,box=[1623, 1687, 951, 990]):
                 time.sleep(0.5)
-            key_mouse_manager.click(0.1448,0.1111)
-            time.sleep(5)
             key_mouse_manager.mouse_move(20)
             key_mouse_manager.keyDown("w")
             sprint()

@@ -6,10 +6,11 @@ from utils.log import log
 # mode: bless1 bless2 strange
 
 class My_TS:
-    def __init__(self,lang='ch'):
+    def __init__(self,lang='ch',father=None):
         self.lang=lang
         self.ts = ONNXPaddleOcr(use_angle_cls=False)
         self.text=''
+        self.father = father
 
     def is_edit_distance_at_most_one(self, str1, str2, ch):
         length = len(str1)
@@ -43,8 +44,12 @@ class My_TS:
             res |= self.is_edit_distance_at_most_one(text,stext[i:i+length],stext[i+length])
         return res
 
-    def ocr_one_row(self, img):
-        return self.ts.text_recognizer([img])[0][0]
+    def ocr_one_row(self, img, box=None):
+        if box is None:
+            return self.ts.text_recognizer([img])[0][0]
+        else:
+            # log.debug(f"ocr结果{self.ts.text_recognizer([img[box[2]:box[3], box[0]:box[1]]])}")
+            return self.ts.text_recognizer([img[box[2]:box[3], box[0]:box[1]]])[0][0]
 
     def input(self,img):
         try:
@@ -120,18 +125,30 @@ class My_TS:
             find=3
         return (rcx-img.shape[1]//2,rcy-img.shape[0]//2),find+black
     
-    def find_text(self, img, text, env=None):
+    def find_text(self, img, text):
         self.nothing = 1
         results = self.ts.ocr(img)
-        for txt in text:
-            for res in results:
-                res = {'raw_text': res[1][0], 'box': np.array(res[0]), 'score': res[1][1]}
-                self.text = res['raw_text']
-                if len(self.text.strip())>1 and 'UID' not in self.text:
-                    self.nothing = 0
-                if self.sim(txt):
-                    print("识别到文本：",txt,"匹配文本：",self.text)
-                    return res['box']
+        # log.debug(f"识别到文本：{results}")
+        for res in results:
+            res = {'raw_text': res[1][0], 'box': np.array(res[0]), 'score': res[1][1]}
+            self.text = res['raw_text']
+            if len(self.text.strip())>1 and 'UID' not in self.text:
+                self.nothing = 0
+            # 处理text可能是列表的情况
+            found = False
+            matched_text = text
+            if isinstance(text, list):
+                for t in text:
+                    if t in self.text:
+                        found = True
+                        matched_text = t
+                        break
+            else:
+                found = text in self.text
+                
+            if found:
+                log.debug(f"识别到文本：{matched_text}匹配文本：{self.text},位置：{[int(res['box'][0][0]), int(res['box'][1][0]), int(res['box'][0][1]), int(res['box'][2][1])]}")
+                return res['box']
         return None
 
 class text_keys:

@@ -88,24 +88,6 @@ class My_TS:
         else:
             return self.ts.text_recognizer([img[box[2]:box[3],box[0]:box[1]]])[0][0]
 
-    def is_edit_distance_at_most_one(self, str1, str2, ch):
-        length = len(str1)
-        diff_count = sum(1 for i in range(length) if str1[i] != str2[i])
-        if diff_count <= 1:
-            return 1
-        i = 0
-        j = 0
-        diff_count = 0
-        str2 += ch
-        while i < length and j < length + 1:
-            if str1[i] != str2[j]:
-                diff_count += 1
-                j += 1
-            else:
-                i += 1
-                j += 1
-
-        return diff_count <= 1
 
     def forward(self, img):
         """
