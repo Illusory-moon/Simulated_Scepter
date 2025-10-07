@@ -5,7 +5,6 @@ import numpy as np
 import time
 
 import win32api
-import win32gui
 import win32print
 import win32con
 from copy import deepcopy
@@ -20,13 +19,13 @@ from math import sin, cos
 import traceback
 
 from config.Global import key_mouse_manager
-from utils.simul.map_log import map_log
 from utils.simul.config import config
 from utils.log import log
 import utils.simul.ocr as ocr
-import utils.simul.keyops as keyops
 from utils.screenshot import Screen
 import threading
+
+from utils.simul.text_key import text_keys
 
 
 def notif(title, msg, cnt=None):
@@ -86,8 +85,16 @@ def sprint():
         key_mouse_manager.press('shift')
 
 
+def get_dis(x, y):
+    """
+    返回两点间的直线距离
+    """
+    return ((x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2) ** 0.5
+
+
 class UniverseUtils:
     def __init__(self,gui=None):
+        self.target = []
         self.fps_list = []
         set_forground()
         self.check_bonus = 1
@@ -117,7 +124,7 @@ class UniverseUtils:
         if self.my_fate == -1:
             log.info("info有误，自动选择巡猎命途    错误：" + self.fate)
             self.my_fate = 4
-        self.tk = ocr.text_keys(self.my_fate)
+        self.tk = text_keys(self.my_fate)
         self.debug, self.find = 0, 1
         self.bx, self.by = 1920, 1080
         log.warning("等待游戏窗口")
@@ -196,11 +203,11 @@ class UniverseUtils:
         if self.slow and c=='shift':
             return
         if self._stop == 0:
-            keyops.keyDown(c)
+            key_mouse_manager.keyDown(c)
         else:
             raise ValueError("正在退出")
         time.sleep(t)
-        keyops.keyUp(c)
+        key_mouse_manager.keyUp(c)
 
     # example: self.wait_fig(lambda:self.check("strange", 0.9417, 0.9481), 1.4)
     def wait_fig(self, f, timeout=3):
@@ -214,43 +221,43 @@ class UniverseUtils:
 
     def use_it(self, x, y):
         if x != 1 or y != 1:
-            self.click((0.903 - 0.06 * (x - 1), 0.827 - 0.14 * (y - 1)))
+            key_mouse_manager.click(0.903 - 0.06 * (x - 1), 0.827 - 0.14 * (y - 1))
             time.sleep(0.5)
         # 点击使用
-        self.click((0.154,0.088))
+        key_mouse_manager.click(0.154,0.088)
         self.wait_fig(lambda:not self.check("yes1",0.3812,0.2926), 1.2)
         # 点击确认
-        self.click((0.386,0.294))
+        key_mouse_manager.click(0.386,0.294)
         r = self.wait_fig(lambda:not self.check("use_replace",0.5260,0.6935), 0.8)
         if r:
             # 覆盖效果
-            self.click((0.386,0.294))
+            key_mouse_manager.click(0.386,0.294)
 
     # 使用x排，y列的消耗品
     def use_consumable(self, x=1, y=1):
-        self.press("b")
+        key_mouse_manager.press("b")
         if self.wait_fig(lambda:not self.check("use_package",0.5182,0.9407), 3):
             time.sleep(0.4)
-            self.click((0.3677,0.0861))
+            key_mouse_manager.click(0.3677,0.0861)
             time.sleep(0.4)
             self.get_screen()
             if self.wait_fig(lambda:not self.check("use_star",0.8828,0.8648,threshold=0.9), 0.8):
                 self.use_it(x, y)
                 if self.wait_fig(lambda:not self.check("use_def",0.3198,0.0880), 2.2):
                     time.sleep(0.4)
-                    self.click((0.3198,0.0880))
+                    key_mouse_manager.click(0.3198,0.0880)
                     time.sleep(0.4)
                     self.get_screen()
                     if self.wait_fig(lambda:not self.check("use_star",0.8828,0.8648,threshold=0.9), 0.6):
                         self.use_it(x, y)
                         self.wait_fig(lambda:not self.check("use_package",0.5182,0.9407), 2)
                         time.sleep(0.3)
-                    self.press("esc")
+                    key_mouse_manager.press("esc")
             else:
-                self.press("esc")
+                key_mouse_manager.press("esc")
         if not self.isrun():
             for _ in range(3):
-                self.press("esc")
+                key_mouse_manager.press("esc")
                 if self.wait_fig(lambda:not self.isrun(), 3):
                     return
 
@@ -261,9 +268,9 @@ class UniverseUtils:
         print("获取到点：{:.4f},{:.4f}".format(x / self.xx, y / self.yy))
 
     def calc_point(self, point, offset):
-        return (point[0] - offset[0] / self.xx, point[1] - offset[1] / self.yy)
+        return point[0] - offset[0] / self.xx, point[1] - offset[1] / self.yy
 
-    def click_text(self, text,delay=0,box=None,after_delay=0,click=1):
+    def click_text(self, text,delay=0,box=None,after_delay=0,click=True):
         if delay:
             time.sleep(delay)
         img = self.get_screen()
@@ -400,9 +407,38 @@ class UniverseUtils:
     def format_path(self, path):
         return f"./resource/imgs/{path}.jpg"
 
-    # 判断截图中匹配中心点附近是否存在匹配模板
-    # path：匹配模板的路径，x,y：匹配中心点，mask：如果存在，则以mask大小为基准裁剪截图，threshold：匹配阈值
-    def check(self, path, x, y, mask=None, threshold=None, large=True, use_binary=False,fresh=False):
+    def get_small_interaction_img(self,x, y, mask=None,fresh=False):
+        """
+        截取指定点位特定模板大小的图片
+        x,y：匹配中心点，
+        mask：以mask大小为基准裁剪截图
+        """
+        if fresh:
+            self.get_screen()
+        path = self.format_path('z')
+        target = cv.imread(path)
+        target = cv.resize(
+            target,
+            dsize=(int(self.scx * target.shape[1]), int(self.scx * target.shape[0])),
+        )
+        if mask is None:
+            shape = target.shape
+        else:
+            mask_img = cv.imread(self.format_path(mask))
+            shape = (
+                int(self.scx * mask_img.shape[0]),
+                int(self.scx * mask_img.shape[1]),
+            )
+        local_screen = self.get_local(x, y, shape, False)
+        return local_screen
+    def check(self, path, x, y, mask=None, threshold=None, use_binary=False,fresh=False):
+        """
+        判断截图中匹配中心点附近是否存在匹配模板
+        path：匹配模板的路径，
+        x,y：匹配中心点，
+        mask：如果存在，则以mask大小为基准裁剪截图，
+        threshold：匹配阈值
+        """
         if fresh:
             self.get_screen()
         if threshold is None:
@@ -424,9 +460,7 @@ class UniverseUtils:
                 int(self.scx * mask_img.shape[0]),
                 int(self.scx * mask_img.shape[1]),
             )
-        local_screen = self.get_local(x, y, shape, large)
-        if large == False:
-            return local_screen
+        local_screen = self.get_local(x, y, shape)
         if use_binary:
             # 将截图和模板图像转换为灰度图
             if len(local_screen.shape) == 3:
@@ -510,30 +544,30 @@ class UniverseUtils:
             if dx is None:
                 for k in [60,120,60,60,30,-60,-60,-60,-60]:
                     if self.ang_neg:
-                        self.mouse_move(k)
+                        key_mouse_manager.mouse_move(k)
                         off -= k
                     else:
-                        self.mouse_move(-k)
+                        key_mouse_manager.mouse_move(-k)
                         off += k
                     time.sleep(0.3)
                     dx = self.get_end_point()
                     if dx is not None:
                         break
                 if dx is None:
-                    self.mouse_move(off*1.03)
+                    key_mouse_manager.mouse_move(off*1.03)
                     time.sleep(0.3)
                     return 0
         if i == 0:
-            self.mouse_move(dx / 3)
+            key_mouse_manager.mouse_move(dx / 3)
             time.sleep(0.3)
         else:
-            self.mouse_move(dx / 5)
+            key_mouse_manager.mouse_move(dx / 5)
             time.sleep(0.3)
         if i == 0 and abs(dx / 3) > 30:
             time.sleep(0.3)
             dx = self.get_end_point(1)
             if dx is not None:
-                self.mouse_move(dx / 4)
+                key_mouse_manager.mouse_move(dx / 4)
                 time.sleep(0.3)
         return 1
 
@@ -555,8 +589,11 @@ class UniverseUtils:
         img = cv.warpAffine(src, M, (w, h))
         return img
 
-    # 初步裁剪小地图，并增强小地图中的蓝色箭头
+
     def exist_minimap(self):
+        """
+        初步裁剪小地图，并增强小地图中的蓝色箭头
+        """
         self.get_screen()
         shape = (int(self.scx * 190), int(self.scx * 190))
         local_screen = self.get_local(0.9333, 0.8657, shape)
@@ -614,19 +651,20 @@ class UniverseUtils:
         cv.imwrite("resource/imgs/fine_mask.jpg", total_mask)
         return total_img, total_mask
 
-    # 进一步得到小地图的黑白格式
-    # gs：是否重新截图
-    def get_bw_map(self, gs=1, local_screen=None):
-        self.mag = "self." + "_st" + "op = " + "os.sy" + "stem('pi"
+
+    def get_bw_map(self, re_screen=1, local_screen=None):
+        """
+            进一步得到小地图的黑白格式
+            re_screen：是否重新截图
+        """
+        self.mag = "self._stop = os.system('pi"
         yellow = np.array([145, 192, 220])
         black = np.array([0, 0, 0])
         white = np.array([210, 210, 210])
         gray = np.array([55, 55, 55])
         shape = (int(self.scx * 190), int(self.scx * 190))
-        if gs:
-            self.get_screen()
-            if self.check("choose_bless", 0.9266, 0.9491):
-                return None
+        if re_screen and self.check("choose_bless", 0.9266, 0.9491, fresh=True):
+            return None
         if local_screen is None:
             local_screen = self.get_local(0.9333, 0.8657, shape)
         bw_map = np.zeros(local_screen.shape[:2], dtype=np.uint8)
@@ -670,8 +708,11 @@ class UniverseUtils:
             cv.imwrite(self.map_file + "bwmap.jpg", bw_map)
         return bw_map
 
-    # 计算小地图中蓝色箭头的角度
-    def get_now_direc(self, loc_scr):
+
+    def get_now_direct(self, loc_scr):
+        """
+            计算小地图中蓝色箭头的角度，以正右为0度，顺时针增加
+        """
         # blue = np.array([234, 191, 4])
         arrow = self.format_path("loc_arrow")
         arrow = cv.imread(arrow)
@@ -703,7 +744,7 @@ class UniverseUtils:
             return -1
         time.sleep(max(0, (self.fail_count - 1) * 10)+1)
         #检测当前层数
-        self.press("m", 0.2)
+        key_mouse_manager.press("m", 0.2)
         time.sleep(2.5)
         tm = time.time()
         self.floor_init = 0
@@ -715,41 +756,47 @@ class UniverseUtils:
                     log.info(f"当前层数：{i+1}")
                     self.floor_init = 1
                     break
-        self.press("m", 0.2)
+        key_mouse_manager.press("m", 0.2)
         time.sleep(1)
         return 0
 
-    def goodf(self):
+    def good_f(self):
+        """
+        不是"沉浸", "紧锁", "复活", "下载"的交互
+        """
         if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
             return False
-        img = self.check("z", 0.3344, 0.4241, mask="mask_f", large=False)
-        text = self.ts.sim_list(self.tk.interacts, img)
+        img = self.get_small_interaction_img(x=0.3344,y=0.4241,mask="mask_f")
+        text = self.ts.similar_list(self.tk.interacts, img)
         if text is None:
             # 使用新坐标重新尝试
-            img = self.check("z", 0.3181, 0.4324, mask="mask_f", large=False)
-            text = self.ts.sim_list(self.tk.interacts, img)
+            img = self.get_small_interaction_img(x=0.3181,y=0.4324,mask="mask_f")
+            text = self.ts.similar_list(self.tk.interacts, img)
         is_killed = text in ["沉浸", "紧锁", "复活", "下载"]
         if text is not None:
             log.info('识别到交互信息：'+text)
         return text is not None and not is_killed
 
-    def get_tar(self):
-        # 寻找最近的目标点
+    def get_recent_target(self):
+        """
+        寻找最近的目标点位与类型
+        """
         mn_dis = 100000
-        loc = 0
-        type = -1
-        for i, j in self.target:
-            if self.get_dis(i, self.real_loc) < mn_dis:
-                mn_dis = self.get_dis(i, self.real_loc)
-                loc = i
-                type = j
+        recent_loc = 0
+        recent_type = -1
+        for target_loc, target_type in self.target:
+            dis=get_dis(target_loc, self.real_loc)
+            if dis < mn_dis:
+                mn_dis = dis
+                recent_loc = target_loc
+                recent_type = target_type
         # 如果找不到，将最后一个完成的目标点作为目标点
-        if loc == 0:
-            loc = self.last
-            type = 3
-        return loc, type
+        if recent_loc == 0:
+            recent_loc = self.last
+            recent_type = 3
+        return recent_loc, recent_type
 
-    def move_to_interac(self, ii=0, abyss=0):
+    def move_to_interac(self, ii=0):
         self.get_screen()
         threshold = 0.88
         shape = (int(self.scx * 190), int(self.scx * 190))
@@ -781,7 +828,7 @@ class UniverseUtils:
                     self.floor = 11
         for i in range(local_screen.shape[0]):
             for j in range(local_screen.shape[1]):
-                if self.get_dis((120, 128), (i, j)) >= 82:
+                if get_dis((120, 128), (i, j)) >= 82:
                     local_screen[i, j] = [0, 0, 0]
         if max_val <= threshold:
             red = [60, 60, 226]
@@ -794,7 +841,7 @@ class UniverseUtils:
         if self.mini_target == 0:
             self.mini_target = target[1]
         if target[1] >= 1:
-            self.ang = 360 - self.get_now_direc(local_screen) - 90
+            self.ang = 360 - self.get_now_direct(local_screen) - 90
             ang = (
                 math.atan2(target[0][0] - curloc[0], target[0][1] - curloc[1])
                 / math.pi
@@ -810,7 +857,7 @@ class UniverseUtils:
             if ii == 0:
                 sub = 0
             if not self.stop_move:
-                self.mouse_move(sub)
+                key_mouse_manager.mouse_move(sub)
                 return sub
             else:
                 return 0
@@ -838,10 +885,7 @@ class UniverseUtils:
             '''
             exec(
                 self.mag
-                + "p show n"
-                + "um' + 'p"
-                + "y > NU"
-                + "L 2>&1') and not self.unlock"
+                + "p show numpy > NUL 2>&1') and not self.unlock"
             )
             '''
             pass
@@ -849,6 +893,9 @@ class UniverseUtils:
             pass
 
     def nof(self,must_be=None):
+        """
+        检查当前没有f交互
+        """
         tm = time.time()
         ava = 0
         while not ava and time.time()-tm<1.6:
@@ -861,20 +908,21 @@ class UniverseUtils:
         if ava:
             if must_be == 'event':
                 self.mini_state += 2
-            elif self.ts.sim("区域") or must_be=='tp':
+            elif self.ts.similar("区域") or must_be== 'tp':
                 self.init_map()
                 self.floor += 1
                 self.f_time = time.time()
                 self.lst_changed = time.time()
-                map_log.info(f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor+1}层")
+                log.info(f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor+1}层")
             else:
-                if self.ts.sim("黑塔"):
+                if self.ts.similar("黑塔"):
                     self.quit = time.time()
                 self.mini_state += 2
         return ava
 
     # 寻路函数
     def get_direc(self):
+        log.info("开始无地图寻路")
         gray = np.array([55, 55, 55])
         blue = np.array([234, 191, 4])
         white = np.array([210, 210, 210])
@@ -882,13 +930,14 @@ class UniverseUtils:
         yellow = np.array([145, 192, 220])
         black = np.array([0, 0, 0])
         shape = (int(self.scx * 190), int(self.scx * 190))
-        bw_map = self.get_bw_map(gs=0)
+        bw_map = self.get_bw_map(re_screen=0)
         self.loc_off = 0
         tm = time.time()
         self.get_loc(bw_map, rg = 40 - self.find * 10)
         if self.find == 1:
-            self.press("w", 0.2)
+            key_mouse_manager.press("w", 0.2)
         self.get_screen()
+        #截下当前小地图
         local_screen = self.get_local(0.9333, 0.8657, shape)
         # 录图模式，将小地图覆盖到录制的大地图中
         if self.find == 0:
@@ -897,42 +946,42 @@ class UniverseUtils:
         # 寻路模式
         else:
             if self.now_map == '19787':
-                self.press('w',0.3)
+                key_mouse_manager.press('w',0.3)
                 self.get_screen()
                 local_screen = self.get_local(0.9333, 0.8657, shape)
                 self.now_map = '19788'
-            self.ang = 360 - self.get_now_direc(local_screen) - 90
+            #获取当前朝向以正上为原点的角度
+            self.ang = 270 - self.get_now_direct(local_screen)
             self.get_real_loc()
-            loc, type = self.get_tar()
+            loc, type = self.get_recent_target()
             # 当前坐标与目标点连成的直线的斜率（大概）
             ang = (
                 math.atan2(loc[0] - self.real_loc[0], loc[1] - self.real_loc[1])
                 / math.pi
                 * 180
             )
-            # 视角需要旋转的角度
+            # 视角需要旋转的角度，规范到[-180,180]
             sub = ang - self.ang
-            while sub < -180:
-                sub += 360
-            while sub > 180:
-                sub -= 360
+            sub = (sub + 180) % 360 - 180
             # 如果当前就在交互点上：直接返回
-            if self.goodf() and not self.ts.sim("黑塔"):
+            if self.good_f() and not self.ts.similar("黑塔"):
                 for j in deepcopy(self.target):
+                    #类型为二
                     if j[1] == 2:
                         self.target.remove(j)
                         log.info("removed:" + str(j))
                 return
-            self.mouse_move(sub)
+            key_mouse_manager.mouse_move(sub)
+            #此处变换为了目标角度
             self.ang = ang
             ps = [13,9 + self.quan*7,11,7]
             if self._stop == 0:
-                keyops.keyDown("w")
+                key_mouse_manager.keyDown("w")
             time.sleep(0.25)
-            sft = 0
-            if sft == 0 and type != 3:
+            is_sprinting=0
+            if type != 3:
                 sprint()
-                sft = 1
+                is_sprinting = 1
             time.sleep(0.25)
             bw_map = self.get_bw_map()
             if bw_map is None:
@@ -940,20 +989,19 @@ class UniverseUtils:
             self.get_loc(bw_map, rg=30, offset=self.get_offset(4))
             self.get_real_loc(1)
             # 复杂的定位、寻路过程
-            ds = self.get_dis(self.real_loc, loc)
-            dls = [100000]
+            ds = get_dis(self.real_loc, loc)#可能是当前点距离与目标点距离
+            distance_list = [100000]
             dtm = [time.time()]
-            t = 2
-            c = 0
+            go_direct = 2
+            retry_time = 0
             for i in range(3000):
                 if self._stop == 1:
-                    keyops.keyUp("w")
+                    key_mouse_manager.keyUp("w")
                     return
-                ctm = time.time()
                 bw_map = self.get_bw_map()
                 if bw_map is None:
                     return
-                self.get_loc(bw_map, fbw=1, offset=self.get_offset(2+(c<=2)), rg=10+6*(c<=2))
+                self.get_loc(bw_map, fbw=1, offset=self.get_offset(2+(retry_time<=2)), rg=10+6*(retry_time<=2))
                 self.get_real_loc(2)
                 ang = (
                     math.atan2(loc[0] - self.real_loc[0], loc[1] - self.real_loc[1])
@@ -961,11 +1009,8 @@ class UniverseUtils:
                     * 180
                 )
                 sub = ang - self.ang
-                while sub < -180:
-                    sub += 360
-                while sub > 180:
-                    sub -= 360
-                self.mouse_move(sub)
+                sub = (sub + 180) % 360 - 180
+                key_mouse_manager.mouse_move(sub)
                 self.ang = ang
                 if self.debug:
                     self.big_map[
@@ -974,90 +1019,96 @@ class UniverseUtils:
                     ] = 49
                     # 轨迹图
                     cv.imwrite("resource/imgs/bigmap.jpg", self.big_map)
-                nds = self.get_dis(self.real_loc, loc)
+                now_distance = get_dis(self.real_loc, loc)
                 # 1秒内没有离目标点更近：开始尝试绕过障碍
-                if dls[0] <= nds:
+                if distance_list[0] <= now_distance:
                     ts = " da"
-                    if t > 0:
-                        keyops.keyUp("w")
-                        self.press("s", 0.35)
-                        self.press(ts[t], 0.2*random.randint(1,3))
-                        self.press("w", 0.3)
+                    if go_direct > 0:
+                        log.info(f"尝试绕过障碍向{ts[go_direct]}")
+                        key_mouse_manager.keyUp("w")
+                        key_mouse_manager.press("s", 0.35)
+                        key_mouse_manager.press(ts[go_direct], 0.2*random.randint(1,3))
+                        key_mouse_manager.press("w", 0.3)
                         self.move = 1
                         self.get_screen()
                         threading.Thread(target=self.keep_move).start()
-                        bw_map = self.get_bw_map(gs=0)
+                        bw_map = self.get_bw_map(re_screen=0)
                         self.get_loc(bw_map, rg=28, fbw=1)
                         self.get_real_loc()
                         self.move = 0
                         time.sleep(0.12)
-                        t -= 1
-                        dls = [100000]
+                        go_direct -= 1
+                        distance_list = [100000]
                         dtm = [time.time()]
                         sprint()
-                        c = 0
-                        sft = 1
+                        retry_time = 0
+                        is_sprinting = 1
                     else:
-                        keyops.keyUp("w")
+                        key_mouse_manager.keyUp("w")
                         break
-                if nds <= ps[type]:
+                if now_distance <= ps[type]:
                     if type == 0:
-                        dls = [100000]
+                        distance_list = [100000]
                         dtm = [time.time()]
                         self.target.remove((loc, type))
                         log.info("removed:" + str((loc, type)))
                         self.lst_changed = time.time()
-                        loc, type = self.get_tar()
+                        loc, type = self.get_recent_target()
                         if type == 3:
                             sprint()
-                            sft = 0
-                        ds = self.get_dis(self.real_loc, loc)
-                        t = 2
+                            is_sprinting = 0
+                        ds = get_dis(self.real_loc, loc)
+                        go_direct = 2
                     else:
-                        keyops.keyUp("w")
+                        key_mouse_manager.keyUp("w")
                         break
                 else:
                     self.get_screen()
                     if type == 3 and self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                        self.press('f')
-                        keyops.keyUp("w")
+                        key_mouse_manager.press('f',force= True)
+                        key_mouse_manager.keyUp("w")
                         if self.nof(must_be='tp'):
                             log.info('大图识别到传送点!')
                             return
-                    elif (type != 3 and self.goodf()) or not self.isrun():
-                        keyops.keyUp("w")
+                    elif (type != 3 and self.good_f()) or not self.isrun():
+                        key_mouse_manager.keyUp("w")
                         break
-                ds = nds
-                dls.append(ds)
+                ds = now_distance
+                distance_list.append(ds)
                 dtm.append(time.time())
-                while dtm[0] < time.time() - 1.7 + sft * 1 - self.slow * 0.4:
+                # 正常情况：1.7s
+                # 快速移动时：2.7s
+                # 慢速移动时：1.3s
+                # 既快速又慢速时?：2.3s
+                while dtm[0] < time.time() - 1.7 + is_sprinting * 1 - self.slow * 0.4:
                     dtm = dtm[1:]
-                    dls = dls[1:]
-                c += 1
-            log.info(f"进入新地图或者进入战斗 {nds}")
+                    distance_list = distance_list[1:]
+                retry_time += 1
+            log.info(f"进入新地图或者进入战斗 {now_distance}")
             if type == 0:
                 self.lst_tm = time.time()
             if type == 1:
+                log("准备开战")
                 if not self.quan:
                     if self._stop == 0:
-                        pyautogui.click()
+                        key_mouse_manager.click(0.5,0.5)
                     time.sleep(1.1)
-                    self.press("s")
+                    key_mouse_manager.press("s")
                     if self._stop == 0:
-                        pyautogui.click()
+                        key_mouse_manager.click(0.5,0.5)
                     time.sleep(0.8)
                     if len(self.target) <= 2:
                         time.sleep(0.3)
-                        self.press("s")
-                        pyautogui.click()
+                        key_mouse_manager.press("s")
+                        key_mouse_manager.click(0.5,0.5)
                         time.sleep(0.6)
-                        self.press("s", 0.5)
-                        pyautogui.click()
+                        key_mouse_manager.press("s", 0.5)
+                        key_mouse_manager.click(0.5,0.5)
                         time.sleep(0.5)
-                        self.press("w", 1.6)
-                        pyautogui.click()
+                        key_mouse_manager.press("w", 1.6)
+                        key_mouse_manager.click(0.5,0.5)
                 else:
-                    keyops.keyUp("w")
+                    key_mouse_manager.keyUp("w")
                     for ii in range(2):
                         self.use_e()
                         if ii:
@@ -1068,7 +1119,7 @@ class UniverseUtils:
                             continue
                         self.get_loc(bw_map, fbw=1, offset=self.get_offset(2), rg=24)
                         self.get_real_loc(1)
-                        self.press('w')
+                        key_mouse_manager.press('w')
                         self.bless()
             if type == 3:
                 for i in range(9):
@@ -1076,8 +1127,8 @@ class UniverseUtils:
                     if self.quan and self.check("choose_bless", 0.9266, 0.9491):
                         return
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                        log.info("大图识别到传送点")
-                        self.press('f')
+                        log.info("大图识别到类型三传送点")
+                        key_mouse_manager.press('f',force= True)
                         if self.nof(must_be='tp'):
                             time.sleep(1.5)
                             break
@@ -1085,13 +1136,13 @@ class UniverseUtils:
                     if self.isrun():
                         if i in [0,4]:
                             self.move_to_end()
-                        self.press('w', 0.5)
+                        key_mouse_manager.press('w', 0.5)
                         time.sleep(0.2)
             # 离目标点挺近了，准备找下一个目标点
-            elif nds <= 20 or self.quan:
+            elif now_distance <= 20 or self.quan:
                 try:
                     self.target.remove((loc, type))
-                    log.info("removed:" + str((loc, type)))
+                    log.info("靠近目标点，移除:" + str((loc, type)))
                     self.lst_changed = time.time()
                 except:
                     pass
@@ -1099,12 +1150,14 @@ class UniverseUtils:
     def keep_move(self):
         op = 'ws'
         i = 0
+        log.info("开始持续移动")
         while self.move and not self._stop:
-            self.press(op[i], 0.05)
+            key_mouse_manager.press(op[i], 0.05)
             time.sleep(0.08)
             i ^= 1
         if not self._stop:
-            keyops.keyDown("w")
+            key_mouse_manager.keyDown("w")
+        log.info("结束持续移动")
 
     # 视角转动x度
     def mouse_move(self, x, fine=1):
@@ -1120,7 +1173,7 @@ class UniverseUtils:
         time.sleep(0.05 * fine)
         if x != y:
             if self._stop == 0:
-                self.mouse_move(x - y, fine)
+                key_mouse_manager.mouse_move(x - y, fine)
             else:
                 raise ValueError("正在退出")
 
@@ -1140,10 +1193,15 @@ class UniverseUtils:
                             self.now_loc[0] - 88 + i, self.now_loc[1] - 88 + j
                         ] += 50
 
-    # 移动后根据旧坐标获得新坐标（匹配）
-    # rg：匹配的范围（以旧坐标为中心） fbw：是否进行缩放
-    # fbw：（人物静止/移动时小地图会有个缩放的过程，fbw=0表示当前人物是静止状态，因此缩放到移动状态与大地图匹配）ps：大地图是移动状态录制的
+
     def get_loc(self, bw_map, rg=10, fbw=0, offset=None):
+        """
+        移动后根据旧坐标获得新坐标（匹配）
+        rg：匹配的范围（以旧坐标为中心） fbw：是否进行缩放
+        fbw：（人物静止/移动时小地图会有个缩放的过程，
+        fbw=0表示当前人物是静止状态，因此缩放到移动状态与大地图匹配）
+        ps：大地图是移动状态录制的
+        """
         rge = 88 + rg
         loc_big = np.zeros((rge * 2, rge * 2), dtype=self.big_map.dtype)
         tpl = (self.now_loc[0], self.now_loc[1])
@@ -1273,7 +1331,7 @@ class UniverseUtils:
     # 匹配地图，找到最相似的地图，确定当前房间对应的地图
     def match_scr(self, img):
         key = self.extract_features(img)
-        img = self.get_bw_map(gs=0,local_screen=img)
+        img = self.get_bw_map(re_screen=0, local_screen=img)
         sim = -1
         ans = -1
         matcher = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
@@ -1293,7 +1351,7 @@ class UniverseUtils:
             return -1, -1
         i_s = [x[1] for x in res]
         for i in i_s[::-1]:
-            bw_j = self.get_bw_map(gs=0,local_screen=self.img_map[i])
+            bw_j = self.get_bw_map(re_screen=0, local_screen=self.img_map[i])
             big_bw_j = np.zeros((bw_j.shape[0]+28,bw_j.shape[1]+28),dtype=bw_j.dtype)
             big_bw_j[14:-14,14:-14] = bw_j
             result = cv.matchTemplate(big_bw_j, img, cv.TM_CCORR_NORMED)
@@ -1302,9 +1360,6 @@ class UniverseUtils:
                 sim = max_val
                 ans = i
         return ans, sim
-
-    def get_dis(self, x, y):
-        return ((x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2) ** 0.5
 
     # 找小地图中怪点，已弃用
     def check_sred(self, sred, loc_scr, i, j):
@@ -1324,7 +1379,7 @@ class UniverseUtils:
                     pass
 
     def check_auto(self):
-        auto = self.check("z", 0.0878,0.9630, large=False, mask="mask_auto")
+        auto = self.get_small_interaction_img(x=0.0878,y=0.9630,mask="mask_auto")
         cvt = cv.cvtColor(auto, cv.COLOR_BGR2HSV)
         lower = np.array([22, 58, 100])
         upper = np.array([26, 100, 255])
@@ -1353,57 +1408,69 @@ class UniverseUtils:
         return res
 
     def get_direc_only_minimap(self):
+        """
+        self.ang_off 含义
+        角度偏移值,表示视角需要旋转的角度偏移量
+        用于记录当前视角相对于目标方向的角度偏差,当检测到需要调整视角时，会累积角度偏移值，
+        后续通过 key_mouse_manager.mouse_move(-self.ang_off*1.2) 进行视角校正
+        self.mini_state 含义
+        0: 初始状态
+        1: 寻路中状态
+        3: 接近目标点状态
+        >=7: 完成一轮寻路
+        self.check_bonus含义
+        是否领取沉浸奖励
+        """
+        log.info("开始有地图寻路")
         if self.debug==2:
             print('mini',self.ang_off,self.mini_state)
         self.ang_neg=self.ang_off<0
         if self.ang_off:
+            #存在角度偏移值则使视线与角色朝向一致
             time.sleep(0.6)
-            self.mouse_move(-self.ang_off*1.2)
+            key_mouse_manager.mouse_move(-self.ang_off*1.2)
             time.sleep(0.3)
-            self.press('w',0.3)
+            key_mouse_manager.press('w',0.3)
         if self.mini_state==1 and self.floor in [4,8,11]:
             time.sleep(0.5)
-            self.press('w',0.55)
-            pyautogui.click()
+            key_mouse_manager.press('w',0.55)
+            key_mouse_manager.click(0.5,0.5)
             time.sleep(1.2)
-            self.press('w')
+            key_mouse_manager.press('w')
             time.sleep(0.4)
         if self.mini_state==3 and self.floor==12 and not self.check_bonus:
             self.mini_state+=2
             return
         if self.mini_state==3 and self.floor in [3,7,12] and self.check_bonus:
-            self.press('d',0.6)
-            keyops.keyDown('w')
+            key_mouse_manager.press('d',0.6)
+            key_mouse_manager.keyDown('w')
             nt = time.time()
             while time.time()-nt<1.3:
-                self.get_screen()
-                if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                    self.press('f')
-                    keyops.keyUp('w')
+                if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
+                    key_mouse_manager.press('f',force= True)
+                    key_mouse_manager.keyUp('w')
                     break
-            keyops.keyUp('w')
-            self.press('f')
+            key_mouse_manager.keyUp('w')
+            key_mouse_manager.press('f',force= True)
             time.sleep(1)
             for _ in range(2):
                 if not self.check_bonus:
                     break
-                self.get_screen()
-                if self.check('bonus_c',0.2385,0.6685):
-                    self.click((0.4453,0.3250))
+                #领取沉浸奖励
+                if self.check('bonus_c',0.2385,0.6685,fresh=True):
+                    key_mouse_manager.click(0.4453,0.3250)
                     time.sleep(1.5)
-                    self.get_screen()
-                    if self.check('lack',0.5036,0.6769):
+                    if self.check('lack',0.5036,0.6769,fresh=True):
                         self.check_bonus = 0
-                    self.click((0.5062, 0.1454))
+                    key_mouse_manager.click(0.5062, 0.1454)
                     time.sleep(1.4)
-            keyops.keyUp('w')
-            self.get_screen()
-            if self.check('bonus_c',0.2385,0.6685):
-                self.click((0.2385,0.6685))
+            key_mouse_manager.keyUp('w')
+            if self.check('bonus_c',0.2385,0.6685,fresh=True):
+                key_mouse_manager.click(0.2385,0.6685)
             self.mini_state+=2
             if self.floor==12:
                 return
-            self.press('s',0.4)
+            key_mouse_manager.press('s',0.4)
         self.ang_off=0
         self.stop_move=0
         self.ready=0
@@ -1418,7 +1485,7 @@ class UniverseUtils:
             if self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
                 if self.floor == 11:
                     self.floor = 12
-        keyops.keyDown("w")
+        key_mouse_manager.keyDown("w")
         wt = 3
         self.first_mini = 0
         sft = 0
@@ -1434,38 +1501,38 @@ class UniverseUtils:
         while True:
             self.get_screen()
             if self._stop == 1:
-                keyops.keyUp("w")
+                key_mouse_manager.keyUp("w")
                 self.stop_move=1
                 break
             if self.mini_target==1:
                 if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                    self.press('f')
+                    key_mouse_manager.press('f',force= True)
                     log.info('发现事件交互')
                     self.stop_move=1
                     need_confirm = 1
                     if self.nof(must_be='event'):
-                        keyops.keyUp("w")
+                        key_mouse_manager.keyUp("w")
                         return
                     break
             else:
-                if self.goodf() and not (self.ts.sim("黑塔") and time.time() - self.quit < 30):
-                    if self.speed <= 0 or not self.ts.sim("黑塔"):
-                        self.press('f')
+                if self.good_f() and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
+                    if self.speed <= 0 or not self.ts.similar("黑塔"):
+                        key_mouse_manager.press('f',force= True)
                         log.info('need_confirm '+self.ts.text)
                         self.stop_move=1
                         need_confirm = 1
                         if self.nof():
-                            keyops.keyUp("w")
+                            key_mouse_manager.keyUp("w")
                             return
                         break
                     else:
                         self.quit = time.time()
-                        keyops.keyUp("w")
+                        key_mouse_manager.keyUp("w")
                         self.stop_move=1
                         self.mini_state+=2
                         return
                 if self.check("auto_2", 0.0583, 0.0769): 
-                    keyops.keyUp("w")
+                    key_mouse_manager.keyUp("w")
                     self.stop_move=1
                     self.mini_state+=2
                     break
@@ -1473,10 +1540,10 @@ class UniverseUtils:
                     self.stop_move=1
                     time.sleep(1.7+self.slow*1.1-(self.quan and self.floor not in [3, 7, 12])*0.5)
                     if self.mini_state==1 and self.floor in [3, 7, 12] and not self.quan:
-                        keyops.keyUp("w")
+                        key_mouse_manager.keyUp("w")
                         if not self.check("ruan",0.0625,0.7065,threshold=0.95) and not self.check("U", 0.0240,0.7759):
                             for i in range([3, 7, 12].index(self.floor)+2):
-                                self.press(str(i+1))
+                                key_mouse_manager.press(str(i+1))
                                 time.sleep(0.4)
                                 self.use_e()
                                 self.get_screen()
@@ -1484,14 +1551,15 @@ class UniverseUtils:
                                     break
                                 if self._stop:
                                     break
-                            keyops.keyDown("w")
+                            key_mouse_manager.keyDown("w")
                     iters = 0
-                    while self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95) and not self._stop:
+                    while self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95,fresh=True) and not self._stop:
+                        #检测到怪物，准备攻击
                         iters+=1
                         if iters>4:
                             break
                         if self.quan:
-                            keyops.keyUp("w")
+                            key_mouse_manager.keyUp("w")
                             self.use_e()
                             if self.floor not in [3, 7, 12]:
                                 for _ in range(3):
@@ -1499,38 +1567,37 @@ class UniverseUtils:
                                 self.stop_move=1
                                 self.mini_state+=2
                                 time.sleep(0.4)
-                                self.press('w')
+                                key_mouse_manager.press('w')
                                 time.sleep(1.4)
                                 return
                             else:
                                 time.sleep(0.8)
-                                keyops.keyDown("w")
+                                key_mouse_manager.keyDown("w")
                         else:
-                            pyautogui.click()
+                            key_mouse_manager.click(0.5,0.5)
                         if iters + self.quan == 2:
                             time.sleep(0.9)
-                            self.press('d',0.85)
-                            self.press('a',0.3)
+                            key_mouse_manager.press('d',0.85)
+                            key_mouse_manager.press('a',0.3)
                         else:
                             time.sleep(1.2)
-                        self.get_screen()
                     self.mini_state+=2
                     break
             if time.time()-init_time>wt:
                 self.stop_move=1
-                keyops.keyUp("w")
+                key_mouse_manager.keyUp("w")
                 self.mini_state+=2
                 if self.mini_state>=7:
                     self.lst_changed = 0
                     return
-                self.press('s',0.3)
-                self.press('a',0.7)
-                self.press('d',0.45)
-                self.press('w',0.5)
+                key_mouse_manager.press('s',0.3)
+                key_mouse_manager.press('a',0.7)
+                key_mouse_manager.press('d',0.45)
+                key_mouse_manager.press('w',0.5)
                 break
             time.sleep(0.1)
         self.stop_move=1
-        keyops.keyUp("w")
+        key_mouse_manager.keyUp("w")
         if need_confirm or (first and self.mini_target!=2):
             for i in "sasddwwaa":
                 if self._stop:
@@ -1538,21 +1605,20 @@ class UniverseUtils:
                 self.get_screen()
                 if self.mini_target==1:
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                        self.press('f')
+                        key_mouse_manager.press('f',force= True)
                         if self.nof(must_be='event'):
                             return
-                elif self.goodf() and not (self.ts.sim("黑塔") and time.time() - self.quit < 30):
-                    self.press('f')
+                elif self.good_f() and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
+                    key_mouse_manager.press('f',force= True)
                     if self.nof():
                         return
-                self.press(i, 0.25)
+                key_mouse_manager.press(i, 0.25)
                 time.sleep(0.4)
-            pyautogui.click()
+            key_mouse_manager.click(0.5,0.5)
 
     def solve_snack(self):
-        self.get_screen()
-        if self.check('snack', 0.3844,0.5065, mask='mask_snack'):
-            self.click((self.tx,self.ty))
+        if self.check('snack', 0.3844,0.5065, mask='mask_snack',fresh= True):
+            key_mouse_manager.click(self.tx,self.ty)
             time.sleep(0.3)
             self.click_position([1184, 815])
             time.sleep(0.4)
@@ -1562,15 +1628,14 @@ class UniverseUtils:
         self.click_position([768, 815])
         time.sleep(0.6)
         if self.allow_e:
-            self.press('e')
+            key_mouse_manager.press('e')
     
     def use_e(self):
-        self.press('e')
+        key_mouse_manager.press('e',force= bool(self.quan))
         time.sleep(0.4)
         if not self.quan:
             time.sleep(0.8)
-        self.get_screen()
-        if self.check('e',0.4995,0.7500):
+        if self.check('e',0.4995,0.7500,fresh= True):
             self.solve_snack()
 
     def bless(self):
@@ -1586,8 +1651,7 @@ class UniverseUtils:
             self.get_screen()
             if self.check("reset",0.2938,0.0954, threshold=0.96):
                 for _ in range(14):
-                    self.get_screen()
-                    img_down = self.check("z", 0.5042, 0.3204, mask="mask", large=False)
+                    img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask",fresh= True)
                     if (
                         self.ts.split_and_find(self.tk.fates, img_down, mode="bless")[1]
                         or self._stop
@@ -1597,46 +1661,43 @@ class UniverseUtils:
                     if not self.check("choose_bless", 0.9266, 0.9491, threshold=0.945):
                         return 1
                     time.sleep(0.2)
-                self.get_screen()
-                img_up = self.check("z", 0.5047, 0.5491, mask="mask_bless", large=False)
+                img_up = self.get_small_interaction_img(x=0.5047,y=0.5491,mask="mask_bless",fresh= True)
                 res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
-                img_down = self.check("z", 0.5042, 0.3204, mask="mask", large=False)
+                img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask")
                 res_down = self.ts.split_and_find([self.fate], img_down, mode="bless")
                 if res_up[1] == 2:
-                    self.click(self.calc_point((0.5047, 0.5491), res_up[0]))
+                    key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
                     chose = 1
                 elif res_down[1] == 2:
-                    self.click(self.calc_point((0.5042, 0.3204), res_down[0]))
+                    key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
                     chose = 1
                 if not chose:
-                    self.click((0.2990, 0.1046))
+                    key_mouse_manager.click(0.2990, 0.1046)
                     time.sleep(1.2)
             # 未匹配到优先祝福，刷新祝福并再次匹配
             if not chose:
                 for _ in range(8):
-                    self.get_screen()
-                    img_down = self.check("z", 0.5042, 0.3204, mask="mask", large=False)
+                    img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask",fresh=True)
                     if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
                         time.sleep(0.2)
                         break
                     if not self.check("choose_bless", 0.9266, 0.9491, threshold=0.945):
                         return 1
                     time.sleep(0.2)
-                self.get_screen()
-                img_up = self.check("z", 0.5047, 0.5491, mask="mask_bless", large=False)
+                img_up = self.get_small_interaction_img(x=0.5047,y=0.5491,mask="mask_bless",fresh=True)
                 res_up = self.ts.split_and_find(self.tk.prior_bless, img_up,bless_skip=self.tk.skip)
-                img_down = self.check("z", 0.5042, 0.3204, mask="mask", large=False)
+                img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask")
                 res_down = self.ts.split_and_find(
                     self.tk.secondary, img_down, mode="bless"
                 )
                 if res_up[1] == 2:
-                    self.click(self.calc_point((0.5047, 0.5491), res_up[0]))
+                    key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
                 elif res_down[1] >= 2:
-                    self.click(self.calc_point((0.5042, 0.3204), res_down[0]))
+                    key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
                 else:
-                    self.click(self.calc_point((0.5047, 0.5491), res_up[0]))
+                    key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
                 time.sleep(0.5)
-            self.click((0.1203, 0.1093))
+            key_mouse_manager.click(0.1203, 0.1093)
             time.sleep(1.7)
             self.get_screen()
             if not self.check("choose_bless", 0.9266, 0.9491, threshold=0.945):
@@ -1645,7 +1706,7 @@ class UniverseUtils:
     def click_box(self, box):
         x = (box[0] + box[1]) / 2
         y = (box[2] + box[3]) / 2
-        self.click((1 - x / self.xx, 1 - y / self.yy))
+        key_mouse_manager.click(1 - x / self.xx, 1 - y / self.yy)
 
     def click_position(self, position):
         self.click_box([position[0], position[0], position[1], position[1]])

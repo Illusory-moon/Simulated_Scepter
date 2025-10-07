@@ -60,7 +60,7 @@ class KeyMouseManager:
         self.y1 = y1
         self.xx = xx
         self.yy = yy
-        self.full = full
+        self.full = False
 
     def start(self):
         """
@@ -69,6 +69,7 @@ class KeyMouseManager:
         log.info("启动键鼠管理器线程")
         if not self.running:
             self.running = True
+            self.operation_queue.clear()
             self.worker_thread = threading.Thread(target=self._worker, daemon=True)
             self.worker_thread.start()
 

@@ -1,27 +1,26 @@
 import time
 
 import numpy as np
-import pywintypes
-import win32api
-import win32con
-import win32gui
 import pyuac
+
+from config.Global import key_mouse_manager
 from utils.log import log
 
 
 def get_angle(su, safe):
     import cv2
-    su.press("w")
+    key_mouse_manager.press("w")
     time.sleep(0.5)
     su.get_screen()
     shape = (int(su.scx * 190), int(su.scx * 190))
     local_screen = su.get_local(0.9333, 0.8657, shape)  # 裁剪后得到的小地图
-    return su.get_now_direc(local_screen)
+    return su.get_now_direct(local_screen)
 
 
 # 不同电脑鼠标移动速度、放缩比、分辨率等不同，因此需要校准
 # 基本逻辑：每次转60度，然后计算实际转了几度，计算出误差比
 def main(cnt=10, safe=0, ang=[1,1,3], su=None):
+    key_mouse_manager.start()
     if su is None or 'Diver' in su.__class__.__name__:
         from utils.diver.config import config
     else:
@@ -41,7 +40,7 @@ def main(cnt=10, safe=0, ang=[1,1,3], su=None):
             continue
         ang_list = []
         for j in range(i):
-            su.mouse_move(60, fine=3 // i)
+            key_mouse_manager.mouse_move(60, fine=3 // i)
             time.sleep(0.2)
             now_ang = get_angle(su, safe)
             sub = lst_ang - now_ang
