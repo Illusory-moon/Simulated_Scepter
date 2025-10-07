@@ -1,4 +1,3 @@
-import cv2
 import pyautogui
 import cv2 as cv
 import numpy as np
@@ -1088,7 +1087,7 @@ class UniverseUtils:
             if type == 0:
                 self.lst_tm = time.time()
             if type == 1:
-                log("准备开战")
+                log.info("准备开战")
                 if not self.quan:
                     if self._stop == 0:
                         key_mouse_manager.click(0.5,0.5)
@@ -1161,6 +1160,7 @@ class UniverseUtils:
 
     # 视角转动x度
     def mouse_move(self, x, fine=1):
+        log.info(f"旋转{x}°，精度{fine}")
         if x > 30 // fine:
             y = 30 // fine
         elif x < -30 // fine:

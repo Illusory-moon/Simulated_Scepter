@@ -236,6 +236,7 @@ class KeyMouseManager:
             dx: x轴移动距离
             fine: 精细度控制参数
         """
+
         if x > 30 // fine:
             y = 30 // fine
         elif x < -30 // fine:
@@ -243,6 +244,7 @@ class KeyMouseManager:
         else:
             y = x
         dx = int(16.5 * y * self.multi * self.scale)
+        # log.info(f"旋转{x}°，精度{fine},移动距离{dx}，倍率{self.multi}，缩放比{self.scale}")
         win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, dx, 0)  # 进行视角移动
         self._sleep(0.05 * fine, False)
         if x != y:
