@@ -871,6 +871,11 @@ class SimulatedUniverse(UniverseUtils):
 
 
     def goto_herta_office(self):
+
+        if self.click_text(text="模拟宇宙",box=[1231, 1360, 595, 631],click=False):
+            log.info("已在办公室，打开模拟宇宙")
+            key_mouse_manager.press('f')
+            return
         log.info("前往黑塔办公室")
         if self.check("smartphone", 0.9833,0.9380, threshold=0.95,fresh=True):
             log.info("打开地图")
@@ -1027,14 +1032,12 @@ class SimulatedUniverse(UniverseUtils):
             self.map_thread.start()
         try:
             self.route()
-        except KeyboardInterrupt:
-            print("KeyboardInterrupt")
-            try:
-                log.info('用户终止进程')
-            except:
-                pass
+        except Exception as e:
+            log.info(f'异常终止进程{e}')
             if not self._stop:
                 self.stop()
+            # 重新抛出异常，以便上层能够捕获
+            raise
 
     def stop(self, *_, **__):
         log.info("尝试停止运行")

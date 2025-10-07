@@ -14,12 +14,17 @@ from simul import SimulatedUniverse
 from diver import DivergentUniverse
 from iron_blood import IronBloodUniverse
 from align_angle import main as align_angle_main
-from PyQt5.QtWidgets import (
-    QApplication, QLineEdit, QMessageBox
-)
-from PyQt5.QtCore import pyqtSignal
 from logger_printer import QMainWindowLog
+from PyQt5.QtWidgets import (
+    QApplication, QLineEdit, QMessageBox, QPushButton, QDialog, QVBoxLayout, QLabel, QTextEdit, QDialogButtonBox
+)
+from PyQt5.QtCore import pyqtSignal, Qt
 from pathlib import Path
+
+
+ERROR_SIGNAL=None
+
+
 
 
 class TaskManager:
@@ -47,6 +52,12 @@ class TaskManager:
         try:
             self.current_task = object()
             task_func(*args, **kwargs)
+        except Exception as e:
+            import traceback
+            error_msg = f"{traceback.format_exc()}"
+            ERROR_SIGNAL.emit(f"任务执行过程中发生异常：{str(e)}",error_msg)
+            print(error_msg)
+
         finally:
             self.current_task = None
             self.task_thread = None
@@ -117,14 +128,18 @@ class TaskThread(threading.Thread):
 
     def run(self):
         self.target(*self.args, **self.kwargs)
+            
+    def join(self, timeout=None):
+        super().join(timeout)
 
 
 class MainWindow(QMainWindowLog):
     calibration_finished = pyqtSignal(object)
+    error_signal = pyqtSignal(str,str)
     f5_pressed = pyqtSignal()
     f6_pressed = pyqtSignal()
     f7_pressed = pyqtSignal()
-
+    
     def __init__(self):
         super().__init__()
         self.task_manager = TaskManager()
@@ -136,6 +151,32 @@ class MainWindow(QMainWindowLog):
         self.f5_pressed.connect(lambda: self.handle_key_pressed("f5"))
         self.f6_pressed.connect(lambda: self.handle_key_pressed("f6"))
         self.f7_pressed.connect(lambda: self.handle_key_pressed("f7"))
+        global ERROR_SIGNAL
+        ERROR_SIGNAL=self.error_signal
+        ERROR_SIGNAL.connect(self.show_error_message)
+    
+    def show_error_message(self, title, error_msg):
+        """显示错误消息弹窗，支持复制内容并强制置顶"""
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Critical)
+        msg.setWindowTitle("出错了！！！")
+        msg.setText(title)
+        msg.setStandardButtons(QMessageBox.Ok)
+        
+        # 设置窗口标志，确保弹窗置顶显示
+        msg.setWindowFlags(msg.windowFlags() | Qt.WindowStaysOnTopHint)
+        
+        # 设置详细文本，这样用户可以选中并复制内容
+        msg.setDetailedText(error_msg)
+        
+        # 显示弹窗并强制置顶
+        msg.show()
+        msg.raise_()
+        msg.activateWindow()
+        
+        # 等待用户关闭弹窗
+        msg.exec_()
+
 
     def init_ui(self):
         # 连接按钮信号
@@ -330,12 +371,15 @@ class MainWindow(QMainWindowLog):
             )
             self.task_manager.current_task = su
             su.start()
+
             
         try:
             self.task_manager.start_task(task)
         except RuntimeError as r:
+            from PyQt5.QtWidgets import QMessageBox
             QMessageBox.warning(self, "警告", str(r))
         except Exception as e:
+            from PyQt5.QtWidgets import QMessageBox
             QMessageBox.critical(self, "错误", str(e))
 
     def run_diver(self):
