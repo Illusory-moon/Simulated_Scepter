@@ -22,7 +22,9 @@ class KeyMouseManager:
         #键鼠配置
         self.config = None
         self.x1 = 0
+        self.x0 = 0
         self.y1 = 0
+        self.y0 = 0
         self.xx = 1
         self.yy = 1
         self.full = False
@@ -50,8 +52,8 @@ class KeyMouseManager:
         设置屏幕参数，用于坐标转换
         
         Args:
-            x1: 屏幕左边界坐标
-            y1: 屏幕上边界坐标
+            x1: 屏幕右边界坐标
+            y1: 屏幕下边界坐标
             xx: 屏幕宽度
             yy: 屏幕高度
             full: 是否全屏模式
@@ -60,6 +62,8 @@ class KeyMouseManager:
         self.y1 = y1
         self.xx = xx
         self.yy = yy
+        self.x0 = x1-xx
+        self.y0 = y1-yy
         self.full = False
 
     def start(self):
@@ -127,8 +131,8 @@ class KeyMouseManager:
         转换坐标格式
         
         Args:
-            x: x坐标（可能是浮点数比例，也可能是实际坐标）
-            y: y坐标（可能是浮点数比例，也可能是实际坐标）
+            x: x坐标（可能是浮点数比例，也可能是游戏实际坐标）
+            y: y坐标（可能是浮点数比例，也可能是有游戏实际坐标）
             
         Returns:
             (actual_x, actual_y): 实际的屏幕坐标
@@ -137,8 +141,7 @@ class KeyMouseManager:
         if isinstance(x, float):
             actual_x, actual_y = self.x1 - int(x * self.xx), self.y1 - int(y * self.yy)
         else:
-            actual_x, actual_y = x, y
-            
+            actual_x, actual_y = self.x1-self.xx+x, self.y1-self.yy+y
         # 全屏模式会有一个偏移
         if self.full:
             actual_x += 9

@@ -275,7 +275,7 @@ class UniverseUtils:
         img = self.get_screen()
         if box:
             match=self.ts.ocr_one_row(img,box)
-            log.info(f"匹配结果：{match}")
+            log.info(f"尝试匹配：{text}匹配结果：{match}")
             if len(match) and click:
                 key_mouse_manager.click(
                     (box[0]+box[1])//2,
@@ -795,29 +795,31 @@ class UniverseUtils:
             recent_type = 3
         return recent_loc, recent_type
 
-    def move_to_interac(self, ii=0):
+    def move_to_interact(self, ii=0):
         self.get_screen()
+        log.info("正在寻找交互点")
         threshold = 0.88
         shape = (int(self.scx * 190), int(self.scx * 190))
         curloc = (118 + 2, 125 + 2)
         blue = np.array([234, 191, 4])
         local_screen = self.get_local(0.9333, 0.8657, shape)
         target = ((-1, -1), 0)
-        nearest = (-1, -1)
-        minicon = cv.imread(self.format_path("mini" + str(ii + 1)))
-        sp = minicon.shape
-        result = cv.matchTemplate(local_screen, minicon, cv.TM_CCORR_NORMED)
+        mini_icon = cv.imread(self.format_path("mini" + str(ii + 1)))
+        sp = mini_icon.shape
+        #小地图查找交互点并获取其位置
+        result = cv.matchTemplate(local_screen, mini_icon, cv.TM_CCORR_NORMED)
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
         if max_val > threshold:
             nearest = (max_loc[1] + sp[0] // 2, max_loc[0] + sp[1] // 2)
             target = (nearest, 1)
-            log.info(f"交互点相似度{max_val}，位置{max_loc[1]},{max_loc[0]}")
+            log.info(f"交互点相似度{max_val}，位置{max_loc[1]},{max_loc[0]},图像序号{ii}")
             if self.floor >= 12:
                 self.floor = 11
         else:  # 226 64 66
-            minicon = cv.imread(self.format_path("mini" + str(ii + 2)))
-            sp = minicon.shape
-            result = cv.matchTemplate(local_screen, minicon, cv.TM_CCORR_NORMED)
+            #再试试另外一张图，即黑塔图
+            mini_icon = cv.imread(self.format_path("mini" + str(ii + 2)))
+            sp = mini_icon.shape
+            result = cv.matchTemplate(local_screen, mini_icon, cv.TM_CCORR_NORMED)
             min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
             if max_val > threshold-0.035*(self.floor in [4,8,11]):
                 nearest = (max_loc[1] + sp[0] // 2, max_loc[0] + sp[1] // 2)
@@ -825,10 +827,12 @@ class UniverseUtils:
                 log.info(f"黑塔相似度{max_val}，位置{max_loc[1]},{max_loc[0]}")
                 if self.floor >= 12:
                     self.floor = 11
+        #在图像上绘制一个以(120, 128)为中心、半径为82的圆形遮罩，圆形区域外的所有像素都被涂黑
         for i in range(local_screen.shape[0]):
             for j in range(local_screen.shape[1]):
                 if get_dis((120, 128), (i, j)) >= 82:
                     local_screen[i, j] = [0, 0, 0]
+        #两个交互都没有找红色点位（应该是敌人）
         if max_val <= threshold:
             red = [60, 60, 226]
             rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 512)
@@ -847,14 +851,11 @@ class UniverseUtils:
                 * 180
             )
             sub = ang - self.ang
-            while sub < -180:
-                sub += 360
-            while sub > 180:
-                sub -= 360
+            sub = (sub + 180) % 360 - 180
             if sub == 0:
                 sub = 1e-9
-            if ii == 0:
-                sub = 0
+            # if ii == 0:
+            #     sub = 0
             if not self.stop_move:
                 key_mouse_manager.mouse_move(sub)
                 return sub
@@ -869,7 +870,7 @@ class UniverseUtils:
             me = self.move_to_end()
             self.is_target+=me
         else:
-            self.ang_off += self.move_to_interac(2)
+            self.ang_off += self.move_to_interact(2)
             self.is_target+=self.ang_off
         self.ready = 1
         now_time = time.time()
@@ -877,7 +878,7 @@ class UniverseUtils:
             me = 0.5
         while not self.stop_move and time.time() - now_time < 3:
             if self.mini_state <= 2:
-                self.ang_off += self.move_to_interac()
+                self.ang_off += self.move_to_interact()
             else:
                 me = max(self.move_to_end(me), me)
         try:
@@ -921,7 +922,7 @@ class UniverseUtils:
 
     # 寻路函数
     def get_direc(self):
-        log.info("开始无地图寻路")
+        log.info("开始有地图寻路")
         gray = np.array([55, 55, 55])
         blue = np.array([234, 191, 4])
         white = np.array([210, 210, 210])
@@ -1421,7 +1422,7 @@ class UniverseUtils:
         self.check_bonus含义
         是否领取沉浸奖励
         """
-        log.info("开始有地图寻路")
+        log.info("开始无地图寻路")
         if self.debug==2:
             print('mini',self.ang_off,self.mini_state)
         self.ang_neg=self.ang_off<0
