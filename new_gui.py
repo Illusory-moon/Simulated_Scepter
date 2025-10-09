@@ -1,4 +1,5 @@
 import ctypes
+import logging
 import sys
 import threading
 import os
@@ -7,6 +8,7 @@ import keyboard
 import time
 
 import pyuac
+
 
 from utils.simul.config import config as config_simul
 from utils.diver.config import config as config_diver
@@ -20,7 +22,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import pyqtSignal, Qt
 from pathlib import Path
-
+from utils.log import log
 
 ERROR_SIGNAL=None
 
@@ -56,7 +58,7 @@ class TaskManager:
             import traceback
             error_msg = f"{traceback.format_exc()}"
             ERROR_SIGNAL.emit(f"任务执行过程中发生异常：{str(e)}",error_msg)
-            print(error_msg)
+            log.error(error_msg)
 
         finally:
             self.current_task = None
@@ -484,15 +486,7 @@ class MainWindow(QMainWindowLog):
         Fps = 1.0 / float(TimePerFrame)
         Fps = round(Fps, 2)
         self.FPS_Input.setText(str(Fps))
-def old_main():
-    if not pyuac.isUserAdmin():
-        pyuac.runAsAdmin()
-    else:
-        app = QApplication(sys.argv)
-        window = MainWindow()
-        window.show()
-        sys.exit(app.exec_())
-def main():
+def main(show):
     def is_admin():
         try:
             return ctypes.windll.shell32.IsUserAnAdmin()
@@ -503,11 +497,15 @@ def main():
     # 以管理员权限重新运行程序，使用pythonw避免命令行窗口
     def run_as_admin():
         script = Path(sys.argv[0]).resolve()
+        if show:
+            ex="python.exe"
+        else:
+            ex="pythonw.exe"
         try:
             ctypes.windll.shell32.ShellExecuteW(
                 None,
                 "runas",
-                "pythonw.exe",
+                ex,
                 f'"{script}"',
                 None,
                 1
@@ -533,10 +531,6 @@ def main():
         app = QApplication(sys.argv)
         window = MainWindow()
         window.show()
-        sys.exit(app.exec_())
+        app.exec_()
 if __name__ == "__main__":
-    x=0
-    if x:
-        old_main()
-    else:
-        main()
+    main(1)

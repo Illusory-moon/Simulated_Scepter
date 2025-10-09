@@ -1004,6 +1004,9 @@ class SimulatedUniverse(UniverseUtils):
     def show_map(self):
         # 创建窗口时使用 WINDOW_FREERATIO 标志以避免自动获取焦点
         cv.namedWindow("Map", cv.WINDOW_FREERATIO | cv.WINDOW_NORMAL)
+        angle_history = []
+        last_angle_change_time = 0
+        
         while not self._stop:
             if self.debug_map.shape[0] == 8192:
                 continue
@@ -1013,6 +1016,49 @@ class SimulatedUniverse(UniverseUtils):
                 self.real_loc[0] - 2 : self.real_loc[0] + 3,
                 self.real_loc[1] - 2 : self.real_loc[1] + 3,
             ] = [49, 49, 140]
+
+            if hasattr(self, 'ang') and self.ang is not None:
+                import math
+                angle_rad = math.radians(- self.ang)  # 使用正确的坐标转换
+                line_length = 20
+                end_point = (
+                    int(self.real_loc[1] + line_length * math.cos(angle_rad)),
+                    int(self.real_loc[0] - line_length * math.sin(angle_rad))  # 注意y轴方向
+                )
+                cv.arrowedLine(
+                    updated_image, 
+                    (self.real_loc[1], self.real_loc[0]),
+                    end_point, 
+                    (0, 255, 0), 
+                    2, 
+                    tipLength=0.4
+                )
+            
+            # 更新角度历史记录
+            current_time = time.time()
+            if hasattr(self, 'ang') and self.ang is not None:
+                if not angle_history or angle_history[-1][1] != self.ang:
+                    angle_history.append((current_time, self.ang))
+                    last_angle_change_time = current_time
+                # 保留最近5秒的角度记录
+                while angle_history and current_time - angle_history[0][0] > 5:
+                    angle_history.pop(0)
+            
+            # 在左上角显示角度数值
+            if hasattr(self, 'ang') and self.ang is not None:
+                # 计算颜色 (新变更红色，随时间推移逐渐变蓝)
+                elapsed_time = current_time - last_angle_change_time
+                if elapsed_time < 2:  # 2秒内变为蓝色
+                    red = max(0, 255 * (1 - elapsed_time / 2))
+                    blue = min(255, 255 * (elapsed_time / 2))
+                    color = (int(blue), 0, int(red))  # BGR格式
+                else:
+                    color = (255, 0, 0)  # 蓝色
+
+                angle_text = f"Angle: {-self.ang:.1f}"
+                cv.putText(updated_image, angle_text, (10, 30), 
+                          cv.FONT_HERSHEY_SIMPLEX, 0.3, color, 1)
+            
             # 将图片放大两倍
             updated_image = cv.resize(
                 updated_image, None, fx=2, fy=2, interpolation=cv.INTER_LINEAR

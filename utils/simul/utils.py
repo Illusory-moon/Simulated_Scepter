@@ -581,8 +581,11 @@ class UniverseUtils:
             ]
         )
 
-    # 图像旋转（以任意点为中心旋转）
+
     def image_rotate(self, src, rotate=0):
+        """
+        图像旋转（以任意点为中心逆时针旋转）
+        """
         h, w, c = src.shape
         M = self.handle_rotate_val(w // 2, h // 2, rotate)
         img = cv.warpAffine(src, M, (w, h))
@@ -710,13 +713,13 @@ class UniverseUtils:
 
     def get_now_direct(self, loc_scr):
         """
-            计算小地图中蓝色箭头的角度，以正右为0度，顺时针增加
+            计算小地图中蓝色箭头的角度，以正上为0度，逆时针增加
         """
         # blue = np.array([234, 191, 4])
         arrow = self.format_path("loc_arrow")
         arrow = cv.imread(arrow)
         hsv = cv.cvtColor(loc_scr, cv.COLOR_BGR2HSV)  # 转HSV
-        lower = np.array([93, 90, 60])  # 90 改成120只剩箭头，但是角色移动过的印记会消失
+        lower = np.array([93, 120, 60])  # 90 改成120只剩箭头，但是角色移动过的印记会消失
         upper = np.array([97, 255, 255])
         mask = cv.inRange(hsv, lower, upper)  # 创建掩膜
         loc_tp = cv.bitwise_and(loc_scr, loc_scr, mask=mask)
@@ -950,7 +953,7 @@ class UniverseUtils:
                 self.get_screen()
                 local_screen = self.get_local(0.9333, 0.8657, shape)
                 self.now_map = '19788'
-            #获取当前朝向以正上为原点的角度
+            #纠正为标准坐标系然后上下反转的坐标系角度（取反估计是为了便于底层操作向左为负，向右为正）
             self.ang = 270 - self.get_now_direct(local_screen)
             self.get_real_loc()
             loc, type = self.get_recent_target()
@@ -1507,12 +1510,12 @@ class UniverseUtils:
                 break
             if self.mini_target==1:
                 if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
+                    key_mouse_manager.keyUp("w")
                     key_mouse_manager.press('f',force= True)
                     log.info('发现事件交互')
                     self.stop_move=1
                     need_confirm = 1
                     if self.nof(must_be='event'):
-                        key_mouse_manager.keyUp("w")
                         return
                     break
             else:
