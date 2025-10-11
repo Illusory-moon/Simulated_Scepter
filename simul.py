@@ -30,6 +30,25 @@ def get_hwnd_and_text():
     return hwnd,Text
 
 
+def get_center(img, i, j):
+    """
+    计算图像中指定位置(i,j)附近区域的加权中心坐标
+    """
+    rx, ry, rt = 0, 0, 0
+    for x in range(-7, 7):
+        for y in range(-7, 7):
+            if (
+                    0 <= i + x < img.shape[0]
+                    and 0 <= j + y < img.shape[1]
+            ):
+                s = np.sum(img[i + x, j + y])
+                if 30 < s < 255 * 3 - 30:
+                    rt += 1
+                    rx += x
+                    ry += y
+    return (i + rx / rt, j + ry / rt)
+
+
 class SimulatedUniverse(UniverseUtils):
     def __init__(
         self, find, debug, speed, consumable, slow, nums=-1, unlock=False, bonus=False, update=0, gui=None
@@ -61,7 +80,7 @@ class SimulatedUniverse(UniverseUtils):
         self.unlock = unlock
         self.check_bonus = bonus
         self.bonus = bonus
-        self.kl = 0
+        self.must_end = 0
         self.fail_count = 0
         self.nums = nums
         self.end = 0
@@ -370,6 +389,7 @@ class SimulatedUniverse(UniverseUtils):
                     now_time = time.time()
                     self.now_map_sim = -1
                     self.now_map = -1
+                    #只有第一，第六层才寻找匹配的地图
                     if self.floor in [0, 5]:
                         self.mini_state = 0
                         self.stop_move = 0
@@ -378,30 +398,32 @@ class SimulatedUniverse(UniverseUtils):
                             now_map, now_map_sim = self.match_scr(self.loc_scr)
                             if self.now_map_sim < now_map_sim:
                                 self.now_map, self.now_map_sim = now_map, now_map_sim
+                            # 地图匹配超时或找到相似匹配
                             if (
-                                (self.now_map_sim > 0.65 or time.time() - now_time > 2.5)
+                                (self.now_map_sim > 0.85 or time.time() - now_time > 2.5)
                                 and self.now_map_sim != -1
                             ) or self._stop:
                                 break
                             time.sleep(0.3)
                         log.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
                         if self.now_map_sim < 0.35:
-                            notif("相似度过低", "疑似在黑塔办公室")
+                            log.warning("相似度过低,疑似未找到匹配地图")
                             if self.debug==2:
                                 time.sleep(10000)
-                            # self.init_map()
+                            self.find=0
+                            self.init_map()
                             # return 1
                         if self.debug == 2:
                             try:
                                 with open(
-                                    "check0.txt",
+                                    "check_map.txt",
                                     "r",
                                     encoding="utf-8",
                                     errors="ignore",
                                 ) as fh:
                                     s = fh.readline().strip("\n")
                                 s = eval(s)
-                                self.kl = 0
+                                self.must_end = 0
                                 if not self.now_map in s:
                                     s.append(self.now_map)
                                     notif(f"地图编号：{self.now_map}",f"相似度：{self.now_map_sim}")
@@ -409,7 +431,7 @@ class SimulatedUniverse(UniverseUtils):
                                     #self.kl = 1
                                     pass
                                 with open(
-                                    "check0.txt",
+                                    "check_map.txt",
                                     "w",
                                     encoding="utf-8",
                                 ) as fh:
@@ -418,17 +440,17 @@ class SimulatedUniverse(UniverseUtils):
                                 pass
                         self.now_pth = "resource/imgs/maps/" + self.now_map + "/"
                         files = self.find_latest_modified_file(self.now_pth)
-                        print("地图文件：", files)
                         self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
                         self.debug_map = deepcopy(self.big_map)
+                        #从文件名获取初始坐标
                         xy = files.split("/")[-1].split("_")[1:3]
                         self.now_loc = (4096 - int(xy[0]), 4096 - int(xy[1]))
+                        #获取目标路径
                         self.target = self.get_target(self.now_pth + "target.jpg")
                         self.get_screen()
                         shape = (int(self.scx * 190), int(self.scx * 190))
-                        local_screen = self.get_local(0.9333, 0.8657, shape)
-                        self.init_ang = 360 - self.get_now_direct(local_screen) - 90
-                        log.info("target %s" % self.target)
+                        self.init_ang = 270 - self.get_now_direct(self.get_local(0.9333, 0.8657, shape))
+                        log.info("已从地图获取目标路径点%s" % self.target)
                     if self._stop:
                         return 1
                     if self.consumable and (self.check_bonus or self.count<34) and self.floor in [3, 7, 12][-self.consumable:]:
@@ -451,22 +473,19 @@ class SimulatedUniverse(UniverseUtils):
                     self.get_screen()
             self.lst_tm = time.time()
             
-            self.kl |= self.floor >= 4 and self.debug == 2
+            self.must_end |= self.floor >= 4 and self.debug == 2
             # 长时间未交互/战斗，暂离或重开
-            if (
-                (
-                    (time.time() - self.lst_changed >= 37 - 4 * self.debug + 8 * self.slow)
-                    and self.find == 1
-                )
+            if (((time.time() - self.lst_changed >= 37 - 4 * self.debug + 8 * self.slow)
+                 and self.find == 1)
                 or (self.floor == 12 and self.mini_state > 4)
-                or self.kl
+                or self.must_end
             ):
                 time.sleep(2.5)
                 key_mouse_manager.press("esc")
                 time.sleep(2)
                 self.init_map()
                 self.floor_init = 0
-                if self.floor == 12 or self.kl:
+                if self.floor == 12 or self.must_end:
                     self.end_of_uni()
                     key_mouse_manager.click(0.2708, 0.1324)
                     log.info(f"通关！当前层数:{self.floor+1}")
@@ -476,8 +495,7 @@ class SimulatedUniverse(UniverseUtils):
                     notif(f"地图{self.now_map}出现问题,退出程序", "DEBUG")
                     self._stop = 1
                 elif self.fail_count <= 1:
-                    notif("暂离", f"地图{self.now_map}，当前层数:{self.floor+1}")
-                    log.error(f"地图{self.now_map}未发现目标,相似度{self.now_map_sim}，尝试暂离")
+                    log.error(f"地图{self.now_map}未发现目标，当前层数:{self.floor+1},相似度{self.now_map_sim}，尝试暂离")
                     key_mouse_manager.click(0.2708, 0.2324)
                     self.re_enter()
                     self.re_align += 1
@@ -512,10 +530,10 @@ class SimulatedUniverse(UniverseUtils):
             # 寻路
             log.info("开始寻路")
             if self.mini_state:
-                #有先验寻路
+                #无先验寻路
                 self.get_direc_only_minimap()
             else:
-                #无先验寻路
+                #有先验寻路
                 self.get_direc()
             return 2
         elif self.check('e',0.4995,0.7500):
@@ -642,12 +660,12 @@ class SimulatedUniverse(UniverseUtils):
             res = self.ts.split_and_find(self.tk.strange, img, mode="strange")
             key_mouse_manager.click(*self.calc_point((0.5000, 0.7333), res[0]))
             key_mouse_manager.click(0.1365, 0.1093)
-            self.wait_fig(lambda:self.check("strange", 0.9417, 0.9481), 1.4)
+            self.wait_flag(lambda:self.check("strange", 0.9417, 0.9481), 1.4)
         # 丢弃奇物
         elif self.check("drop", 0.9406, 0.9491):
             key_mouse_manager.click(0.4714, 0.5500)
             key_mouse_manager.click(0.1339, 0.1028)
-            self.wait_fig(lambda:self.check("drop", 0.9406, 0.9491), 1.4)
+            self.wait_flag(lambda:self.check("drop", 0.9406, 0.9491), 1.4)
         elif self.check("drop_bless", 0.9417, 0.9481, threshold=0.95):
             time.sleep(1.5)
             st = set(self.tk.fates) - set(self.tk.secondary)
@@ -799,6 +817,9 @@ class SimulatedUniverse(UniverseUtils):
             self.del_pt(img, (A[0] + dx, A[1] + dy), S, f)
 
     def get_target(self, pth):
+        """
+        根据地图获取目标路径点位及类型
+        """
         img = cv.imread(pth)
         res = set()
         f_set = [
@@ -811,43 +832,30 @@ class SimulatedUniverse(UniverseUtils):
             for j in range(img.shape[1]):
                 for k in range(4):
                     if f_set[k](img[i, j]):
-                        p = self.get_center(img, i, j)
+                        p = get_center(img, i, j)
+                        #记录坐标，类型，坐标取整
                         res.add((p, k))
                         p = (int(p[0]), int(p[1]))
+                        #引用传递，会影响img源图像
                         self.del_pt(img, p, p, f_set[k])
                         if k == 3:
+                            #记录终点
                             self.last = p
-        # cv.imwrite("imgs/tmp1.jpg", img)
         if self.speed:
             dis = 1000000
             pt = None
+            #找到终点
             for i in res:
                 if i[1] == 1 and get_dis(i[0], self.last) < dis:
                     dis = get_dis(i[0], self.last)
                     pt = i
+            #将除了终点外的所有路径点改为类型0
             for i in deepcopy(res):
                 if i[1] == 1 and pt != i:
                     res.remove(i)
                     res.add((i[0], 0))
         return res
 
-    def get_center(self, img, i, j):
-        rx, ry, rt = 0, 0, 0
-        for x in range(-7, 7):
-            for y in range(-7, 7):
-                if (
-                    i + x >= 0
-                    and j + y >= 0
-                    and i + x < img.shape[0]
-                    and j + y < img.shape[1]
-                ):
-                    s = np.sum(img[i + x, j + y])
-                    if s > 30 and s < 255 * 3 - 30:
-                        rt += 1
-                        rx += x
-                        ry += y
-        return (i + rx / rt, j + ry / rt)
-    
     def backup_map(self):
         try:
             self.bbig_map,self.bbig_map_c,self.blst_tm,self.btries,self.bhis_loc,self.boffset,self.bnow_loc,self.bmini_state,self.bang_off,self.bang_neg,self.bfirst_mini=self.big_map,self.big_map_c,self.lst_tm,self.tries,self.his_loc,self.offset,self.now_loc,self.mini_state,self.ang_off,self.ang_neg,self.first_mini

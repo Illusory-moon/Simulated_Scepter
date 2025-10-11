@@ -124,7 +124,7 @@ class UniverseUtils:
             log.info("info有误，自动选择巡猎命途    错误：" + self.fate)
             self.my_fate = 4
         self.tk = text_keys(self.my_fate)
-        self.debug, self.find = 0, 1
+        self.debug, self.find = 0, 0
         self.bx, self.by = 1920, 1080
         log.warning("等待游戏窗口")
         while True:
@@ -209,7 +209,7 @@ class UniverseUtils:
         key_mouse_manager.keyUp(c)
 
     # example: self.wait_fig(lambda:self.check("strange", 0.9417, 0.9481), 1.4)
-    def wait_fig(self, f, timeout=3):
+    def wait_flag(self, f, timeout=3):
         tm=time.time()
         while time.time()-tm<timeout:
             if not f():
@@ -224,32 +224,34 @@ class UniverseUtils:
             time.sleep(0.5)
         # 点击使用
         key_mouse_manager.click(0.154,0.088)
-        self.wait_fig(lambda:not self.check("yes1",0.3812,0.2926), 1.2)
+        self.wait_flag(lambda:not self.check("yes1", 0.3812, 0.2926), 1.2)
         # 点击确认
         key_mouse_manager.click(0.386,0.294)
-        r = self.wait_fig(lambda:not self.check("use_replace",0.5260,0.6935), 0.8)
+        r = self.wait_flag(lambda:not self.check("use_replace", 0.5260, 0.6935), 0.8)
         if r:
             # 覆盖效果
             key_mouse_manager.click(0.386,0.294)
 
-    # 使用x排，y列的消耗品
     def use_consumable(self, x=1, y=1):
+        """
+        使用x排，y列的消耗品
+        """
         key_mouse_manager.press("b")
-        if self.wait_fig(lambda:not self.check("use_package",0.5182,0.9407), 3):
+        if self.wait_flag(lambda:not self.check("use_package", 0.5182, 0.9407), 3):
             time.sleep(0.4)
             key_mouse_manager.click(0.3677,0.0861)
             time.sleep(0.4)
             self.get_screen()
-            if self.wait_fig(lambda:not self.check("use_star",0.8828,0.8648,threshold=0.9), 0.8):
+            if self.wait_flag(lambda:not self.check("use_star", 0.8828, 0.8648, threshold=0.9), 0.8):
                 self.use_it(x, y)
-                if self.wait_fig(lambda:not self.check("use_def",0.3198,0.0880), 2.2):
+                if self.wait_flag(lambda:not self.check("use_def", 0.3198, 0.0880), 2.2):
                     time.sleep(0.4)
                     key_mouse_manager.click(0.3198,0.0880)
                     time.sleep(0.4)
                     self.get_screen()
-                    if self.wait_fig(lambda:not self.check("use_star",0.8828,0.8648,threshold=0.9), 0.6):
+                    if self.wait_flag(lambda:not self.check("use_star", 0.8828, 0.8648, threshold=0.9), 0.6):
                         self.use_it(x, y)
-                        self.wait_fig(lambda:not self.check("use_package",0.5182,0.9407), 2)
+                        self.wait_flag(lambda:not self.check("use_package", 0.5182, 0.9407), 2)
                         time.sleep(0.3)
                     key_mouse_manager.press("esc")
             else:
@@ -257,7 +259,7 @@ class UniverseUtils:
         if not self.isrun():
             for _ in range(3):
                 key_mouse_manager.press("esc")
-                if self.wait_fig(lambda:not self.isrun(), 3):
+                if self.wait_flag(lambda:not self.isrun(), 3):
                     return
 
     def get_point(self, x, y):
@@ -956,10 +958,10 @@ class UniverseUtils:
             #纠正为标准坐标系然后上下反转的坐标系角度（取反估计是为了便于底层操作向左为负，向右为正）
             self.ang = 270 - self.get_now_direct(local_screen)
             self.get_real_loc()
-            loc, type = self.get_recent_target()
+            target_loc, type = self.get_recent_target()
             # 当前坐标与目标点连成的直线的斜率（大概）
             ang = (
-                math.atan2(loc[0] - self.real_loc[0], loc[1] - self.real_loc[1])
+                math.atan2(target_loc[0] - self.real_loc[0], target_loc[1] - self.real_loc[1])
                 / math.pi
                 * 180
             )
@@ -992,12 +994,13 @@ class UniverseUtils:
             self.get_loc(bw_map, rg=30, offset=self.get_offset(4))
             self.get_real_loc(1)
             # 复杂的定位、寻路过程
-            ds = get_dis(self.real_loc, loc)#可能是当前点距离与目标点距离
+            ds = get_dis(self.real_loc, target_loc)#可能是当前点距离与目标点距离
             distance_list = [100000]
             dtm = [time.time()]
             go_direct = 2
             retry_time = 0
             for i in range(3000):
+                log.info("第{}次定位寻路".format(i))
                 if self._stop == 1:
                     key_mouse_manager.keyUp("w")
                     return
@@ -1005,9 +1008,10 @@ class UniverseUtils:
                 if bw_map is None:
                     return
                 self.get_loc(bw_map, fbw=1, offset=self.get_offset(2+(retry_time<=2)), rg=10+6*(retry_time<=2))
+                self.ang = 270 - self.get_now_direct(self.get_local(0.9333, 0.8657, shape))
                 self.get_real_loc(2)
                 ang = (
-                    math.atan2(loc[0] - self.real_loc[0], loc[1] - self.real_loc[1])
+                    math.atan2(target_loc[0] - self.real_loc[0], target_loc[1] - self.real_loc[1])
                     / math.pi
                     * 180
                 )
@@ -1021,8 +1025,8 @@ class UniverseUtils:
                         self.real_loc[1] - 1 : self.real_loc[1] + 2,
                     ] = 49
                     # 轨迹图
-                    cv.imwrite("resource/imgs/bigmap.jpg", self.big_map)
-                now_distance = get_dis(self.real_loc, loc)
+                    cv.imwrite("debug/bigmap.jpg", self.big_map)
+                now_distance = get_dis(self.real_loc, target_loc)
                 # 1秒内没有离目标点更近：开始尝试绕过障碍
                 if distance_list[0] <= now_distance:
                     ts = " da"
@@ -1047,20 +1051,21 @@ class UniverseUtils:
                         retry_time = 0
                         is_sprinting = 1
                     else:
+                        log.info("尝试次数过多，不再尝试绕过障碍")
                         key_mouse_manager.keyUp("w")
                         break
                 if now_distance <= ps[type]:
                     if type == 0:
                         distance_list = [100000]
                         dtm = [time.time()]
-                        self.target.remove((loc, type))
-                        log.info("removed:" + str((loc, type)))
+                        self.target.remove((target_loc, type))
+                        log.info("removed:" + str((target_loc, type)))
                         self.lst_changed = time.time()
-                        loc, type = self.get_recent_target()
+                        target_loc, type = self.get_recent_target()
                         if type == 3:
                             sprint()
                             is_sprinting = 0
-                        ds = get_dis(self.real_loc, loc)
+                        ds = get_dis(self.real_loc, target_loc)
                         go_direct = 2
                     else:
                         key_mouse_manager.keyUp("w")
@@ -1144,8 +1149,8 @@ class UniverseUtils:
             # 离目标点挺近了，准备找下一个目标点
             elif now_distance <= 20 or self.quan:
                 try:
-                    self.target.remove((loc, type))
-                    log.info("靠近目标点，移除:" + str((loc, type)))
+                    self.target.remove((target_loc, type))
+                    log.info("靠近目标点，移除:" + str((target_loc, type)))
                     self.lst_changed = time.time()
                 except:
                     pass
@@ -1206,6 +1211,7 @@ class UniverseUtils:
         fbw=0表示当前人物是静止状态，因此缩放到移动状态与大地图匹配）
         ps：大地图是移动状态录制的
         """
+        log.info("获取新坐标")
         rge = 88 + rg
         loc_big = np.zeros((rge * 2, rge * 2), dtype=self.big_map.dtype)
         tpl = (self.now_loc[0], self.now_loc[1])
@@ -1245,7 +1251,7 @@ class UniverseUtils:
                 if p > max_val:
                     max_val = p
                     max_loc = (i, j)
-                    if self.debug == 2:
+                    if self.debug==2:
                         tmp = np.zeros((176,176), dtype=np.uint8)
                         tpp = bo_3[i : i + 176, j : j + 176]
                         tmp[tpp!=0]=255
@@ -1262,7 +1268,7 @@ class UniverseUtils:
                 max_loc[0] + 88 - rge + self.now_loc[0],
                 max_loc[1] + 88 - rge + self.now_loc[1],
             )
-        if self.debug == 2:
+        if self.debug==2:
             cv.imwrite('tp/'+str(time.time())+'.jpg',tmp)
 
     def get_real_loc(self,delta=0):
@@ -1300,10 +1306,8 @@ class UniverseUtils:
                 for ii in range(0, 1):
                     for jj in range(0, 1):
                         if (
-                            i + ii >= 0
-                            and j + jj >= 0
-                            and i + ii < tp.shape[0]
-                            and j + jj < tp.shape[1]
+                                0 <= i + ii < tp.shape[0]
+                                and 0 <= j + jj < tp.shape[1]
                         ):
                             if bk[i + ii, j + jj] == 255:
                                 f = 1
@@ -1644,8 +1648,8 @@ class UniverseUtils:
 
     def bless(self):
         self.get_screen()
-        if self.wait_fig(lambda:not self.check("choose_bless", 0.9266, 0.9491), 2.3):
-            self.wait_fig(lambda:not self.check("reset",0.2938,0.0954), 0.7)
+        if self.wait_flag(lambda:not self.check("choose_bless", 0.9266, 0.9491), 2.3):
+            self.wait_flag(lambda:not self.check("reset", 0.2938, 0.0954), 0.7)
             time.sleep(1.2)
         else:
             return
