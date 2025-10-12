@@ -61,6 +61,7 @@ class SimulatedUniverse(UniverseUtils):
         self.now_map = None
         self.now_map_sim = None
         self.real_loc = [0, 0]
+        self.target_loc = [0, 0]
         self.debug_map = np.zeros((8192, 8192), dtype=np.uint8)
         self._stop = True
         self.img_set = []
@@ -393,6 +394,7 @@ class SimulatedUniverse(UniverseUtils):
                     if self.floor in [0, 5]:
                         self.mini_state = 0
                         self.stop_move = 0
+                        no_find=False
                         while True:
                             self.exist_minimap()
                             now_map, now_map_sim = self.match_scr(self.loc_scr)
@@ -412,6 +414,7 @@ class SimulatedUniverse(UniverseUtils):
                                 time.sleep(10000)
                             self.find=0
                             self.init_map()
+                            no_find=True
                             # return 1
                         if self.debug == 2:
                             try:
@@ -438,19 +441,20 @@ class SimulatedUniverse(UniverseUtils):
                                     fh.write(str(s))
                             except:
                                 pass
-                        self.now_pth = "resource/imgs/maps/" + self.now_map + "/"
-                        files = self.find_latest_modified_file(self.now_pth)
-                        self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
-                        self.debug_map = deepcopy(self.big_map)
-                        #从文件名获取初始坐标
-                        xy = files.split("/")[-1].split("_")[1:3]
-                        self.now_loc = (4096 - int(xy[0]), 4096 - int(xy[1]))
-                        #获取目标路径
-                        self.target = self.get_target(self.now_pth + "target.jpg")
-                        self.get_screen()
-                        shape = (int(self.scx * 190), int(self.scx * 190))
-                        self.init_ang = 270 - self.get_now_direct(self.get_local(0.9333, 0.8657, shape))
-                        log.info("已从地图获取目标路径点%s" % self.target)
+                        if not no_find:
+                            self.now_pth = "resource/imgs/maps/" + self.now_map + "/"
+                            files = self.find_latest_modified_file(self.now_pth)
+                            self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
+                            self.debug_map = deepcopy(self.big_map)
+                            #从文件名获取初始坐标
+                            xy = files.split("/")[-1].split("_")[1:3]
+                            self.now_loc = (4096 - int(xy[0]), 4096 - int(xy[1]))
+                            #获取目标路径
+                            self.target = self.get_target(self.now_pth + "target.jpg")
+                            self.get_screen()
+                            shape = (int(self.scx * 190), int(self.scx * 190))
+                            self.init_ang = 270 - self.get_now_direct(self.get_local(0.9333, 0.8657, shape))
+                            log.info("已从地图获取目标路径点%s" % self.target)
                     if self._stop:
                         return 1
                     if self.consumable and (self.check_bonus or self.count<34) and self.floor in [3, 7, 12][-self.consumable:]:
@@ -1020,9 +1024,16 @@ class SimulatedUniverse(UniverseUtils):
                 continue
             updated_image = self.debug_map.copy()
             updated_image = cv.cvtColor(updated_image, cv.COLOR_GRAY2RGB)
+            # 确保坐标值为整数类型，避免切片索引错误
+            real_x, real_y = int(self.real_loc[0]), int(self.real_loc[1])
+            target_x, target_y = int(self.target_loc[0]), int(self.target_loc[1])
             updated_image[
-                self.real_loc[0] - 2 : self.real_loc[0] + 3,
-                self.real_loc[1] - 2 : self.real_loc[1] + 3,
+                real_x - 2 : real_x + 3,
+                real_y - 2 : real_y + 3,
+            ] = [49, 140, 49]
+            updated_image[
+                target_x - 2 : target_x + 3,
+                target_y - 2 : target_y + 3,
             ] = [49, 49, 140]
 
             if hasattr(self, 'ang') and self.ang is not None:
@@ -1030,15 +1041,15 @@ class SimulatedUniverse(UniverseUtils):
                 angle_rad = math.radians(- self.ang)  # 使用正确的坐标转换
                 line_length = 20
                 end_point = (
-                    int(self.real_loc[1] + line_length * math.cos(angle_rad)),
-                    int(self.real_loc[0] - line_length * math.sin(angle_rad))  # 注意y轴方向
+                    int(real_y + line_length * math.cos(angle_rad)),
+                    int(real_x - line_length * math.sin(angle_rad))  # 注意y轴方向
                 )
                 cv.arrowedLine(
                     updated_image, 
-                    (self.real_loc[1], self.real_loc[0]),
+                    (real_y, real_x),
                     end_point, 
                     (0, 255, 0), 
-                    2, 
+                    1,
                     tipLength=0.4
                 )
             

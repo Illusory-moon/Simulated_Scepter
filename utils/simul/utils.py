@@ -93,6 +93,7 @@ def get_dis(x, y):
 
 class UniverseUtils:
     def __init__(self,gui=None):
+        self.ang_off = 0
         self.target = []
         self.fps_list = []
         set_forground()
@@ -717,25 +718,37 @@ class UniverseUtils:
         """
             计算小地图中蓝色箭头的角度，以正上为0度，逆时针增加
         """
-        # blue = np.array([234, 191, 4])
-        arrow = self.format_path("loc_arrow")
-        arrow = cv.imread(arrow)
         hsv = cv.cvtColor(loc_scr, cv.COLOR_BGR2HSV)  # 转HSV
         lower = np.array([93, 120, 60])  # 90 改成120只剩箭头，但是角色移动过的印记会消失
         upper = np.array([97, 255, 255])
         mask = cv.inRange(hsv, lower, upper)  # 创建掩膜
         loc_tp = cv.bitwise_and(loc_scr, loc_scr, mask=mask)
         # loc_tp[np.sum(np.abs(loc_tp - blue), axis=-1) > 0] = [0, 0, 0]
-        mx_acc = 0
-        ang = 0
-        for i in range(360):
-            rt = self.image_rotate(arrow, i)
-            result = cv.matchTemplate(loc_tp, rt, cv.TM_CCORR_NORMED)
-            min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
-            if max_val > mx_acc:
-                mx_acc = max_val
-                mx_loc = (max_loc[0] + 12, max_loc[1] + 12)
-                ang = i
+        # 裁剪loc_tp至中心24x24区域
+        h, w = loc_tp.shape[:2]
+        center_h, center_w = h // 2, w // 2
+        crop_size = 12  # 24x24区域的一半是12
+        loc_tp = loc_tp[center_h - crop_size-5:center_h + crop_size-5,
+                        center_w - crop_size:center_w + crop_size]
+        arrows_img = self.format_path("combined_arrows")
+        arrows_img = cv.imread(arrows_img)
+        # 在拼接的大图上进行一次匹配
+        result = cv.matchTemplate(arrows_img, loc_tp, cv.TM_SQDIFF)
+        min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
+        # 根据匹配位置计算对应的角度
+        best_row = (min_loc[1]+12) // 26  # 行号
+        best_col = (min_loc[0]+12) // 26  # 列号
+        ang = best_row * 12 + best_col  # 对应的角度
+        # 在combined_img上框出匹配到的结果
+        # combined_img_with_rect = arrows_img.copy()
+        # log.info(f"角度：{ang}行：{best_row}列：{best_col}")
+        # cv.rectangle(combined_img_with_rect, min_loc,
+        #             (min_loc[0] + loc_tp.shape[1], min_loc[1] + loc_tp.shape[0]),
+        #             (0, 0, 255), 1)
+        # cv.imshow("匹配结果", loc_tp)
+        # cv.imshow("匹配目标", combined_img_with_rect)
+        # cv.waitKey(0)
+        
         return ang
 
     def get_level(self):
@@ -849,23 +862,28 @@ class UniverseUtils:
         if self.mini_target == 0:
             self.mini_target = target[1]
         if target[1] >= 1:
-            self.ang = 360 - self.get_now_direct(local_screen) - 90
+            log.info(f"交互点类型{target[1]}，位置{target[0][0]},{target[0][1]}")
+            self.get_screen()
+            shape = (int(self.scx * 190), int(self.scx * 190))
+            local_screen = self.get_local(0.9333, 0.8657, shape)
+            self.ang = 270 - self.get_now_direct(local_screen)
+            log.info(f"当前角度{self.ang}")
             ang = (
                 math.atan2(target[0][0] - curloc[0], target[0][1] - curloc[1])
                 / math.pi
                 * 180
             )
+            log.info(f"转动目标角度{ang}")
             sub = ang - self.ang
+
             sub = (sub + 180) % 360 - 180
             if sub == 0:
                 sub = 1e-9
             # if ii == 0:
             #     sub = 0
-            if not self.stop_move:
-                key_mouse_manager.mouse_move(sub)
-                return sub
-            else:
-                return 0
+
+            key_mouse_manager.mouse_move(sub)
+            return sub
         else:
             return 0
 
@@ -958,10 +976,10 @@ class UniverseUtils:
             #纠正为标准坐标系然后上下反转的坐标系角度（取反估计是为了便于底层操作向左为负，向右为正）
             self.ang = 270 - self.get_now_direct(local_screen)
             self.get_real_loc()
-            target_loc, type = self.get_recent_target()
+            self.target_loc, type = self.get_recent_target()
             # 当前坐标与目标点连成的直线的斜率（大概）
             ang = (
-                math.atan2(target_loc[0] - self.real_loc[0], target_loc[1] - self.real_loc[1])
+                math.atan2(self.target_loc[0] - self.real_loc[0], self.target_loc[1] - self.real_loc[1])
                 / math.pi
                 * 180
             )
@@ -971,15 +989,15 @@ class UniverseUtils:
             # 如果当前就在交互点上：直接返回
             if self.good_f() and not self.ts.similar("黑塔"):
                 for j in deepcopy(self.target):
-                    #类型为二
+                    #类型为二，交互点
                     if j[1] == 2:
                         self.target.remove(j)
-                        log.info("removed:" + str(j))
+                        log.info("检测到交互点，已移除目标:" + str(j))
                 return
             key_mouse_manager.mouse_move(sub)
             #此处变换为了目标角度
             self.ang = ang
-            ps = [13,9 + self.quan*7,11,7]
+            threshold_distance = [13,9 + self.quan*7,11,7]
             if self._stop == 0:
                 key_mouse_manager.keyDown("w")
             time.sleep(0.25)
@@ -994,7 +1012,7 @@ class UniverseUtils:
             self.get_loc(bw_map, rg=30, offset=self.get_offset(4))
             self.get_real_loc(1)
             # 复杂的定位、寻路过程
-            ds = get_dis(self.real_loc, target_loc)#可能是当前点距离与目标点距离
+            ds = get_dis(self.real_loc, self.target_loc)#可能是当前点距离与目标点距离
             distance_list = [100000]
             dtm = [time.time()]
             go_direct = 2
@@ -1007,11 +1025,11 @@ class UniverseUtils:
                 bw_map = self.get_bw_map()
                 if bw_map is None:
                     return
-                self.get_loc(bw_map, fbw=1, offset=self.get_offset(2+(retry_time<=2)), rg=10+6*(retry_time<=2))
                 self.ang = 270 - self.get_now_direct(self.get_local(0.9333, 0.8657, shape))
-                self.get_real_loc(2)
+                self.get_loc(bw_map, fbw=1, offset=self.get_offset(2+(retry_time<=2)), rg=10+6*(retry_time<=2))
+                self.get_real_loc(2+is_sprinting*5)
                 ang = (
-                    math.atan2(target_loc[0] - self.real_loc[0], target_loc[1] - self.real_loc[1])
+                    math.atan2(self.target_loc[0] - self.real_loc[0], self.target_loc[1] - self.real_loc[1])
                     / math.pi
                     * 180
                 )
@@ -1026,7 +1044,7 @@ class UniverseUtils:
                     ] = 49
                     # 轨迹图
                     cv.imwrite("debug/bigmap.jpg", self.big_map)
-                now_distance = get_dis(self.real_loc, target_loc)
+                now_distance = get_dis(self.real_loc, self.target_loc)
                 # 1秒内没有离目标点更近：开始尝试绕过障碍
                 if distance_list[0] <= now_distance:
                     ts = " da"
@@ -1054,18 +1072,18 @@ class UniverseUtils:
                         log.info("尝试次数过多，不再尝试绕过障碍")
                         key_mouse_manager.keyUp("w")
                         break
-                if now_distance <= ps[type]:
+                if now_distance <= threshold_distance[type]:
                     if type == 0:
                         distance_list = [100000]
                         dtm = [time.time()]
-                        self.target.remove((target_loc, type))
-                        log.info("removed:" + str((target_loc, type)))
+                        self.target.remove((self.target_loc, type))
+                        log.info("已到达路径点" + str((self.target_loc, type)))
                         self.lst_changed = time.time()
-                        target_loc, type = self.get_recent_target()
+                        self.target_loc, type = self.get_recent_target()
                         if type == 3:
                             sprint()
                             is_sprinting = 0
-                        ds = get_dis(self.real_loc, target_loc)
+                        ds = get_dis(self.real_loc, self.target_loc)
                         go_direct = 2
                     else:
                         key_mouse_manager.keyUp("w")
@@ -1149,8 +1167,8 @@ class UniverseUtils:
             # 离目标点挺近了，准备找下一个目标点
             elif now_distance <= 20 or self.quan:
                 try:
-                    self.target.remove((target_loc, type))
-                    log.info("靠近目标点，移除:" + str((target_loc, type)))
+                    self.target.remove((self.target_loc, type))
+                    log.info("靠近目标点，移除:" + str((self.target_loc, type)))
                     self.lst_changed = time.time()
                 except:
                     pass
@@ -1213,6 +1231,7 @@ class UniverseUtils:
         """
         log.info("获取新坐标")
         rge = 88 + rg
+        #创建一个2rge大小的地图
         loc_big = np.zeros((rge * 2, rge * 2), dtype=self.big_map.dtype)
         tpl = (self.now_loc[0], self.now_loc[1])
         if offset is not None:
@@ -1221,27 +1240,32 @@ class UniverseUtils:
         x1, y1 = max(tpl[0] + rge - self.big_map.shape[0], 0), max(
             tpl[1] + rge - self.big_map.shape[1], 0
         )
-        # 从大地图中截取对应部分
+        # 从大地图中截取对应部分（tpl为中心，rge为匹配范围）
         loc_big[x0 : rge * 2 - x1, y0 : rge * 2 - y1] = self.big_map[
             tpl[0] - rge + x0 : tpl[0] + rge - x1, tpl[1] - rge + y0 : tpl[1] + rge - y1
         ]
         max_val, max_loc = -1, 0
+        #bo_1：原始二值地图中白色区域
         bo_1 = bw_map == 255
         tt = 4
         kernel = np.zeros((5, 5), np.uint8)
         kernel += 1
         if self.find and fbw == 0:
+            #用150这个阈值二值化
             tbw = cv.resize(bw_map, (176 + tt * 2, 176 + tt * 2))
             tbw[tbw > 150] = 255
             tbw[tbw <= 150] = 0
             tbw = tbw[tt : 176 + tt, tt : 176 + tt]
+            #bo_2：缩放、阈值处理和裁剪后的地图中白色区域的掩码
             bo_2 = tbw == 255
             b_map = cv.dilate(tbw, kernel, iterations=1)
+            #bo_5：处理后的图像(tbw)膨胀后新增的区域
             bo_5 = (b_map != 0) & (bo_2 == 0)
         bo_3 = loc_big >= 50
         b_map = cv.dilate(bw_map, kernel, iterations=1)
+        #bo_4：原图中不存在但在膨胀后出现的区域
         bo_4 = (b_map != 0) & (bo_1 == 0)
-        # 枚举匹配，找到匹配点最多的坐标
+        # 枚举匹配，找到匹配点最多的坐标（2rg范围内）
         for i in range(rge * 2 - 176):
             for j in range(rge * 2 - 176):
                 if (i - rge + 88) ** 2 + (j - rge + 88) ** 2 > rg**2:
@@ -1251,7 +1275,7 @@ class UniverseUtils:
                 if p > max_val:
                     max_val = p
                     max_loc = (i, j)
-                    if self.debug==2:
+                    if self.debug:
                         tmp = np.zeros((176,176), dtype=np.uint8)
                         tpp = bo_3[i : i + 176, j : j + 176]
                         tmp[tpp!=0]=255
@@ -1268,8 +1292,10 @@ class UniverseUtils:
                 max_loc[0] + 88 - rge + self.now_loc[0],
                 max_loc[1] + 88 - rge + self.now_loc[1],
             )
-        if self.debug==2:
+        log.info("新坐标：" + str(self.now_loc))
+        if self.debug:
             cv.imwrite('tp/'+str(time.time())+'.jpg',tmp)
+            log.debug("匹配结果已写入")
 
     def get_real_loc(self,delta=0):
         x, y = self.now_loc
@@ -1430,8 +1456,8 @@ class UniverseUtils:
         是否领取沉浸奖励
         """
         log.info("开始无地图寻路")
-        if self.debug==2:
-            print('mini',self.ang_off,self.mini_state)
+        if self.debug:
+            log.debug(f'当前状态{self.ang_off},{self.mini_state}')
         self.ang_neg=self.ang_off<0
         if self.ang_off:
             #存在角度偏移值则使视线与角色朝向一致
