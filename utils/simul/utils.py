@@ -273,7 +273,7 @@ class UniverseUtils:
     def calc_point(self, point, offset):
         return point[0] - offset[0] / self.xx, point[1] - offset[1] / self.yy
 
-    def click_text(self, text,delay=0,box=None,after_delay=0,click=True):
+    def click_text(self, text,delay=0,box=None,after_delay=0,click=True,find_all=False):
         if delay:
             time.sleep(delay)
         img = self.get_screen()
@@ -288,7 +288,7 @@ class UniverseUtils:
                 if after_delay:
                     time.sleep(after_delay)
                 return True
-        pt = self.ts.find_text(img, text)
+        pt = self.ts.find_text(img, text,find_all)
         if pt is not None:
             if click:
                 key_mouse_manager.click(
@@ -384,19 +384,22 @@ class UniverseUtils:
         time.sleep(0.3)
 
     # 点击与模板匹配的点，flag=True表示必须匹配，不匹配就会一直寻找直到出现匹配
-    def click_target(self, target_path, threshold, flag=True):
+    def click_target(self, target_path, threshold, flag=True, sub=True, click=False):
         target = cv.imread(target_path)
         while True:
             result = self.scan_screenshot(target)
             if result["max_val"] > threshold:
-                log.info(result["max_val"])
+                log.info(f"匹配度{result['max_val']}")
                 points = self.calculated(result, target.shape)
                 self.get_point(*points)
-                # log.info("target shape: %s" % target.shape)
-                # self.click(points)
+                log.info(f"target shape: {target.shape}")
+                if click:
+                    self.click(points)
                 return
             if not flag:
                 return
+            elif sub:  # 降低阈值直到匹配到为止
+                threshold -= 0.01
 
     # 在截图中裁剪需要匹配的部分
     def get_local(self, x, y, size, large=True):

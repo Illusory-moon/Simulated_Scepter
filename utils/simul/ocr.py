@@ -137,7 +137,7 @@ class My_TS:
             find=3
         return (rcx-img.shape[1]//2,rcy-img.shape[0]//2),find+black
     
-    def find_text(self, img, text):
+    def find_text(self, img, text,find_all=False):
         self.nothing = 1
         results = self.ts.ocr(img)
         # log.debug(f"识别到文本：{results}")
@@ -160,7 +160,10 @@ class My_TS:
                 
             if found:
                 log.debug(f"识别到文本：{matched_text}匹配文本：{self.text},位置：{[int(res['box'][0][0]), int(res['box'][1][0]), int(res['box'][0][1]), int(res['box'][2][1])]}")
-                return res['box']
+                if not find_all:
+                    return res['box']
+                else:
+                    continue
         return None
 
 

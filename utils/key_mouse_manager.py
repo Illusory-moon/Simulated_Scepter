@@ -105,7 +105,9 @@ class KeyMouseManager:
                 break
             
             if operation != "stop" and operation is not None:
+                self.ending = False
                 self._execute_operation(operation)
+                self.ending = True
             else:
                 # 队列为空，短暂休眠
                 time.sleep(0.01)
@@ -306,6 +308,21 @@ class KeyMouseManager:
         # 将强制操作插入队首
         with self.queue_lock:
             self.operation_queue.appendleft(operation)
+
+    def wait(self):
+        """
+        等待直到操作队列为空
+        如果当前队列为空则直接返回，否则等待直至队列为空
+        """
+        while True:
+            # 如果队列为空或者只有"stop"信号，则返回
+            if not len(self.operation_queue) and self.ending:
+                return
+            with self.queue_lock:
+                if len(self.operation_queue) == 1 and self.operation_queue[0] == "stop":
+                    return
+            # 等待一小段时间再检查
+            time.sleep(0.1)
 
     def keyDown(self, key, force=False):
         """

@@ -890,36 +890,45 @@ class SimulatedUniverse(UniverseUtils):
             key_mouse_manager.press('f')
             return
         log.info("前往黑塔办公室")
-        if self.check("smartphone", 0.9833,0.9380, threshold=0.95,fresh=True):
-            log.info("打开地图")
-            key_mouse_manager.press('m')
-            while not self.click_text(text="星轨航图",delay=1,after_delay=0.5,box=[1625, 1732, 143, 176]):
-                time.sleep(0.5)
-            #拖拽地图到最左
-            key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
-            key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
-            while not self.click_text(text="空间站",delay=3):
-                time.sleep(0.5)
-            while not self.click_text(text="主控舱段",delay=1,after_delay=1,box=[1456, 1600, 338, 367]):
-                time.sleep(0.5)
-            key_mouse_manager.scroll(-10)#放大地图
-            key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
-            key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
-            key_mouse_manager.sleep(0.5)
-            while not self.check("herta_office", 0.7740,0.2824, threshold=0.95,fresh=True):
-                time.sleep(0.5)
-            key_mouse_manager.click(0.7740,0.2824)
-            while not self.click_text(text="黑塔的办公室",delay=0.5,after_delay=0.5,box=[844, 998, 739, 768]):
-                time.sleep(0.5)
-            while not self.click_text(text="传送",box=[1623, 1687, 951, 990]):
-                time.sleep(0.5)
-            while not self.click_text(text="黑塔的办公室",box=[59, 185, 16, 39],click=False):
-                time.sleep(0.5)
-            key_mouse_manager.mouse_move(20)
-            key_mouse_manager.keyDown("w")
-            sprint()
-            key_mouse_manager.sleep(4)
-            key_mouse_manager.keyUp("w")
+        if self.check("smartphone", 0.9833, 0.9380, threshold=0.95, fresh=True):
+            key_mouse_manager.press('f4')
+            self.click_target('resource/imgs/universe.jpg', threshold=0.9, click=True)
+            self.click_text(text="模拟宇宙",box=[292, 419, 448, 481])
+            key_mouse_manager.drag(0.4521,0.2,0.4521,0.9)
+            key_mouse_manager.drag(0.4521,0.2,0.4521,0.9)
+            key_mouse_manager.drag(0.4521,0.2,0.4521,0.9)
+            key_mouse_manager.wait()
+            self.click_text(text="传送",box=[1513, 1567, 814, 844])#寰宇蝗灾[1515, 1567, 351, 382]
+        # if self.check("smartphone", 0.9833,0.9380, threshold=0.95,fresh=True):
+        #     log.info("打开地图")
+        #     key_mouse_manager.press('m')
+        #     while not self.click_text(text="星轨航图",delay=1,after_delay=0.5,box=[1625, 1732, 143, 176]):
+        #         time.sleep(0.5)
+        #     #拖拽地图到最左
+        #     key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
+        #     key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
+        #     while not self.click_text(text="空间站",delay=3):
+        #         time.sleep(0.5)
+        #     while not self.click_text(text="主控舱段",delay=1,after_delay=1,box=[1456, 1600, 338, 367]):
+        #         time.sleep(0.5)
+        #     key_mouse_manager.scroll(-10)#放大地图
+        #     key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
+        #     key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
+        #     key_mouse_manager.sleep(0.5)
+        #     while not self.check("herta_office", 0.7740,0.2824, threshold=0.95,fresh=True):
+        #         time.sleep(0.5)
+        #     key_mouse_manager.click(0.7740,0.2824)
+        #     while not self.click_text(text="黑塔的办公室",delay=0.5,after_delay=0.5,box=[844, 998, 739, 768]):
+        #         time.sleep(0.5)
+        #     while not self.click_text(text="传送",box=[1623, 1687, 951, 990]):
+        #         time.sleep(0.5)
+        #     while not self.click_text(text="黑塔的办公室",box=[59, 185, 16, 39],click=False):
+        #         time.sleep(0.5)
+        #     key_mouse_manager.mouse_move(20)
+        #     key_mouse_manager.keyDown("w")
+        #     sprint()
+        #     key_mouse_manager.sleep(4)
+        #     key_mouse_manager.keyUp("w")
     def loop(self):
         #截图并识别文本
         self.ts.forward(self.get_screen())
