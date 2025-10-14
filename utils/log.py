@@ -46,7 +46,7 @@ class UILogHandler(StreamHandler):
         self.setFormatter(formatter)
 
     def emit(self, record):
-        if Global.PRINT_TO_UI is not None:
+        if GLOBAL.PRINT_TO_UI is not None:
             msg = self.format(record)
             # 根据日志级别设置颜色
             level_colors = {
@@ -57,7 +57,7 @@ class UILogHandler(StreamHandler):
                 'CRITICAL': 1
             }
             color_level = level_colors.get(record.levelname, 5)
-            Global.PRINT_TO_UI.emit(text=msg, color_level=color_level, time=True)
+            GLOBAL.PRINT_TO_UI.emit(text=msg, color_level=color_level, time=True)
 
 ui_handler = UILogHandler()
 log.addHandler(ui_handler)
@@ -76,7 +76,7 @@ set_debug()
 
 def my_print(*args, **kwargs):
     log.info(" ".join(map(str, args)))
-    # Global.PRINT_TO_UI.emit(
+    # GLOBAL.PRINT_TO_UI.emit(
     #     text=" ".join(map(str, args)),
     #     time=False)
     if len(kwargs):

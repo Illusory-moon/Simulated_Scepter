@@ -27,19 +27,19 @@ class QMainWindowLog(QMainWindowLoadUI):
         self.signal_dialog.connect(self.show_dialog)
 
         # 并不是直接输出, 其emit方法是 一个可以输入 缺省的颜色 或 时间参数 来生成文本 调用 signal_print_to_ui_1
-        Global.PRINT_TO_UI = self.MidSignalPrint(signal_1=self.signal_print_to_ui, theme=self.theme)
+        GLOBAL.PRINT_TO_UI = self.MidSignalPrint(signal_1=self.signal_print_to_ui, theme=self.theme)
 
         # 真正的 发送信息激活 print 的函数, 被链接到直接发送信息到ui的函数
         self.signal_print_to_ui.connect(self.print_to_ui)
 
         # 用于支持 输入 路径 或 numpy.ndarray
-        Global.IMAGE_TO_UI = self.MidSignalImage(signal_1=self.signal_image_to_ui)
+        GLOBAL.IMAGE_TO_UI = self.MidSignalImage(signal_1=self.signal_image_to_ui)
 
         # 真正的 发送图片到ui的函数, 被链接到直接发送图片到ui的函数
         self.signal_image_to_ui.connect(self.image_to_ui)
 
         # 储存在全局
-        Global.DIALOG = self.signal_dialog
+        GLOBAL.DIALOG = self.signal_dialog
 
         # 打印默认输出提示
         self.start_print()
@@ -128,7 +128,7 @@ class QMainWindowLog(QMainWindowLoadUI):
     def start_print(self):
         """打印默认输出提示"""
 
-        Global.PRINT_TO_UI.emit(
+        GLOBAL.PRINT_TO_UI.emit(
             text="欢迎使用ADA-自动困难成就达成器~",
             time=False)
 
