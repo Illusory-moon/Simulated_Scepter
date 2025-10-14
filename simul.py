@@ -124,9 +124,6 @@ class SimulatedUniverse(UniverseUtils):
         self.big_map = np.zeros((8192, 8192), dtype=np.uint8)
         self.big_map_c = 0
         self.lst_tm = 0
-        self.tries = 0
-        self.his_loc = (30, 30)
-        self.offset = (30, 30)
         self.now_loc = (4096, 4096)
         self.mini_state = 1
         self.ang_off = 0
@@ -860,11 +857,25 @@ class SimulatedUniverse(UniverseUtils):
 
     def backup_map(self):
         try:
-            self.bbig_map,self.bbig_map_c,self.blst_tm,self.btries,self.bhis_loc,self.boffset,self.bnow_loc,self.bmini_state,self.bang_off,self.bang_neg,self.bfirst_mini=self.big_map,self.big_map_c,self.lst_tm,self.tries,self.his_loc,self.offset,self.now_loc,self.mini_state,self.ang_off,self.ang_neg,self.first_mini
+            self.bbig_map=self.big_map
+            self.bbig_map_c=self.big_map_c
+            self.blst_tm=self.lst_tm
+            self.bnow_loc=self.now_loc
+            self.bmini_state=self.mini_state
+            self.bang_off=self.ang_off
+            self.bang_neg=self.ang_neg
+            self.bfirst_mini=self.first_mini
         except:
             pass
     def restore_map(self):
-        self.big_map,self.big_map_c,self.lst_tm,self.tries,self.his_loc,self.offset,self.now_loc,self.mini_state,self.ang_off,self.ang_neg,self.first_mini=self.bbig_map,self.bbig_map_c,self.blst_tm,self.btries,self.bhis_loc,self.boffset,self.bnow_loc,self.bmini_state,self.bang_off,self.bang_neg,self.bfirst_mini
+        self.big_map=self.bbig_map
+        self.big_map_c=self.bbig_map_c
+        self.lst_tm=self.blst_tm
+        self.now_loc=self.bnow_loc
+        self.mini_state=self.bmini_state
+        self.ang_off=self.bang_off
+        self.ang_neg=self.bang_neg
+        self.first_mini=self.bfirst_mini
 
     def re_enter(self):
         tm = time.time()
