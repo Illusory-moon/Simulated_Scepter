@@ -14,7 +14,7 @@ from logging import (
 from pathlib import Path
 from datetime import datetime
 
-from config import Global
+from config import GLOBAL
 
 logs_path = Path("logs")
 logs_path.mkdir(exist_ok=True, parents=True)

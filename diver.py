@@ -12,7 +12,7 @@ from utils.log import my_print as print
 from utils.log import print_exc
 from utils.diver.args import args
 from utils.diver.utils import UniverseUtils, set_forground
-from config.Global import key_mouse_manager
+from config.GLOBAL import key_mouse_manager
 import os
 from utils.diver.config import config
 import datetime

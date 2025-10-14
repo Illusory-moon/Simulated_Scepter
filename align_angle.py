@@ -3,7 +3,7 @@ import time
 import numpy as np
 import pyuac
 
-from config.Global import key_mouse_manager
+from config.GLOBAL import key_mouse_manager
 from utils.log import log
 
 

@@ -9,7 +9,7 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import QApplication
 
-from config import Global
+from config import GLOBAL
 from load_ui import QMainWindowLoadUI
 from utils.log import log
 

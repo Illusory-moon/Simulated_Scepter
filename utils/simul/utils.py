@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw, ImageFont
 from math import sin, cos
 import traceback
 
-from config.Global import key_mouse_manager
+from config.GLOBAL import key_mouse_manager
 from utils.simul.config import config
 from utils.log import log
 import utils.simul.ocr as ocr

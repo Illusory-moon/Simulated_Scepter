@@ -8,7 +8,7 @@ import win32gui
 import random
 from copy import deepcopy
 
-from config.Global import key_mouse_manager
+from config.GLOBAL import key_mouse_manager
 from diver import load_actions, merge_text, clean_text
 from utils.log import log, set_debug
 from utils.simul.map_log import map_log
@@ -19,9 +19,6 @@ from align_angle import main as align_angle
 from utils.simul.config import config
 import datetime
 import pytz
-
-# 版本号
-version = "v6.3"
 
 
 def get_hwnd_and_text():
@@ -213,7 +210,7 @@ class SimulatedUniverse(UniverseUtils):
             time.sleep(0.1)
         log.info("停止运行")
 
-    def end_of_uni(self):
+    def end_of_university(self):
         self.update_count(0)
         self.my_cnt += 1
         tm = int((time.time() - self.init_tm) / 60)
@@ -491,7 +488,7 @@ class SimulatedUniverse(UniverseUtils):
                 self.init_map()
                 self.floor_init = 0
                 if self.floor == 12 or self.must_end:
-                    self.end_of_uni()
+                    self.end_of_university()
                     key_mouse_manager.click(0.2708, 0.1324)
                     log.info(f"通关！当前层数:{self.floor+1}")
                 elif self.debug == 2:

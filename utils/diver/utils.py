@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw, ImageFont
 from math import sin, cos
 import traceback
 
-from config.Global import key_mouse_manager
+from config.GLOBAL import key_mouse_manager
 from utils.diver.config import config
 from utils.diver.args import args
 from utils.log import log
