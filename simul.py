@@ -408,11 +408,12 @@ class SimulatedUniverse(UniverseUtils):
                                 break
                             time.sleep(0.3)
                         log.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
+                        self.find=True
                         if self.now_map_sim < 0.35:
                             log.warning("相似度过低,疑似未找到匹配地图")
                             if self.debug==2:
                                 time.sleep(10000)
-                            self.find=0
+                            self.find=False
                             self.init_map()
                             no_find=True
                             # return 1
@@ -462,7 +463,7 @@ class SimulatedUniverse(UniverseUtils):
                     key_mouse_manager.press("1")
                 # 录制模式，保存初始小地图
                 else:
-                    log.info("未找到匹配地图")
+                    log.warning("未找到匹配地图")
                     time.sleep(3)
                     self.mini_state = 0
                     self.exist_minimap()
@@ -639,12 +640,12 @@ class SimulatedUniverse(UniverseUtils):
                     ]
                 event_prior = [self.fate] + event_prior
                 success = self.click_text(event_prior)
-                time.sleep(0.3)
+                time.sleep(1)
                 self.get_screen()
                 if success and self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
                     key_mouse_manager.click(self.tx, self.ty)
                 elif self.check("wait_room", 0.880, 0.156,threshold=0.95):
-                    key_mouse_manager.click(1600, 800)
+                    key_mouse_manager.click(0.1667, 0.2592)
                 else:
                     key_mouse_manager.click(tx, ty)
                     time.sleep(0.3)

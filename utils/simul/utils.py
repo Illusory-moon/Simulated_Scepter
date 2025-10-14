@@ -93,6 +93,7 @@ def get_dis(x, y):
 
 class UniverseUtils:
     def __init__(self,gui=None):
+        self.mini_state = 0
         self.ang_off = 0
         self.target = []
         self.fps_list = []
@@ -286,7 +287,7 @@ class UniverseUtils:
                 )
                 if after_delay:
                     time.sleep(after_delay)
-                return 1
+                return True
         pt = self.ts.find_text(img, text)
         if pt is not None:
             if click:
@@ -296,8 +297,9 @@ class UniverseUtils:
                 )
             if after_delay:
                 time.sleep(after_delay)
-            return 1
-        return 0
+            return True
+        log.warning(f"点击{text}失败")
+        return False
 
     # 由click_target调用，返回图片匹配结果
     def scan_screenshot(self, prepared):
@@ -544,7 +546,7 @@ class UniverseUtils:
             dx = self.get_end_point()
             off = 0
             if dx is None:
-                for k in [60,120,60,60,30,-60,-60,-60,-60]:
+                for k in [60,120,60,60,30,30,-60,-60,-60,-60,-60,-60]:
                     if self.ang_neg:
                         key_mouse_manager.mouse_move(k)
                         off -= k
@@ -559,6 +561,7 @@ class UniverseUtils:
                     key_mouse_manager.mouse_move(off*1.03)
                     time.sleep(0.3)
                     return 0
+        log.debug(f"移动面向终点 参数{i}移动距离{dx}" )
         if i == 0:
             key_mouse_manager.mouse_move(dx / 3)
             time.sleep(0.3)
@@ -781,7 +784,8 @@ class UniverseUtils:
         """
         不是"沉浸", "紧锁", "复活", "下载"的交互
         """
-        if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
+        log.debug("尝试判断当前交互是否最佳")
+        if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
             return False
         img = self.get_small_interaction_img(x=0.3344,y=0.4241,mask="mask_f")
         text = self.ts.similar_list(self.tk.interacts, img)
@@ -792,6 +796,7 @@ class UniverseUtils:
         is_killed = text in ["沉浸", "紧锁", "复活", "下载"]
         if text is not None:
             log.info('识别到交互信息：'+text)
+        log.debug(f"交互最佳结果判断{text is not None and not is_killed}")
         return text is not None and not is_killed
 
     def get_recent_target(self):
@@ -867,13 +872,11 @@ class UniverseUtils:
             shape = (int(self.scx * 190), int(self.scx * 190))
             local_screen = self.get_local(0.9333, 0.8657, shape)
             self.ang = 270 - self.get_now_direct(local_screen)
-            log.info(f"当前角度{self.ang}")
             ang = (
                 math.atan2(target[0][0] - curloc[0], target[0][1] - curloc[1])
                 / math.pi
                 * 180
             )
-            log.info(f"转动目标角度{ang}")
             sub = ang - self.ang
 
             sub = (sub + 180) % 360 - 180
@@ -888,22 +891,26 @@ class UniverseUtils:
             return 0
 
     def move_thread(self):
+        log.info("启动移动线程")
         me = 0
         if self.mini_state > 2:
             me = self.move_to_end()
-            self.is_target+=me
+            # self.is_target+=me
         else:
-            self.ang_off += self.move_to_interact(2)
-            self.is_target+=self.ang_off
+            # self.ang_off += self.move_to_interact(2)
+            self.move_to_interact(2)
+            # self.is_target+=self.ang_off
         self.ready = 1
         now_time = time.time()
         if me == 0:
             me = 0.5
         while not self.stop_move and time.time() - now_time < 3:
             if self.mini_state <= 2:
-                self.ang_off += self.move_to_interact()
+                # self.ang_off += self.move_to_interact()
+                self.move_to_interact()
             else:
                 me = max(self.move_to_end(me), me)
+        log.info("停止移动线程")
         try:
             '''
             exec(
@@ -922,10 +929,7 @@ class UniverseUtils:
         tm = time.time()
         ava = 0
         while not ava and time.time()-tm<1.6:
-            self.get_screen()
-            if not self.check(
-                    "f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96
-                ) and not self.isrun():
+            if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True) and not self.isrun():
                 ava = 1
         log.info('交互点生效：'+str(ava))
         if ava:
@@ -964,6 +968,7 @@ class UniverseUtils:
         local_screen = self.get_local(0.9333, 0.8657, shape)
         # 录图模式，将小地图覆盖到录制的大地图中
         if self.find == 0:
+            log.debug("尝试记录地图中")
             self.write_map(bw_map)
             self.get_map()
         # 寻路模式
@@ -1165,7 +1170,7 @@ class UniverseUtils:
                         key_mouse_manager.press('w', 0.5)
                         time.sleep(0.2)
             # 离目标点挺近了，准备找下一个目标点
-            elif now_distance <= 20 or self.quan:
+            elif now_distance <= 20:
                 try:
                     self.target.remove((self.target_loc, type))
                     log.info("靠近目标点，移除:" + str((self.target_loc, type)))
@@ -1229,7 +1234,7 @@ class UniverseUtils:
         fbw=0表示当前人物是静止状态，因此缩放到移动状态与大地图匹配）
         ps：大地图是移动状态录制的
         """
-        log.info("获取新坐标")
+        log.info(f"获取新坐标,范围{rg},是否移动{fbw},偏移{offset}")
         rge = 88 + rg
         #创建一个2rge大小的地图
         loc_big = np.zeros((rge * 2, rge * 2), dtype=self.big_map.dtype)
@@ -1472,9 +1477,11 @@ class UniverseUtils:
             time.sleep(1.2)
             key_mouse_manager.press('w')
             time.sleep(0.4)
+        #12层并且不要奖励
         if self.mini_state==3 and self.floor==12 and not self.check_bonus:
-            self.mini_state+=2
+            self.mini_state=5
             return
+        #3，7，12层领奖
         if self.mini_state==3 and self.floor in [3,7,12] and self.check_bonus:
             key_mouse_manager.press('d',0.6)
             key_mouse_manager.keyDown('w')
@@ -1501,7 +1508,7 @@ class UniverseUtils:
             key_mouse_manager.keyUp('w')
             if self.check('bonus_c',0.2385,0.6685,fresh=True):
                 key_mouse_manager.click(0.2385,0.6685)
-            self.mini_state+=2
+            self.mini_state=5
             if self.floor==12:
                 return
             key_mouse_manager.press('s',0.4)
@@ -1533,6 +1540,7 @@ class UniverseUtils:
         need_confirm=0
         init_time = time.time()
         while True:
+            log.info("开始检测交互点循环")
             self.get_screen()
             if self._stop == 1:
                 key_mouse_manager.keyUp("w")
@@ -1541,7 +1549,7 @@ class UniverseUtils:
             if self.mini_target==1:
                 if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
                     key_mouse_manager.keyUp("w")
-                    key_mouse_manager.press('f',force= True)
+                    key_mouse_manager.press('f')
                     log.info('发现事件交互')
                     self.stop_move=1
                     need_confirm = 1
@@ -1551,7 +1559,8 @@ class UniverseUtils:
             else:
                 if self.good_f() and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
                     if self.speed <= 0 or not self.ts.similar("黑塔"):
-                        key_mouse_manager.press('f',force= True)
+                        key_mouse_manager.keyUp("w")
+                        key_mouse_manager.press('f')
                         log.info('need_confirm '+self.ts.text)
                         self.stop_move=1
                         need_confirm = 1
@@ -1588,15 +1597,37 @@ class UniverseUtils:
                             key_mouse_manager.keyDown("w")
                     iters = 0
                     while self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95,fresh=True) and not self._stop:
-                        #检测到怪物，准备攻击
+                        log.info("检测到怪物，准备攻击")
+                        key_mouse_manager.keyUp("w")
                         iters+=1
                         if iters>4:
                             break
+                        curloc = (120, 127)
+                        shape = (int(self.scx * 190), int(self.scx * 190))
+                        local_screen = self.get_local(0.9333, 0.8657, shape)
+                        red = [60, 60, 226]
+                        rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 512)
+                        if rd[0].shape[0] > 0:
+                            target = ((rd[0][0], rd[1][0]), 3)
+                            self.get_screen()
+                            local_screen = self.get_local(0.9333, 0.8657, shape)
+                            self.ang = 270 - self.get_now_direct(local_screen)
+                            ang = (
+                                    math.atan2(target[0][0] - curloc[0], target[0][1] - curloc[1])
+                                    / math.pi
+                                    * 180
+                            )
+                            sub = ang - self.ang
+                            sub = (sub + 180) % 360 - 180
+                            if sub == 0:
+                                sub = 1e-9
+                            key_mouse_manager.mouse_move(sub)
+                            log.info("移动角度面向怪物：" + str(sub))
                         if self.quan:
                             key_mouse_manager.keyUp("w")
                             self.use_e()
                             if self.floor not in [3, 7, 12]:
-                                for _ in range(3):
+                                for _ in range(4):
                                     self.use_e()
                                 self.stop_move=1
                                 self.mini_state+=2
@@ -1633,21 +1664,29 @@ class UniverseUtils:
         self.stop_move=1
         key_mouse_manager.keyUp("w")
         if need_confirm or (first and self.mini_target!=2):
+            log.info("尝试乱转找到交互点")
             for i in "sasddwwaa":
                 if self._stop:
                     return
                 self.get_screen()
                 if self.mini_target==1:
+                    log.info(f"必须找到交互点，尝试寻找")
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
                         key_mouse_manager.press('f',force= True)
                         if self.nof(must_be='event'):
                             return
                 elif self.good_f() and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
+                    # cv.imshow("f",self.screen)
+                    log.info(f"找到最佳交互点")
                     key_mouse_manager.press('f',force= True)
+                    self.get_screen()
+                    # cv.imshow("newf",self.screen)
+                    # cv.waitKey(0)
                     if self.nof():
                         return
                 key_mouse_manager.press(i, 0.25)
-                time.sleep(0.4)
+                log.info(f"向{i}走0.25秒")
+                time.sleep(0.65)
             key_mouse_manager.click(0.5,0.5)
 
     def solve_snack(self):
