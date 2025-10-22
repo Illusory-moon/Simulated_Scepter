@@ -1,3 +1,6 @@
+from datetime import datetime
+from pathlib import Path
+
 import pyautogui
 import cv2 as cv
 import numpy as np
@@ -25,6 +28,9 @@ from utils.screenshot import Screen
 import threading
 
 from utils.simul.text_key import text_keys
+from utils.utils.get_win_rect import get_window_rect
+from utils.utils.minimap_util import get_minimap, MINIMAP_RADIUS
+from utils.utils.mminimap import update_minimap_data
 
 
 def notif(title, msg, cnt=None):
@@ -91,6 +97,9 @@ def get_dis(x, y):
     return ((x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2) ** 0.5
 
 
+class BigangError(Exception):
+    pass
+
 class UniverseUtils:
     def __init__(self,gui=None):
         self.mini_state = 0
@@ -136,7 +145,8 @@ class UniverseUtils:
                 self.x0, self.y0, self.x1, self.y1 = win32gui.GetClientRect(hwnd)
                 self.xx = self.x1 - self.x0
                 self.yy = self.y1 - self.y0
-                self.x0, self.y0, self.x1, self.y1 = win32gui.GetWindowRect(hwnd)
+                # self.x0, self.y0, self.x1, self.y1 = win32gui.GetWindowRect(hwnd)
+                self.x0, self.y0, self.x1, self.y1 = get_window_rect(hwnd)
                 self.full = self.x0 == 0 and self.y0 == 0
                 self.x0 = max(0, self.x1 - self.xx) #+ 9 * self.full
                 self.y0 = max(0, self.y1 - self.yy) #+ 9 * self.full
@@ -825,10 +835,10 @@ class UniverseUtils:
         self.get_screen()
         log.info("正在寻找交互点")
         threshold = 0.88
-        shape = (int(self.scx * 190), int(self.scx * 190))
-        curloc = (118 + 2, 125 + 2)
-        blue = np.array([234, 191, 4])
-        local_screen = self.get_local(0.9333, 0.8657, shape)
+        # shape = (int(self.scx * 190), int(self.scx * 190))
+        # curloc = (118 + 2, 125 + 2)
+        # blue = np.array([234, 191, 4])
+        local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True)
         target = ((-1, -1), 0)
         mini_icon = cv.imread(self.format_path("mini" + str(ii + 1)))
         sp = mini_icon.shape
@@ -839,6 +849,23 @@ class UniverseUtils:
             nearest = (max_loc[1] + sp[0] // 2, max_loc[0] + sp[1] // 2)
             target = (nearest, 1)
             log.info(f"交互点相似度{max_val}，位置{max_loc[1]},{max_loc[0]},图像序号{ii}")
+            
+            # 在图像上绘制匹配框并显示
+            # top_left = max_loc
+            # bottom_right = (top_left[0] + sp[1], top_left[1] + sp[0])
+            # display_image = local_screen.copy()
+            # cv.rectangle(display_image, top_left, bottom_right, (0, 255, 0), 1)
+            # display_image[
+            #     120 - 2 : 120 + 3,
+            #     127 - 2 : 127 + 3,
+            # ] = [49, 140, 49]
+            # display_image[
+            #     target[0][0] - 2 : target[0][0] + 3,
+            #     target[0][1] - 2 : target[0][1] + 3,
+            # ] = [49, 49, 140]
+            # cv.imshow('Matched Template', display_image)
+            # cv.waitKey(0)
+            
             if self.floor >= 12:
                 self.floor = 11
         else:  # 226 64 66
@@ -851,6 +878,15 @@ class UniverseUtils:
                 nearest = (max_loc[1] + sp[0] // 2, max_loc[0] + sp[1] // 2)
                 target = (nearest, 2)
                 log.info(f"黑塔相似度{max_val}，位置{max_loc[1]},{max_loc[0]}")
+                
+                # 在图像上绘制匹配框并显示
+                # top_left = max_loc
+                # bottom_right = (top_left[0] + sp[1], top_left[1] + sp[0])
+                # display_image = local_screen.copy()
+                # cv.rectangle(display_image, top_left, bottom_right, (0, 255, 0), 2)
+                # cv.imshow('Matched Template', display_image)
+                # cv.waitKey(1)
+                
                 if self.floor >= 12:
                     self.floor = 11
         #在图像上绘制一个以(120, 128)为中心、半径为82的圆形遮罩，圆形区域外的所有像素都被涂黑
@@ -872,24 +908,12 @@ class UniverseUtils:
         if target[1] >= 1:
             log.info(f"交互点类型{target[1]}，位置{target[0][0]},{target[0][1]}")
             self.get_screen()
-            shape = (int(self.scx * 190), int(self.scx * 190))
-            local_screen = self.get_local(0.9333, 0.8657, shape)
-            self.ang = 270 - self.get_now_direct(local_screen)
-            ang = (
-                math.atan2(target[0][0] - curloc[0], target[0][1] - curloc[1])
-                / math.pi
-                * 180
-            )
-            sub = ang - self.ang
-
-            sub = (sub + 180) % 360 - 180
-            if sub == 0:
-                sub = 1e-9
+            # shape = (int(self.scx * 190), int(self.scx * 190))
+            # local_screen = self.get_local(0.9333, 0.8657, shape)
+            self.update_direction_data(mode=2,target=target)
             # if ii == 0:
             #     sub = 0
-
-            key_mouse_manager.mouse_move(sub)
-            return sub
+            # return sub
         else:
             return 0
 
@@ -949,7 +973,63 @@ class UniverseUtils:
                     self.quit = time.time()
                 self.mini_state += 2
         return ava
+    def save_screen(self, save_path=r"./temp",force=False,not_now=False):
+        """
+        获取截图并保存到指定路径
+        :param save_path: 保存截图的路径
+        :param force: 是否展示
+        """
+        if not_now:
+            sc=self.screen
+        else:
+            sc = self.get_screen()
 
+        # 如果截图是 numpy.ndarray 类型，将其转换为 PIL.Image
+        if isinstance(sc, np.ndarray):
+            # OpenCV使用BGR格式，PIL使用RGB格式，需要转换
+            rgb_img = cv.cvtColor(sc, cv.COLOR_BGR2RGB)
+            nc = Image.fromarray(rgb_img)
+        else:
+            nc = sc
+        save_path = Path(save_path)
+        save_path.mkdir(parents=True, exist_ok=True)
+        filename = datetime.now().strftime("%Y%m%d_%H%M%S") + ".png"
+        nc.save(save_path / filename)
+        return sc if force else nc
+    def update_direction_data(self,mode=None,bw_map=None, retry_time=0, is_sprinting=0,target=None):
+        self.rotation, d = update_minimap_data(self.screen,rotation=self.rotation if hasattr(self, 'rotation') else 0,direction=self.ang - 270 if hasattr(self, 'ang') else 0)
+        if 20<abs(self.rotation-d)<340:
+            key_mouse_manager.wait()
+            self.rotation, d = update_minimap_data(self.get_screen(),rotation=self.rotation, direction=self.ang - 270)
+            if 20<abs(self.rotation-d)<340:
+                # cv.imshow("now", self.screen)
+                self.save_screen(not_now=True)
+                log.error(f"角度误差过大视角{self.rotation}朝向{d}模式{mode}")
+                cv.waitKey(0)
+                raise BigangError(f"角度误差过大视角{self.rotation}朝向{d}")
+        self.ang = 270 + d
+        self.ang%=360
+        if mode==1:
+            self.get_loc(bw_map, fbw=1, offset=self.get_offset(2 + (retry_time <= 2)), rg=10 + 6 * (retry_time <= 2))
+            self.get_real_loc(2 + is_sprinting * 5)
+        elif mode==2:
+            self.real_loc=(93,93)
+            self.target_loc= target[0]
+        # 当前坐标与目标点连成的直线的斜率（大概）
+        ang = (
+                math.atan2(self.target_loc[0] - self.real_loc[0], self.target_loc[1] - self.real_loc[1])
+                / math.pi
+                * 180
+        )
+        # 视角需要旋转的角度，规范到[-180,180]
+        sub = ang - self.ang
+        sub = (sub + 180) % 360 - 180
+        if  mode==2 and sub==0:
+            sub=1e-9
+        key_mouse_manager.mouse_move(sub)
+        log.debug("当前人物角度为：" + str(self.ang))
+        # 此处变换为了目标角度
+        self.ang = ang
     # 寻路函数
     def get_direc(self):
         log.info("开始有地图寻路")
@@ -968,7 +1048,7 @@ class UniverseUtils:
             key_mouse_manager.press("w", 0.2)
         self.get_screen()
         #截下当前小地图
-        local_screen = self.get_local(0.9333, 0.8657, shape)
+        # local_screen = self.get_local(0.9333, 0.8657, shape)
         # 录图模式，将小地图覆盖到录制的大地图中
         if self.find == 0:
             log.debug("尝试记录地图中")
@@ -979,21 +1059,8 @@ class UniverseUtils:
             if self.now_map == '19787':
                 key_mouse_manager.press('w',0.3)
                 self.get_screen()
-                local_screen = self.get_local(0.9333, 0.8657, shape)
+                # local_screen = self.get_local(0.9333, 0.8657, shape)
                 self.now_map = '19788'
-            #纠正为标准坐标系然后上下反转的坐标系角度（取反估计是为了便于底层操作向左为负，向右为正）
-            self.ang = 270 - self.get_now_direct(local_screen)
-            self.get_real_loc()
-            self.target_loc, type = self.get_recent_target()
-            # 当前坐标与目标点连成的直线的斜率（大概）
-            ang = (
-                math.atan2(self.target_loc[0] - self.real_loc[0], self.target_loc[1] - self.real_loc[1])
-                / math.pi
-                * 180
-            )
-            # 视角需要旋转的角度，规范到[-180,180]
-            sub = ang - self.ang
-            sub = (sub + 180) % 360 - 180
             # 如果当前就在交互点上：直接返回
             if self.good_f() and not self.ts.similar("黑塔"):
                 for j in deepcopy(self.target):
@@ -1002,9 +1069,12 @@ class UniverseUtils:
                         self.target.remove(j)
                         log.info("检测到交互点，已移除目标:" + str(j))
                 return
-            key_mouse_manager.mouse_move(sub)
-            #此处变换为了目标角度
-            self.ang = ang
+            #纠正为标准坐标系然后上下反转的坐标系角度（取反估计是为了便于底层操作向左为负，向右为正）
+            if not hasattr(self, 'ang'):
+                self.ang=270
+            self.get_real_loc()
+            self.target_loc, type = self.get_recent_target()
+            self.update_direction_data()
             threshold_distance = [13,9 + self.quan*7,11,7]
             if self._stop == 0:
                 key_mouse_manager.keyDown("w")
@@ -1033,18 +1103,7 @@ class UniverseUtils:
                 bw_map = self.get_bw_map()
                 if bw_map is None:
                     return
-                self.ang = 270 - self.get_now_direct(self.get_local(0.9333, 0.8657, shape))
-                self.get_loc(bw_map, fbw=1, offset=self.get_offset(2+(retry_time<=2)), rg=10+6*(retry_time<=2))
-                self.get_real_loc(2+is_sprinting*5)
-                ang = (
-                    math.atan2(self.target_loc[0] - self.real_loc[0], self.target_loc[1] - self.real_loc[1])
-                    / math.pi
-                    * 180
-                )
-                sub = ang - self.ang
-                sub = (sub + 180) % 360 - 180
-                key_mouse_manager.mouse_move(sub)
-                self.ang = ang
+                self.update_direction_data(mode=1,bw_map=bw_map, retry_time=retry_time, is_sprinting=is_sprinting)
                 if self.debug:
                     self.big_map[
                         self.real_loc[0] - 1 : self.real_loc[0] + 2,
@@ -1477,7 +1536,7 @@ class UniverseUtils:
             time.sleep(0.5)
             key_mouse_manager.press('w',0.55)
             key_mouse_manager.click(0.5,0.5)
-            time.sleep(1.2)
+            time.sleep(2)
             key_mouse_manager.press('w')
             time.sleep(0.4)
         #12层并且不要奖励
@@ -1607,25 +1666,15 @@ class UniverseUtils:
                             break
                         curloc = (120, 127)
                         shape = (int(self.scx * 190), int(self.scx * 190))
-                        local_screen = self.get_local(0.9333, 0.8657, shape)
+                        local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True)
                         red = [60, 60, 226]
                         rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 512)
                         if rd[0].shape[0] > 0:
                             target = ((rd[0][0], rd[1][0]), 3)
                             self.get_screen()
-                            local_screen = self.get_local(0.9333, 0.8657, shape)
-                            self.ang = 270 - self.get_now_direct(local_screen)
-                            ang = (
-                                    math.atan2(target[0][0] - curloc[0], target[0][1] - curloc[1])
-                                    / math.pi
-                                    * 180
-                            )
-                            sub = ang - self.ang
-                            sub = (sub + 180) % 360 - 180
-                            if sub == 0:
-                                sub = 1e-9
-                            key_mouse_manager.mouse_move(sub)
-                            log.info("移动角度面向怪物：" + str(sub))
+                            # local_screen = self.get_local(0.9333, 0.8657, shape)
+
+                            self.update_direction_data(mode=2,target=target)
                         if self.quan:
                             key_mouse_manager.keyUp("w")
                             self.use_e()

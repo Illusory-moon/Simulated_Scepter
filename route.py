@@ -28,6 +28,7 @@ def build_paths(root):
         "font": os.path.join(root, "resource", "font"),
         "logo": os.path.join(root, "resource", "logo"),
         "model": os.path.join(root, "resource", "model"),
+        "image": os.path.join(root, "resource", "imgs"),
         "theme": os.path.join(root, "resource", "theme"),
         "ui": os.path.join(root, "ui"),
         "db": os.path.join(root, "resource", "db")

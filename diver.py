@@ -1227,8 +1227,11 @@ class DivergentUniverse(UniverseUtils):
             self.stop()
 
     def screen_test(self):
-        cv.imshow("screen", self.save_screen())
-        cv.waitKey(0)
+        try:
+            cv.imshow("screen", self.save_screen())
+            cv.waitKey(0)
+        except:
+            pass
 
     def goto_diver_universe(self):
         log.info("前往差分宇宙")

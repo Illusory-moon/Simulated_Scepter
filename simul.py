@@ -20,6 +20,9 @@ from utils.simul.config import config
 import datetime
 import pytz
 
+from utils.utils.minimap_util import get_minimap, MINIMAP_RADIUS
+from utils.utils.mminimap import update_minimap_data
+
 
 def get_hwnd_and_text():
     hwnd = win32gui.GetForegroundWindow()
@@ -385,6 +388,9 @@ class SimulatedUniverse(UniverseUtils):
                     self.now_map_sim = -1
                     self.now_map = -1
                     #只有第一，第六层才寻找匹配的地图
+                    if self.click_text(text=["事件","休整","精英"], click=False, box=[55, 164, 12, 39]):
+                        self.get_level()
+                        self.debug_map = deepcopy(get_minimap(self.get_screen(), radius=MINIMAP_RADIUS))
                     if self.floor in [0, 5]:
                         self.mini_state = 0
                         self.stop_move = 0
@@ -404,7 +410,7 @@ class SimulatedUniverse(UniverseUtils):
                         log.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
                         self.find=True
                         if self.now_map_sim < 0.35:
-                            log.warning("相似度过低,疑似未找到匹配地图")
+                            log.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor}")
                             if self.debug==2:
                                 time.sleep(10000)
                             self.find=False
@@ -447,8 +453,9 @@ class SimulatedUniverse(UniverseUtils):
                             #获取目标路径
                             self.target = self.get_target(self.now_pth + "target.jpg")
                             self.get_screen()
-                            shape = (int(self.scx * 190), int(self.scx * 190))
-                            self.init_ang = 270 - self.get_now_direct(self.get_local(0.9333, 0.8657, shape))
+                            # shape = (int(self.scx * 190), int(self.scx * 190))
+                            self.rotation,d=update_minimap_data(self.screen,rotation=0,direction=0)
+                            self.init_ang = 270 + d
                             log.info("已从地图获取目标路径点%s" % self.target)
                     if self._stop:
                         return 1
@@ -695,7 +702,7 @@ class SimulatedUniverse(UniverseUtils):
                 if self.check("enhance_fail", 0.1068, 0.0907,fresh= True):
                     break
                 if i is not None:
-                    key_mouse_manager.click(i)
+                    key_mouse_manager.click(i[0], i[1])
                     time.sleep(0.3)
                 key_mouse_manager.click(0.1089, 0.0926)
                 time.sleep(0.3)
@@ -1041,10 +1048,14 @@ class SimulatedUniverse(UniverseUtils):
             if self.debug_map.shape[0] == 8192:
                 continue
             updated_image = self.debug_map.copy()
-            updated_image = cv.cvtColor(updated_image, cv.COLOR_GRAY2RGB)
+            try:
+                updated_image = cv.cvtColor(updated_image, cv.COLOR_GRAY2RGB)
+            except:
+                updated_image = self.debug_map.copy()
             # 确保坐标值为整数类型，避免切片索引错误
             real_x, real_y = int(self.real_loc[0]), int(self.real_loc[1])
             target_x, target_y = int(self.target_loc[0]), int(self.target_loc[1])
+
             updated_image[
                 real_x - 2 : real_x + 3,
                 real_y - 2 : real_y + 3,

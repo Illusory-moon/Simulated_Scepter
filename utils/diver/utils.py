@@ -32,6 +32,8 @@ from utils.log import print_exc
 from pathlib import Path
 from datetime import datetime
 
+from utils.utils.get_win_rect import get_window_rect
+
 
 def notif(title, msg, cnt=None):
     # if '完成' in title:
@@ -117,12 +119,16 @@ class UniverseUtils:
                 hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
                 Text = win32gui.GetWindowText(hwnd)
                 self.x0, self.y0, self.x1, self.y1 = win32gui.GetClientRect(hwnd)
+                #print("窗口坐标: " + str(self.x0) + " " + str(self.y0) + " " + str(self.x1) + " " + str(self.y1))
                 self.xx = self.x1 - self.x0
                 self.yy = self.y1 - self.y0
-                self.x0, self.y0, self.x1, self.y1 = win32gui.GetWindowRect(hwnd)
+                #self.x0, self.y0, self.x1, self.y1 = win32gui.GetWindowRect(hwnd)
+                self.x0, self.y0, self.x1, self.y1 = get_window_rect(hwnd)
+                #print("窗口坐标: " + str(self.x0) + " " + str(self.y0) + " " + str(self.x1) + " " + str(self.y1))
                 self.full = self.x0 == 0 and self.y0 == 0
                 self.x0 = max(0, self.x1 - self.xx) + 9 * self.full
                 self.y0 = max(0, self.y1 - self.yy) + 9 * self.full
+
                 if (
                     (self.xx == 1920 or self.yy == 1080)
                     and self.xx >= 1920

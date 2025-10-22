@@ -5,6 +5,7 @@ import pyuac
 
 from config.GLOBAL import key_mouse_manager
 from utils.log import log
+from utils.utils.mminimap import update_minimap_data
 
 
 def get_angle(su, safe):
@@ -12,9 +13,10 @@ def get_angle(su, safe):
     key_mouse_manager.press("w")
     time.sleep(0.5)
     su.get_screen()
-    shape = (int(su.scx * 190), int(su.scx * 190))
-    local_screen = su.get_local(0.9333, 0.8657, shape)  # 裁剪后得到的小地图
-    return su.get_now_direct(local_screen)
+    # shape = (int(su.scx * 190), int(su.scx * 190))
+    # local_screen = su.get_local(0.9333, 0.8657, shape)  # 裁剪后得到的小地图
+    r, d = update_minimap_data(su.screen)
+    return d
 
 
 # 不同电脑鼠标移动速度、放缩比、分辨率等不同，因此需要校准
