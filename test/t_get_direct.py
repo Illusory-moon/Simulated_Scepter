@@ -290,17 +290,57 @@ def update_minimap_data(image=None,rotation_minimap=None, direction_minimap=None
     rotation = update_rotation(minimap=rotation_minimap)
     direction=update_direction(minimap=direction_minimap)
     return rotation, direction
+def analyze_red(img):
+    red = [115, 100, 200]#[207,96,102] [232,46,46]
+    minimap_img = get_minimap(img, radius=MINIMAP_RADIUS, copy=True)
+
+    # 显示红色通道图像
+    red_channel = minimap_img[:, :, 2]  # OpenCV中BGR格式，索引2为红色通道
+    cv2.imshow('Red Channel', red_channel)
+    cv2.waitKey(0)
+
+    # 显示 (minimap_img - red) ** 2 的结果（转换为灰度图）
+    squared_diff = (minimap_img - red) ** 2
+    # 将小于0的值置为0（虽然平方后不应该有负数，但为了安全起见）
+    squared_diff = np.maximum(squared_diff, 0).astype(np.uint8)
+    # 转换为灰度图
+    squared_diff_gray = np.sum(squared_diff, axis=-1).astype(np.uint8)
+    cv2.imshow('Minimap Squared Diff (Grayscale)', squared_diff_gray)
+    cv2.waitKey(0)
+    
+    # 原始彩色版本（如果您还需要对比）
+    cv2.imshow('Minimap Squared Diff (Color)', squared_diff)
+    cv2.waitKey(0)
+    
+    rd = np.where(np.sum((minimap_img - red) ** 2, axis=-1) <= 512)
+    
+    # 创建一个副本用于显示
+    display_img = minimap_img.copy()
+    
+    # 检查是否有检测到的红点
+    if len(rd[0]) > 0 and len(rd[1]) > 0:
+        # 仅在第一个检测到的红点位置标记
+        y, x = rd[0][0], rd[1][0]
+        cv2.circle(display_img, (x, y), 2, (0, 255, 0), -1)  # 用绿色圆圈标记第一个红点
+    
+    # 显示图像
+    cv2.imshow('First Detected Red Point', display_img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    
+    print(rd)
 if __name__ == "__main__":
-    pth="../temp/20251021_224758.png"
+    pth="../temp/20251029_205039.png"
     image = cv2.imread(pth)
-    rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS)
-    # direction_minimap = get_minimap(image.copy(), radius=DIRECTION_RADIUS)
-    # s_time = time.time()
-    # rotation=update_rotation(minimap=rotation_minimap)
-    # d_time = time.time()
-    # # direct=get_now_direct(minimap)
-    # direct=update_direction(image)
-    # e_time = time.time()
-    # print('更新视角耗时:', d_time - s_time, '更新方向耗时:', e_time - d_time)
-    rotation, direct =update_minimap_data(image)
-    show_minimap(rotation_minimap, rotation, direct)
+    analyze_red(image)
+    # rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS)
+    # # direction_minimap = get_minimap(image.copy(), radius=DIRECTION_RADIUS)
+    # # s_time = time.time()
+    # # rotation=update_rotation(minimap=rotation_minimap)
+    # # d_time = time.time()
+    # # # direct=get_now_direct(minimap)
+    # # direct=update_direction(image)
+    # # e_time = time.time()
+    # # print('更新视角耗时:', d_time - s_time, '更新方向耗时:', e_time - d_time)
+    # rotation, direct =update_minimap_data(image)
+    # show_minimap(rotation_minimap, rotation, direct)

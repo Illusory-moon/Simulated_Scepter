@@ -388,7 +388,7 @@ class SimulatedUniverse(UniverseUtils):
                     self.now_map_sim = -1
                     self.now_map = -1
                     #只有第一，第六层才寻找匹配的地图
-                    if self.click_text(text=["事件","休整","精英"], click=False, box=[55, 164, 12, 39]):
+                    if self.click_text(text=["事件","休整","精英","遭遇"], click=False, box=[48, 164, 12, 39]):
                         self.get_level()
                         self.debug_map = deepcopy(get_minimap(self.get_screen(), radius=MINIMAP_RADIUS))
                     if self.floor in [0, 5]:
@@ -409,14 +409,18 @@ class SimulatedUniverse(UniverseUtils):
                             time.sleep(0.3)
                         log.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
                         self.find=True
-                        if self.now_map_sim < 0.35:
-                            log.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor}")
+                        if self.now_map_sim < 0.35 :
+                            log.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor},匹配地图{self.now_map}")
                             if self.debug==2:
                                 time.sleep(10000)
                             self.find=False
                             self.init_map()
                             no_find=True
-                            # return 1
+                            return 1
+                        if "m" in self.now_map:
+                            log.warning(f"未完成的地图{self.now_map}")
+                            self.find = False
+                            return 1
                         if self.debug == 2:
                             try:
                                 with open(
@@ -472,11 +476,12 @@ class SimulatedUniverse(UniverseUtils):
             self.get_screen()
             if time.time() - self.lst_tm > 5 and self.mini_state == 0:
                 if self.find == 0:
-                    key_mouse_manager.press("s", 0.5)
-                    if self._stop == 0:
-                        key_mouse_manager.keyDown("w")
-                    time.sleep(0.5)
-                    self.get_screen()
+                    pass
+                    # key_mouse_manager.press("s", 0.5)
+                    # if self._stop == 0:
+                    #     key_mouse_manager.keyDown("w")
+                    # time.sleep(0.5)
+                    # self.get_screen()
             self.lst_tm = time.time()
             
             self.must_end |= self.floor >= 4 and self.debug == 2
@@ -1060,10 +1065,27 @@ class SimulatedUniverse(UniverseUtils):
                 real_x - 2 : real_x + 3,
                 real_y - 2 : real_y + 3,
             ] = [49, 140, 49]
-            updated_image[
-                target_x - 2 : target_x + 3,
-                target_y - 2 : target_y + 3,
-            ] = [49, 49, 140]
+            if hasattr(self, 'target_type'):
+                if self.target_type==0:
+                    updated_image[
+                        target_x - 2 : target_x + 3,
+                        target_y - 2 : target_y + 3,
+                    ] = [49, 140, 140]
+                elif self.target_type==1:
+                    updated_image[
+                        target_x - 2 : target_x + 3,
+                        target_y - 2 : target_y + 3,
+                    ] = [49, 49, 140]
+                elif self.target_type==2:
+                    updated_image[
+                        target_x - 2 : target_x + 3,
+                        target_y - 2 : target_y + 3,
+                    ] = [49, 140, 49]
+                elif self.target_type==3:
+                    updated_image[
+                        target_x - 2 : target_x + 3,
+                        target_y - 2 : target_y + 3,
+                    ] = [140, 140, 49]
 
             if hasattr(self, 'ang') and self.ang is not None:
                 import math
@@ -1106,6 +1128,11 @@ class SimulatedUniverse(UniverseUtils):
                 angle_text = f"Angle: {-self.ang:.1f}"
                 cv.putText(updated_image, angle_text, (10, 30), 
                           cv.FONT_HERSHEY_SIMPLEX, 0.3, color, 1)
+            
+            # 在左上角显示目标坐标
+            target_text = f"Target: ({target_x}, {target_y})"
+            cv.putText(updated_image, target_text, (10, 50), 
+                      cv.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 255), 1)
             
             # 将图片放大两倍
             updated_image = cv.resize(
