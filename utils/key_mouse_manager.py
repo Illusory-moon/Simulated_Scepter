@@ -89,7 +89,14 @@ class KeyMouseManager:
                 self.operation_queue.clear()  # 清空队列中的所有操作
                 self.operation_queue.append("stop")
             self.worker_thread.join()
-
+    def clean(self):
+        """
+        停止键鼠管理器线程
+        """
+        log.info("清除当前所有操作")
+        if self.worker_thread and self.worker_thread.is_alive():
+            with self.queue_lock:
+                self.operation_queue.clear()  # 清空队列中的所有操作
     def _worker(self):
         """
         工作线程，处理队列中的操作
@@ -187,7 +194,7 @@ class KeyMouseManager:
                 
             pyautogui.keyDown(key)
             if duration > 0:
-                self._sleep(duration, force)
+                self._sleep(duration)
             pyautogui.keyUp(key)
                 
         elif op_type == 'click':
@@ -225,13 +232,13 @@ class KeyMouseManager:
             actual_start_x, actual_start_y = self._convert_coordinates(start_x, start_y)
             actual_end_x, actual_end_y = self._convert_coordinates(end_x, end_y)
             win32api.SetCursorPos((actual_start_x, actual_start_y))
-            self._sleep(0.2, force)
+            self._sleep(0.2)
             pyautogui.dragTo(actual_end_x, actual_end_y, duration, button='left')
             # pyautogui.drag(actual_end_x - actual_start_x, actual_end_y - actual_start_y, duration)
             
         elif op_type == 'sleep':
             duration = operation.get('duration', 0)
-            self._sleep(duration, force)
+            self._sleep(duration)
 
     def _direct_mouse_move(self, x, fine=1):
         """
@@ -251,17 +258,16 @@ class KeyMouseManager:
         dx = int(16.5 * y * self.multi * self.scale)
         # log.info(f"旋转{x}°，精度{fine},移动距离{dx}，倍率{self.multi}，缩放比{self.scale}")
         win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, dx, 0)  # 进行视角移动
-        self._sleep(0.05 * fine, False)
+        self._sleep(0.05 * fine)
         if x != y:
             self._direct_mouse_move(x - y, fine)
 
-    def _sleep(self, duration, force=False):
+    def _sleep(self, duration):
         """
         可中断的sleep方法，支持强制操作中断
         
         Args:
             duration: 睡眠时间（秒）
-            force: 是否为强制操作
         """
         if duration <= 0:
             return
@@ -269,12 +275,10 @@ class KeyMouseManager:
         # 记录睡眠开始时间和总时长
         self.sleep_start_time = time.time()
         self.sleep_duration = duration
-        
         # 循环检查是否需要中断睡眠
-        end_time = self.sleep_start_time + duration
-        while time.time() < end_time and self.running:
-            time.sleep(0.01)  # 短暂休眠以避免占用过多CPU
-            
+        self.end_time = self.sleep_start_time + duration
+        while time.time() < self.end_time and self.running:
+            time.sleep(0.005)  # 短暂休眠以避免占用过多CPU
         # 清除睡眠状态
         self.sleep_start_time = None
         self.sleep_duration = 0
@@ -287,27 +291,31 @@ class KeyMouseManager:
             operation: 强制操作
         """
         # 检查当前是否正在睡眠
+        put=True
         if self.sleep_start_time is not None and self.sleep_duration > 0:
             # 计算剩余睡眠时间
             elapsed = time.time() - self.sleep_start_time
             remaining = self.sleep_duration - elapsed
             
             # 如果还有剩余时间，将其作为sleep操作插入队首
-            if remaining > 0:
+            if remaining > 0.01:
                 sleep_operation = {
                     'type': 'sleep',
                     'duration': remaining
                 }
                 with self.queue_lock:
                     self.operation_queue.appendleft(sleep_operation)
+                    self.operation_queue.appendleft(operation)
+                    put=False
             
             # 清除睡眠状态
             self.sleep_start_time = None
             self.sleep_duration = 0
-        
-        # 将强制操作插入队首
-        with self.queue_lock:
-            self.operation_queue.appendleft(operation)
+            self.end_time = 0
+        if put:
+            # 将强制操作插入队首
+            with self.queue_lock:
+                self.operation_queue.appendleft(operation)
 
     def wait(self):
         """

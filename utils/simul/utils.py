@@ -100,6 +100,11 @@ def get_dis(x, y):
 class BigangError(Exception):
     pass
 
+
+class FloorError(Exception):
+    pass
+
+
 class UniverseUtils:
     def __init__(self,gui=None):
         self.mini_state = 0
@@ -781,6 +786,7 @@ class UniverseUtils:
         time.sleep(2.5)
         tm = time.time()
         self.floor_init = 0
+        old_floor= self.floor
         while time.time()-tm<5 and not self.floor_init:
             self.get_screen()
             for i in range(12, -1, -1):
@@ -789,6 +795,9 @@ class UniverseUtils:
                     log.info(f"当前层数：{i+1}")
                     self.floor_init = 1
                     break
+        if self.floor!=old_floor and old_floor!=0:
+            log.error(f"层数已更新为：{self.floor+1}")
+            raise FloorError(f"层数不一致旧{old_floor+1}, 新{self.floor+1}")
         key_mouse_manager.press("m", 0.2)
         time.sleep(1)
         return 0
@@ -997,15 +1006,17 @@ class UniverseUtils:
         检查当前没有f交互
         """
         tm = time.time()
-        ava = 0
+        ava = False
+        if must_be is None and self.ts.similar("区域"):
+            must_be='tp'
         while not ava and time.time()-tm<1.6:
-            if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True) and not self.isrun():
-                ava = 1
-        log.info('交互点生效：'+str(ava))
+            if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True) and (not self.isrun() or must_be=='tp'):
+                ava = True
         if ava:
+            log.debug('交互点生效')
             if must_be == 'event':
                 self.mini_state += 2
-            elif self.ts.similar("区域") or must_be== 'tp':
+            elif must_be== 'tp':
                 self.init_map()
                 self.floor += 1
                 self.f_time = time.time()
@@ -1015,6 +1026,8 @@ class UniverseUtils:
                 if self.ts.similar("黑塔"):
                     self.quit = time.time()
                 self.mini_state += 2
+        else:
+            log.warning('交互点未生效')
         return ava
     def save_screen(self, save_path=r"./temp",force=False,not_now=False):
         """
@@ -1049,7 +1062,7 @@ class UniverseUtils:
                 self.save_screen(not_now=True)
                 log.error(f"角度误差过大视角{self.rotation}朝向{d}模式{mode}")
                 raise BigangError(f"角度误差过大视角{self.rotation}朝向{d}")
-            else:
+            elif 20<abs(self.rotation-d)<340:
                 log.debug(f"角度误差过大视角{self.rotation}朝向{d}模式1")
                 d=self.rotation
         self.ang = 270 + d
@@ -1673,12 +1686,12 @@ class UniverseUtils:
         key_mouse_manager.keyDown("w")
         wt = 3
         self.first_mini = 0
-        sft = 0
+        is_sprinting = 0
         if self.mini_state==1:
             wt += 1
             if self.mini_target!=2:
                 sprint()
-                sft = 1
+                is_sprinting = 1
             if self.mini_target==1:
                 wt += 0.8
         need_confirm=0
@@ -1703,11 +1716,18 @@ class UniverseUtils:
             else:
                 if self.good_f() and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
                     if self.speed <= 0 or not self.ts.similar("黑塔"):
-                        key_mouse_manager.keyUp("w")
+                        key_mouse_manager.clean()
+                        if is_sprinting:
+                            key_mouse_manager.press("shift")
+                        key_mouse_manager.keyUp("w",force=True)
+                        key_mouse_manager.press('f',force=True)
+                        key_mouse_manager.press("s")
+                        key_mouse_manager.sleep(0.2)
                         key_mouse_manager.press('f')
-                        log.info('need_confirm '+self.ts.text)
                         self.stop_move=1
                         need_confirm = 1
+                        key_mouse_manager.wait()
+                        log.info('等待验证交互文本 '+self.ts.text)
                         if self.nof():
                             key_mouse_manager.keyUp("w")
                             return

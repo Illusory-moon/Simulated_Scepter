@@ -388,7 +388,7 @@ class SimulatedUniverse(UniverseUtils):
                     self.now_map_sim = -1
                     self.now_map = -1
                     #只有第一，第六层才寻找匹配的地图
-                    if self.click_text(text=["事件","休整","精英","遭遇"], click=False, box=[48, 164, 12, 39]):
+                    if self.click_text(text=["事件","休整","精英","遭遇"], click=False, box=[55, 164, 12, 40]):
                         self.get_level()
                         self.debug_map = deepcopy(get_minimap(self.get_screen(), radius=MINIMAP_RADIUS))
                     if self.floor in [0, 5]:
@@ -561,7 +561,7 @@ class SimulatedUniverse(UniverseUtils):
             time.sleep(1)
             self.init_map()
         elif self.check("begin", 0.3578,0.8046):
-            con = self.check("conti", 0.1422,0.0907)
+            con = self.check("conti", 0.1219,0.0926)
             if not con:
                 if self.diffi == 5:
                     key_mouse_manager.click(0.9375, 0.5565)
