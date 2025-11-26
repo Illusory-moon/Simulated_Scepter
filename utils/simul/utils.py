@@ -807,8 +807,9 @@ class UniverseUtils:
         不是"沉浸", "紧锁", "复活", "下载"的交互
         """
         log.debug("尝试判断当前交互是否最佳")
+        t_start=time.time()
         if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
-            return False
+            return False,0
         img = self.get_small_interaction_img(x=0.3344,y=0.4241,mask="mask_f")
         text = self.ts.similar_list(self.tk.interacts, img)
         if text is None:
@@ -819,7 +820,8 @@ class UniverseUtils:
         if text is not None:
             log.info('识别到交互信息：'+text)
         log.debug(f"交互最佳结果判断{text is not None and not is_killed}")
-        return text is not None and not is_killed
+        t_end=time.time()
+        return text is not None and not is_killed, t_end-t_start
 
     def get_recent_target(self):
         """
@@ -1118,7 +1120,7 @@ class UniverseUtils:
                 # local_screen = self.get_local(0.9333, 0.8657, shape)
                 self.now_map = '19788'
             # 如果当前就在交互点上：直接返回
-            if self.good_f() and not self.ts.similar("黑塔"):
+            if self.good_f()[0] and not self.ts.similar("黑塔"):
                 for j in deepcopy(self.target):
                     #类型为二，交互点
                     if j[1] == 2:
@@ -1257,7 +1259,7 @@ class UniverseUtils:
                         if self.nof(must_be='tp'):
                             log.info('大图识别到传送点!')
                             return
-                    elif (self.target_type != 3 and self.good_f()) or not self.isrun():
+                    elif (self.target_type != 3 and self.good_f()[0]) or not self.isrun():
                         key_mouse_manager.keyUp("w")
                         break
                 ds = now_distance
@@ -1411,6 +1413,7 @@ class UniverseUtils:
         tt = 4
         kernel = np.zeros((5, 5), np.uint8)
         kernel += 1
+        log.info(f"从大地图中截取对应部分")
         if self.find and fbw == 0:
             #用150这个阈值二值化
             tbw = cv.resize(bw_map, (176 + tt * 2, 176 + tt * 2))
@@ -1427,7 +1430,7 @@ class UniverseUtils:
         #bo_4：原图中不存在但在膨胀后出现的区域
         bo_4 = (b_map != 0) & (bo_1 == 0)
         # 枚举匹配，找到匹配点最多的坐标（2rg范围内）
-        # log.info("开始枚举匹配")
+        log.info("开始枚举匹配")
         for i in range(rge * 2 - 176):
             for j in range(rge * 2 - 176):
                 if (i - rge + 88) ** 2 + (j - rge + 88) ** 2 > rg**2:
@@ -1449,6 +1452,7 @@ class UniverseUtils:
                     if p > max_val:
                         max_val = p
                         max_loc = (i, j)
+        log.info(f"结束枚举匹配")
         if max_val != 0:
             self.now_loc = (
                 max_loc[0] + 88 - rge + self.now_loc[0],
@@ -1714,14 +1718,15 @@ class UniverseUtils:
                         return
                     break
             else:
-                if self.good_f() and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
+                judge,use_time=self.good_f()
+                if judge and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
                     if self.speed <= 0 or not self.ts.similar("黑塔"):
                         key_mouse_manager.clean()
                         if is_sprinting:
                             key_mouse_manager.press("shift")
                         key_mouse_manager.keyUp("w",force=True)
                         key_mouse_manager.press('f',force=True)
-                        key_mouse_manager.press("s")
+                        key_mouse_manager.press("s",use_time)
                         key_mouse_manager.sleep(0.2)
                         key_mouse_manager.press('f')
                         self.stop_move=1
@@ -1839,7 +1844,7 @@ class UniverseUtils:
                         key_mouse_manager.press('f',force= True)
                         if self.nof(must_be='event'):
                             return
-                elif self.good_f() and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
+                elif self.good_f()[0] and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
                     # cv.imshow("f",self.screen)
                     log.info(f"找到最佳交互点")
                     key_mouse_manager.press('f',force= True)
