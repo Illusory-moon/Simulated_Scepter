@@ -68,6 +68,7 @@ class DivergentUniverse(UniverseUtils):
 
         # 允许使用秘技,秘技消耗品不足的时候就用不了
         self.allow_e = 1
+        self.threshold = 0.97
 
         self.count = self.my_cnt = 0
         self.debug = debug
@@ -142,7 +143,9 @@ class DivergentUniverse(UniverseUtils):
 
     def loop(self):
         #截图并识别文本
+        log.info("开始ocr")
         self.ts.forward(self.get_screen())
+        log.info("结束ocr")
         # self.ts.find_with_box()
         # exit()
         res = self.run_static()
@@ -713,6 +716,7 @@ class DivergentUniverse(UniverseUtils):
         if event_text:
             if abs(950-event_text) >= 50:
                 self.press(key,0.2)
+                time.sleep(0.5)
             event_text_after = self.find_event_text()
             if event_text_after:
                 sub = event_text - event_text_after
@@ -737,11 +741,11 @@ class DivergentUniverse(UniverseUtils):
 
             for _ in range(sub):
                 self.press('d',0.2)
-                time.sleep(0.1)
+                time.sleep(0.5)
 
             for _ in range(-sub):
                 self.press('a',0.2)
-                time.sleep(0.1)
+                time.sleep(0.5)
 
             if click:
                 pyautogui.click()
@@ -1095,8 +1099,12 @@ class DivergentUniverse(UniverseUtils):
 
     def bless(self, reverse=1, blood=0):
         self.bless_solved = 1
-        text = self.ts.find_with_box([350, 1550, 795, 819])
+        # 屏幕下方
+        # text = self.ts.find_with_box([350, 1550, 795, 819])
+        # 金血祝福的位置会上下浮动, 故加大识别区域
+        text = self.ts.find_with_box([350, 1550, 750, 900])
         if len(text) == 0:
+            # 屏幕中间 (祝福名称)
             text = self.ts.find_with_box([350, 1550, 480, 530])
         if len(text) == 0:
             return
@@ -1238,6 +1246,7 @@ class DivergentUniverse(UniverseUtils):
         if self.check("smartphone", 0.9833,0.9380, threshold=0.95,fresh=True):
             key_mouse_manager.press('f4')
             self.click_target('resource/imgs/universe.jpg',threshold=0.9,click=True)
+            self.click_text(text="差分宇宙",after_delay=0.5,box=[301, 429, 433, 470])
             self.click_text(text="前往参与",after_delay=5,box=[1443, 1539, 856, 884])
 
 
