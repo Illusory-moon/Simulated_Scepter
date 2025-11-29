@@ -39,7 +39,7 @@ class Config:
         self.origin_key = ['f','m','shift','v','e','w','a','s','d','1','2','3','4']
         self.mapping = self.origin_key
         self.max_run = 34
-        self.match = json.load(open('actions/character.json', 'r', encoding='utf-8'))
+        self.match = json.load(open(PATHS["root"]+'/actions/character.json', 'r', encoding='utf-8'))
         self.read()
 
     @property
