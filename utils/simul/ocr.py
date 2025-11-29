@@ -1,7 +1,12 @@
+import time
+
 from utils.onnxocr.onnx_paddleocr import ONNXPaddleOcr
+from utils.diver.args import args
 import numpy as np
 import cv2 as cv
 from utils.log import log
+from utils.public_ocr import filter_non_white, box_contain, sort_text, merge
+
 
 # mode: bless1 bless2 strange
 
@@ -29,9 +34,11 @@ def is_edit_distance_at_most_one(str1, str2, ch):
 class My_TS:
     def __init__(self,lang='ch',father=None):
         self.lang=lang
-        self.ts = ONNXPaddleOcr(use_angle_cls=False)
+        self.ts = ONNXPaddleOcr(use_angle_cls=False, cpu=False)  # 使用GPU
         self.text=''
         self.father = father
+        self.forward_img = None
+        self.res=[]
 
     def similar(self, text, img=None):
         """
@@ -165,5 +172,52 @@ class My_TS:
                 else:
                     continue
         return None
+    def forward(self, img):
+        """
+        识别传入图像的文本并保存在self.res中
+        """
+        log.info(f"ocr图片大小{img.shape}")
+        if self.forward_img is not None and self.forward_img.shape == img.shape and np.sum(np.abs(self.forward_img-img))<1e-6:
+            return
+        self.forward_img = img
+        self.res = []
+        log.info("真开始ocr")
+        ocr_res = self.ts.ocr(img)
+        log.debug(f"识别完成")
+        for res in ocr_res:
+            res = {'raw_text': res[1][0], 'box': np.array(res[0]), 'score': res[1][1]}
+            res['box'] = [int(np.min(res['box'][:,0])),int(np.max(res['box'][:,0])),int(np.min(res['box'][:,1])),int(np.max(res['box'][:,1]))]
+            self.res.append(res)
+        log.debug(f"获取文本结果")
+        self.res = merge(self.res)
+    def find_with_box(self, box=None, redundancy=10, forward=0, mode=0):
+        """
+        在指定文本框内
+        Args:
+            :param box: 一个指定的范围框[左上x,右下x,左上y,右下y]
+            :param redundancy: 误差范围
+            :param forward:
+            :param mode: 图像处理保留的模式
 
-
+        return:
+            指定区域提取的排序文字
+        """
+        if forward and box is not None:
+            self.forward(filter_non_white(self.father.get_screen()[box[2]:box[3], box[0]:box[1]], mode=mode))
+            if box[3]==540 or box[3] == 350 and self.father.debug:
+                tm = str(int(time.time()*100)%1000000)
+                cv.imwrite('img/'+tm+'.jpg',self.father.screen[box[2]:box[3],box[0]:box[1]])
+                cv.imwrite('img/' + tm +'w.jpg',
+                           filter_non_white(self.father.screen[box[2]:box[3], box[0]:box[1]], mode=mode))
+        ans = []
+        for res in self.res:
+            if box is None:
+                log.debug(f"文本：{res['raw_text']}, 坐标：{res['box']}")
+            elif forward == 0:
+                if box_contain(box, res['box'], redundancy=redundancy):
+                    ans.append(res)
+            else:
+                #叠加指定偏移
+                res['box'] = [box[0]+res['box'][0], box[0]+res['box'][1], box[2]+res['box'][2], box[2]+res['box'][3]]
+                ans.append(res)
+        return sort_text(ans)

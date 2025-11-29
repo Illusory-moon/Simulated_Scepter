@@ -97,7 +97,7 @@ class SimulatedUniverse(UniverseUtils):
         # 添加地图线程引用
         self.map_thread = None
 
-        self.default_json_path = "config/config/default.json"
+        self.default_json_path = "actions/universite.json"
         self.default_json = load_actions(self.default_json_path)
         self.action_history = []
         ex_notif = ""
@@ -234,125 +234,131 @@ class SimulatedUniverse(UniverseUtils):
         # self.lst_changed：最后一次交互时间，长时间无交互则暂离
         bk_lst_changed = self.lst_changed
         self.lst_changed = time.time()
+        log.info("开始ocr")
+        self.ts.forward(self.get_screen())
+        log.info("结束ocr")
+        res = self.run_static()
+        if res!='':
+            return 1
         # 战斗界面
-        if self.check("c", 0.988, 0.1028, threshold=0.985) or self.check(
-            "auto_2", 0.0583, 0.0769):
-            # 需要打开自动战斗
-            if self.check("c", 0.988, 0.1028, threshold=0.985):
-                key_mouse_manager.press("v")
-            if time.time() - self.f_time < 20:
-                self.f_time = 0
-                self.floor -= 1
-                self.restore_map()
-            if self.fate == "丰饶":
-                if random.randint(0, 6) == 3:
-                    key_mouse_manager.press("r")
-            # self.battle：最后一次处于战斗状态的时间，0表示处于非战斗状态
-            self.battle = time.time()
-            self.in_battle = time.time()
-            return 1
-        # 祝福界面/回响界面 （放在一起处理了）
-        if self.check("choose_bless", 0.9266, 0.9491):
-            time.sleep(0.3)
-            chose = 0
-            self.battle = 0
-            if self.check("reset",0.2938,0.0954):
-                for _ in range(14):
-                    img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask",fresh=True)
-                    if (
-                        self.ts.split_and_find(self.tk.fates, img_down, mode="bless")[1]
-                        or self._stop
-                    ):
-                        time.sleep(0.2)
-                        break
-                    if not self.check("choose_bless", 0.9266, 0.9491):
-                        return 1
-                    time.sleep(0.2)
-                img_up = self.get_small_interaction_img(x=0.5047,y=0.5491,mask="mask_bless",fresh=True)
-                res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
-                img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask")
-                res_down = self.ts.split_and_find([self.fate], img_down, mode="bless")
-                if res_up[1] == 2:
-                    key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
-                    chose = 1
-                elif res_down[1] == 2:
-                    key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
-                    chose = 1
-                if not chose:
-                    key_mouse_manager.click(0.2990, 0.1046)
-                    time.sleep(1.2)
-            # 未匹配到优先祝福，刷新祝福并再次匹配
-            if not chose:
-                for _ in range(8):
-                    img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask",fresh=True)
-                    if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
-                        time.sleep(0.2)
-                        break
-                    if not self.check("choose_bless", 0.9266, 0.9491):
-                        return 1
-                    time.sleep(0.2)
-                img_up = self.get_small_interaction_img(x=0.5047,y=0.5491,mask="mask_bless",fresh=True)
-                res_up = self.ts.split_and_find(self.tk.prior_bless, img_up,bless_skip=self.tk.skip)
-                img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask")
-                res_down = self.ts.split_and_find(
-                    self.tk.secondary, img_down, mode="bless"
-                )
-                if res_up[1] == 2:
-                    key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
-                elif res_down[1] >= 2:
-                    key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
-                else:
-                    key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
-                time.sleep(0.4)
-            key_mouse_manager.click(0.1203, 0.1093)
-            tm=time.time()
-            while time.time()-tm<1.6 and self.check("choose_bless", 0.9266, 0.9491,fresh=True):
-                time.sleep(0.1)
-            self.confirm_time = time.time()
-            if self.quan:
-                self.use_e()
-            return 1
-        # F交互界面
-        elif self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-            # is_killed：是否是禁用交互（沉浸奖励、复活装置、下载装置）
-            is_killed = 0
-            time.sleep(0.4)
-            if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
-                for _ in range(4):
-                    img = self.get_small_interaction_img(x=0.3181,y=0.4324,mask="mask_f")
-                    text = self.ts.similar_list(self.tk.interacts, img)
-                    if text is None:
-                        img = self.get_small_interaction_img(x=0.3365,y=0.4231,mask="mask_f")
-                        text = self.ts.similar_list(self.tk.interacts, img)
-                    if text is not None:
-                        break
-                    time.sleep(0.3)
-                    self.get_screen()
-                # 黑塔
-                if self.ts.similar("黑塔"):
-                    # 与黑塔交互后30秒内禁止再次交互（防止死循环）
-                    if time.time() - self.quit > 30 and self.floor:
-                        self.quit = time.time()
-                        key_mouse_manager.press('f',force= True)
-                        self.battle = 0
-                    else:
-                        is_killed = 1
-                else:
-                    # tele：区域-xx  exit：离开模拟宇宙
-                    if self.ts.similar("区域"):
-                        log.info(f"识别到传送点")
-                        key_mouse_manager.press('f',force= True)
-                        return self.nof()
-                    elif self.re_align == 1 and self.debug == 0:
-                        # align_angle(10, 1)
-                        # self.multi = config.multi
-                        self.re_align += 1
-                    is_killed = text in ["沉浸", "紧锁", "复活", "下载"]
-                    if is_killed == 0:
-                        key_mouse_manager.press('f',force= True)
-                    self.battle = 0
-                if is_killed == 0:
-                    return 1
+        # if self.check("c", 0.988, 0.1028, threshold=0.985) or self.check(
+        #     "auto_2", 0.0583, 0.0769):
+        #     # 需要打开自动战斗
+        #     if self.check("c", 0.988, 0.1028, threshold=0.985):
+        #         key_mouse_manager.press("v")
+        #     if time.time() - self.f_time < 20:
+        #         self.f_time = 0
+        #         self.floor -= 1
+        #         self.restore_map()
+        #     if self.fate == "丰饶":
+        #         if random.randint(0, 6) == 3:
+        #             key_mouse_manager.press("r")
+        #     # self.battle：最后一次处于战斗状态的时间，0表示处于非战斗状态
+        #     self.battle = time.time()
+        #     self.in_battle = time.time()
+        #     return 1
+        # # 祝福界面/回响界面 （放在一起处理了）
+        # if self.check("choose_bless", 0.9266, 0.9491):
+        #     time.sleep(0.3)
+        #     chose = 0
+        #     self.battle = 0
+        #     if self.check("reset",0.2938,0.0954):
+        #         for _ in range(14):
+        #             img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask",fresh=True)
+        #             if (
+        #                 self.ts.split_and_find(self.tk.fates, img_down, mode="bless")[1]
+        #                 or self._stop
+        #             ):
+        #                 time.sleep(0.2)
+        #                 break
+        #             if not self.check("choose_bless", 0.9266, 0.9491):
+        #                 return 1
+        #             time.sleep(0.2)
+        #         img_up = self.get_small_interaction_img(x=0.5047,y=0.5491,mask="mask_bless",fresh=True)
+        #         res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
+        #         img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask")
+        #         res_down = self.ts.split_and_find([self.fate], img_down, mode="bless")
+        #         if res_up[1] == 2:
+        #             key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+        #             chose = 1
+        #         elif res_down[1] == 2:
+        #             key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
+        #             chose = 1
+        #         if not chose:
+        #             key_mouse_manager.click(0.2990, 0.1046)
+        #             time.sleep(1.2)
+        #     # 未匹配到优先祝福，刷新祝福并再次匹配
+        #     if not chose:
+        #         for _ in range(8):
+        #             img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask",fresh=True)
+        #             if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
+        #                 time.sleep(0.2)
+        #                 break
+        #             if not self.check("choose_bless", 0.9266, 0.9491):
+        #                 return 1
+        #             time.sleep(0.2)
+        #         img_up = self.get_small_interaction_img(x=0.5047,y=0.5491,mask="mask_bless",fresh=True)
+        #         res_up = self.ts.split_and_find(self.tk.prior_bless, img_up,bless_skip=self.tk.skip)
+        #         img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask")
+        #         res_down = self.ts.split_and_find(
+        #             self.tk.secondary, img_down, mode="bless"
+        #         )
+        #         if res_up[1] == 2:
+        #             key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+        #         elif res_down[1] >= 2:
+        #             key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
+        #         else:
+        #             key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+        #         time.sleep(0.4)
+        #     key_mouse_manager.click(0.1203, 0.1093)
+        #     tm=time.time()
+        #     while time.time()-tm<1.6 and self.check("choose_bless", 0.9266, 0.9491,fresh=True):
+        #         time.sleep(0.1)
+        #     self.confirm_time = time.time()
+        #     if self.quan:
+        #         self.use_e()
+        #     return 1
+        # # F交互界面
+        # elif self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
+        #     # is_killed：是否是禁用交互（沉浸奖励、复活装置、下载装置）
+        #     is_killed = 0
+        #     time.sleep(0.4)
+        #     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
+        #         for _ in range(4):
+        #             img = self.get_small_interaction_img(x=0.3181,y=0.4324,mask="mask_f")
+        #             text = self.ts.similar_list(self.tk.interacts, img)
+        #             if text is None:
+        #                 img = self.get_small_interaction_img(x=0.3365,y=0.4231,mask="mask_f")
+        #                 text = self.ts.similar_list(self.tk.interacts, img)
+        #             if text is not None:
+        #                 break
+        #             time.sleep(0.3)
+        #             self.get_screen()
+        #         # 黑塔
+        #         if self.ts.similar("黑塔"):
+        #             # 与黑塔交互后30秒内禁止再次交互（防止死循环）
+        #             if time.time() - self.quit > 30 and self.floor:
+        #                 self.quit = time.time()
+        #                 key_mouse_manager.press('f',force= True)
+        #                 self.battle = 0
+        #             else:
+        #                 is_killed = 1
+        #         else:
+        #             # tele：区域-xx  exit：离开模拟宇宙
+        #             if self.ts.similar("区域"):
+        #                 log.info(f"识别到传送点")
+        #                 key_mouse_manager.press('f',force= True)
+        #                 return self.nof()
+        #             elif self.re_align == 1 and self.debug == 0:
+        #                 # align_angle(10, 1)
+        #                 # self.multi = config.multi
+        #                 self.re_align += 1
+        #             is_killed = text in ["沉浸", "紧锁", "复活", "下载"]
+        #             if is_killed == 0:
+        #                 key_mouse_manager.press('f',force= True)
+        #             self.battle = 0
+        #         if is_killed == 0:
+        #             return 1
         # 跑图状态
         if self.isrun():
             log.info("开始匹配地图")
@@ -547,196 +553,499 @@ class SimulatedUniverse(UniverseUtils):
                 #有先验寻路
                 self.get_direc()
             return 2
-        elif self.check('e',0.4995,0.7500):
-            self.solve_snack()
-        elif self.check("init", 0.9120,0.8361):
-            if self.end:
-                time.sleep(1)
-                key_mouse_manager.press('esc')
-                self._stop = 1
-                log.info('已退出模拟宇宙，自动化结束')
-                return 1
-            time.sleep(2)
-            key_mouse_manager.click(0.3448, 0.4926)
-            time.sleep(1)
-            self.init_map()
-        elif self.check("begin", 0.3578,0.8046):
-            con = self.check("conti", 0.1219,0.0926)
-            if not con:
-                if self.diffi == 5:
-                    key_mouse_manager.click(0.9375, 0.5565)
-                    time.sleep(0.2)
-                key_mouse_manager.click(0.9375, 0.8565 - 0.1 * (self.diffi - 1))
-            key_mouse_manager.click(0.1083, 0.1009)
-            if con:
-                self.get_level()
-            else:
-                self.floor = 0
-            self.floor_init = 1
-        elif self.check("start", 0.6594, 0.8389):
-            self.fail_count = 0
-            self.allow_e = 1
-            if self.check("team4", 0.5797, 0.2389):
-                dx = 0.9266 - 0.8552
-                dy = 0.8194 - 0.6741
-                for i in self.order:
-                    key_mouse_manager.click(
-                        0.9266 - dx * ((i - 1) % 3), 0.8194 - dy * ((i - 1) // 3)
-                    )
-                    time.sleep(0.3)
-            key_mouse_manager.click(0.1635, 0.1056)
-        elif self.check("fate_2", 0.1182,0.0926):
-            key_mouse_manager.click(0.1182,0.0926)
-            self.confirm_time = time.time()
-        elif self.check("fate", 0.9432,0.9389):
-            time.sleep(0.6)
-            click_x = [0.02, 0.98]
-            n = 4  # 重试次数
-            res = None
-            while n:
-                img = self.get_small_interaction_img(x=0.4969,y=0.3750,mask="mask_fate",fresh=True)
-                res = self.ts.split_and_find([self.fate], img)
-                if res[1] == 1 and n:
-                    # 没有找到命途
-                    log.info(f"未找到 {self.fate} 命途，尝试翻页")
-                    key_mouse_manager.click(click_x[n % len(click_x)], 0.5)
-                    n -= 1
-                    time.sleep(0.5)
-                    continue
-                else:
-                    break
-            key_mouse_manager.click(*self.calc_point((0.4969, 0.3750), res[0]))
-        elif self.check("fate_3", 0.9422, 0.9472):
-            if not self.click_text(['2星祝福','奇物']):
-                key_mouse_manager.click(0.5047, 0.4917)
-            key_mouse_manager.click(0.5062, 0.1065)
-            time.sleep(1)
-        # 事件界面
-        elif self.check("event", 0.9479, 0.9565):
-            # 事件界面：选择
-            if self.check("arrow", 0.1828, 0.5000, mask="mask_event"):
-                key_mouse_manager.click(self.tx, self.ty)
-            # 事件界面：退出
-            elif self.check("arrow_1", 0.1828, 0.5000, mask="mask_event"):
-                key_mouse_manager.click(self.tx, self.ty)
-            # 事件选择界面
-            elif self.check("star", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
-                tx, ty = self.tx, self.ty
-                try:
-                    import yaml
-                    with open("config/config/info.yml", "r", encoding="utf-8", errors="ignore") as f:
-                        event_prior = yaml.safe_load(f)["prior"]["事件"]
-                except:
-                    event_prior = [
-                        '购买一个',
-                        '丢下雕像',
-                        '和序列扑满玩',
-                        '信仰星神',
-                        '克里珀的恩赐',
-                        '哈克的藏品',
-                        '动作片',
-                        '感恩克里珀星神',
-                        '换取1个星祝福',
-                        '星神的记载',
-                        '翻开牌',
-                        '摧毁黑匣',
-                        '1个1星祝福',
-                        '1个1-星祝福',
-                        '选择里奥'
-                    ]
-                event_prior = [self.fate] + event_prior
-                success = self.click_text(event_prior)
-                time.sleep(1)
-                self.get_screen()
-                if success and self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
-                    key_mouse_manager.click(self.tx, self.ty)
-                elif self.check("wait_room", 0.880, 0.156,threshold=0.95):
-                    key_mouse_manager.click(0.1667, 0.2592)
-                else:
-                    key_mouse_manager.click(tx, ty)
-                    time.sleep(0.3)
-                    key_mouse_manager.click(0.1167, ty - 0.1139)
-                time.sleep(0.5)
-                for _ in range(7):
-                    if not self.check("event", 0.9479, 0.9565,fresh=True):
-                        break
-                    time.sleep(0.1)
-                self.lst_changed = time.time()
-            else:
-                key_mouse_manager.click(0.9479, 0.9565)
-        # 选取奇物
-        elif self.check("strange", 0.9417, 0.9481):
-            time.sleep(0.6)
-            img = self.get_small_interaction_img(x=0.5000,y=0.7333,mask="mask_strange",fresh=True)
-            res = self.ts.split_and_find(self.tk.strange, img, mode="strange")
-            key_mouse_manager.click(*self.calc_point((0.5000, 0.7333), res[0]))
-            key_mouse_manager.click(0.1365, 0.1093)
-            self.wait_flag(lambda:self.check("strange", 0.9417, 0.9481), 1.4)
-        # 丢弃奇物
-        elif self.check("drop", 0.9406, 0.9491):
-            key_mouse_manager.click(0.4714, 0.5500)
-            key_mouse_manager.click(0.1339, 0.1028)
-            self.wait_flag(lambda:self.check("drop", 0.9406, 0.9491), 1.4)
-        elif self.check("drop_bless", 0.9417, 0.9481, threshold=0.95):
-            time.sleep(1.5)
-            st = set(self.tk.fates) - set(self.tk.secondary)
-            clicked = 0
-            for i,ft in enumerate(self.tk.secondary[::-1]):
-                if ft != self.fate or i == len(self.tk.secondary):
-                    img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask",fresh=True)
-                    if self.debug==2:
-                        print(list(st),self.tk.secondary)
-                    res_down = self.ts.split_and_find(list(st), img_down, mode="bless")
-                    if res_down[1] == 2:
-                        key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
-                        clicked = 1
-                        break
-                    st.add(ft)
-            if not clicked:
-                key_mouse_manager.click(0.4714, 0.5500)
-            time.sleep(0.5)
-            key_mouse_manager.click(0.1203, 0.1093)
-            self.confirm_time = time.time()
-        elif self.check("setting", 0.9734, 0.3009, threshold=0.98):
-            key_mouse_manager.click(0.2708, 0.2324)
-            self.re_enter()
-        elif self.check("enhance", 0.9208, 0.9380):
-            self.quit = time.time()
-            time.sleep(1.5)
-            for i in [None, (0.7984, 0.6824), (0.6859, 0.6824)]:
-                if self.check("enhance_fail", 0.1068, 0.0907,fresh= True):
-                    break
-                if i is not None:
-                    key_mouse_manager.click(i[0], i[1])
-                    time.sleep(0.3)
-                key_mouse_manager.click(0.1089, 0.0926)
-                time.sleep(0.3)
-                tm = time.time()
-                while not self.check("enhance", 0.9208, 0.9380,fresh= True) and time.time()-tm<7:
-                    key_mouse_manager.click(0.2062, 0.2054)
-                    time.sleep(0.3)
-            key_mouse_manager.press("esc")
-            key_mouse_manager.press("w", 2)
-            tm = time.time()
-            while time.time()-tm<2 and not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh= True) and not self.isrun():
-                time.sleep(0.15)
-            # time.sleep(0.35)
-            # self.mouse_move(-30)
-            self.confirm_time = time.time()
-            self.lst_changed = time.time()
-            if self.floor >= 12:
-                self.floor = 11
-        elif self.check("yes1", 0.5, 0.5, mask="mask_end"):
-            key_mouse_manager.click(self.tx,self.ty)
-            time.sleep(1)
-            return 0
-        elif self.check("fail", 0.6276, 0.0843):
-            key_mouse_manager.click(self.tx, self.ty)
-            time.sleep(1.8)
+        # elif self.check('e',0.4995,0.7500):
+        #     self.solve_snack()
+        # elif self.check("init", 0.9120,0.8361):
+        #     if self.end:
+        #         time.sleep(1)
+        #         key_mouse_manager.press('esc')
+        #         self._stop = 1
+        #         log.info('已退出模拟宇宙，自动化结束')
+        #         return 1
+        #     time.sleep(2)
+        #     key_mouse_manager.click(0.3448, 0.4926)
+        #     time.sleep(1)
+        #     self.init_map()
+        # elif self.check("begin", 0.3578,0.8046):
+        #     con = self.check("conti", 0.1219,0.0926)
+        #     if not con:
+        #         if self.diffi == 5:
+        #             key_mouse_manager.click(0.9375, 0.5565)
+        #             time.sleep(0.2)
+        #         key_mouse_manager.click(0.9375, 0.8565 - 0.1 * (self.diffi - 1))
+        #     key_mouse_manager.click(0.1083, 0.1009)
+        #     if con:
+        #         self.get_level()
+        #     else:
+        #         self.floor = 0
+        #     self.floor_init = 1
+        # elif self.check("start", 0.6594, 0.8389):
+        #     self.fail_count = 0
+        #     self.allow_e = 1
+        #     if self.check("team4", 0.5797, 0.2389):
+        #         dx = 0.9266 - 0.8552
+        #         dy = 0.8194 - 0.6741
+        #         for i in self.order:
+        #             key_mouse_manager.click(
+        #                 0.9266 - dx * ((i - 1) % 3), 0.8194 - dy * ((i - 1) // 3)
+        #             )
+        #             time.sleep(0.3)
+        #     key_mouse_manager.click(0.1635, 0.1056)
+        # elif self.check("fate_2", 0.1182,0.0926):
+        #     key_mouse_manager.click(0.1182,0.0926)
+        #     self.confirm_time = time.time()
+        # elif self.check("fate", 0.9432,0.9389):
+        #     time.sleep(0.6)
+        #     click_x = [0.02, 0.98]
+        #     n = 4  # 重试次数
+        #     res = None
+        #     while n:
+        #         img = self.get_small_interaction_img(x=0.4969,y=0.3750,mask="mask_fate",fresh=True)
+        #         res = self.ts.split_and_find([self.fate], img)
+        #         if res[1] == 1 and n:
+        #             # 没有找到命途
+        #             log.info(f"未找到 {self.fate} 命途，尝试翻页")
+        #             key_mouse_manager.click(click_x[n % len(click_x)], 0.5)
+        #             n -= 1
+        #             time.sleep(0.5)
+        #             continue
+        #         else:
+        #             break
+        #     key_mouse_manager.click(*self.calc_point((0.4969, 0.3750), res[0]))
+        # elif self.check("fate_3", 0.9422, 0.9472):
+        #     if not self.click_text(['2星祝福','奇物']):
+        #         key_mouse_manager.click(0.5047, 0.4917)
+        #     key_mouse_manager.click(0.5062, 0.1065)
+        #     time.sleep(1)
+        # # 事件界面
+        # elif self.check("event", 0.9479, 0.9565):
+        #     # 事件界面：选择
+        #     if self.check("arrow", 0.1828, 0.5000, mask="mask_event"):
+        #         key_mouse_manager.click(self.tx, self.ty)
+        #     # 事件界面：退出
+        #     elif self.check("arrow_1", 0.1828, 0.5000, mask="mask_event"):
+        #         key_mouse_manager.click(self.tx, self.ty)
+        #     # 事件选择界面
+        #     elif self.check("star", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
+        #         tx, ty = self.tx, self.ty
+        #         try:
+        #             import yaml
+        #             with open("config/config/info.yml", "r", encoding="utf-8", errors="ignore") as f:
+        #                 event_prior = yaml.safe_load(f)["prior"]["事件"]
+        #         except:
+        #             event_prior = [
+        #                 '购买一个',
+        #                 '丢下雕像',
+        #                 '和序列扑满玩',
+        #                 '信仰星神',
+        #                 '克里珀的恩赐',
+        #                 '哈克的藏品',
+        #                 '动作片',
+        #                 '感恩克里珀星神',
+        #                 '换取1个星祝福',
+        #                 '星神的记载',
+        #                 '翻开牌',
+        #                 '摧毁黑匣',
+        #                 '1个1星祝福',
+        #                 '1个1-星祝福',
+        #                 '选择里奥'
+        #             ]
+        #         event_prior = [self.fate] + event_prior
+        #         success = self.click_text(event_prior)
+        #         time.sleep(1)
+        #         self.get_screen()
+        #         if success and self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
+        #             key_mouse_manager.click(self.tx, self.ty)
+        #         elif self.check("wait_room", 0.880, 0.156,threshold=0.95):
+        #             key_mouse_manager.click(0.1667, 0.2592)
+        #         else:
+        #             key_mouse_manager.click(tx, ty)
+        #             time.sleep(0.3)
+        #             key_mouse_manager.click(0.1167, ty - 0.1139)
+        #         time.sleep(0.5)
+        #         for _ in range(7):
+        #             if not self.check("event", 0.9479, 0.9565,fresh=True):
+        #                 break
+        #             time.sleep(0.1)
+        #         self.lst_changed = time.time()
+        #     else:
+        #         key_mouse_manager.click(0.9479, 0.9565)
+        # # 选取奇物
+        # elif self.check("strange", 0.9417, 0.9481):
+        #     time.sleep(0.6)
+        #     img = self.get_small_interaction_img(x=0.5000,y=0.7333,mask="mask_strange",fresh=True)
+        #     res = self.ts.split_and_find(self.tk.strange, img, mode="strange")
+        #     key_mouse_manager.click(*self.calc_point((0.5000, 0.7333), res[0]))
+        #     key_mouse_manager.click(0.1365, 0.1093)
+        #     self.wait_flag(lambda:self.check("strange", 0.9417, 0.9481), 1.4)
+        # # 丢弃奇物
+        # elif self.check("drop", 0.9406, 0.9491):
+        #     key_mouse_manager.click(0.4714, 0.5500)
+        #     key_mouse_manager.click(0.1339, 0.1028)
+        #     self.wait_flag(lambda:self.check("drop", 0.9406, 0.9491), 1.4)
+        # elif self.check("drop_bless", 0.9417, 0.9481, threshold=0.95):
+        #     time.sleep(1.5)
+        #     st = set(self.tk.fates) - set(self.tk.secondary)
+        #     clicked = 0
+        #     for i,ft in enumerate(self.tk.secondary[::-1]):
+        #         if ft != self.fate or i == len(self.tk.secondary):
+        #             img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask",fresh=True)
+        #             if self.debug==2:
+        #                 print(list(st),self.tk.secondary)
+        #             res_down = self.ts.split_and_find(list(st), img_down, mode="bless")
+        #             if res_down[1] == 2:
+        #                 key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
+        #                 clicked = 1
+        #                 break
+        #             st.add(ft)
+        #     if not clicked:
+        #         key_mouse_manager.click(0.4714, 0.5500)
+        #     time.sleep(0.5)
+        #     key_mouse_manager.click(0.1203, 0.1093)
+        #     self.confirm_time = time.time()
+        # elif self.check("setting", 0.9734, 0.3009, threshold=0.98):
+        #     key_mouse_manager.click(0.2708, 0.2324)
+        #     self.re_enter()
+        # elif self.check("enhance", 0.9208, 0.9380):
+        #     self.quit = time.time()
+        #     time.sleep(1.5)
+        #     for i in [None, (0.7984, 0.6824), (0.6859, 0.6824)]:
+        #         if self.check("enhance_fail", 0.1068, 0.0907,fresh= True):
+        #             break
+        #         if i is not None:
+        #             key_mouse_manager.click(i[0], i[1])
+        #             time.sleep(0.3)
+        #         key_mouse_manager.click(0.1089, 0.0926)
+        #         time.sleep(0.3)
+        #         tm = time.time()
+        #         while not self.check("enhance", 0.9208, 0.9380,fresh= True) and time.time()-tm<7:
+        #             key_mouse_manager.click(0.2062, 0.2054)
+        #             time.sleep(0.3)
+        #     key_mouse_manager.press("esc")
+        #     key_mouse_manager.press("w", 2)
+        #     tm = time.time()
+        #     while time.time()-tm<2 and not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh= True) and not self.isrun():
+        #         time.sleep(0.15)
+        #     # time.sleep(0.35)
+        #     # self.mouse_move(-30)
+        #     self.confirm_time = time.time()
+        #     self.lst_changed = time.time()
+        #     if self.floor >= 12:
+        #         self.floor = 11
+        # elif self.check("yes1", 0.5, 0.5, mask="mask_end"):
+        #     key_mouse_manager.click(self.tx,self.ty)
+        #     time.sleep(1)
+        #     return 0
+        # elif self.check("fail", 0.6276, 0.0843):
+        #     key_mouse_manager.click(self.tx, self.ty)
+        #     time.sleep(1.8)
         else:
             return 0
         return 1
 
+    def auto_battle(self):
+        # 需要打开自动战斗
+        if self.check("c", 0.988, 0.1028, threshold=0.985):
+            key_mouse_manager.press("v")
+        if time.time() - self.f_time < 20:
+            self.f_time = 0
+            self.floor -= 1
+            self.restore_map()
+        if self.fate == "丰饶":
+            if random.randint(0, 6) == 3:
+                key_mouse_manager.press("r")
+        # self.battle：最后一次处于战斗状态的时间，0表示处于非战斗状态
+        self.battle = time.time()
+        self.in_battle = time.time()
+        return 1
+    # 祝福界面/回响界面 （放在一起处理了）
+    def choose_bless(self):
+        time.sleep(0.3)
+        chose = 0
+        self.battle = 0
+        if self.check("reset", 0.2938, 0.0954):
+            for _ in range(14):
+                img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
+                if (
+                        self.ts.split_and_find(self.tk.fates, img_down, mode="bless")[1]
+                        or self._stop
+                ):
+                    time.sleep(0.2)
+                    break
+                if not self.check("choose_bless", 0.9266, 0.9491):
+                    return 1
+                time.sleep(0.2)
+            img_up = self.get_small_interaction_img(x=0.5047, y=0.5491, mask="mask_bless", fresh=True)
+            res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
+            img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
+            res_down = self.ts.split_and_find([self.fate], img_down, mode="bless")
+            if res_up[1] == 2:
+                key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+                chose = 1
+            elif res_down[1] == 2:
+                key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
+                chose = 1
+            if not chose:
+                key_mouse_manager.click(0.2990, 0.1046)
+                time.sleep(1.2)
+        # 未匹配到优先祝福，刷新祝福并再次匹配
+        if not chose:
+            for _ in range(8):
+                img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
+                if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
+                    time.sleep(0.2)
+                    break
+                if not self.check("choose_bless", 0.9266, 0.9491):
+                    return 1
+                time.sleep(0.2)
+            img_up = self.get_small_interaction_img(x=0.5047, y=0.5491, mask="mask_bless", fresh=True)
+            res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
+            img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
+            res_down = self.ts.split_and_find(
+                self.tk.secondary, img_down, mode="bless"
+            )
+            if res_up[1] == 2:
+                key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+            elif res_down[1] >= 2:
+                key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
+            else:
+                key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+            time.sleep(0.4)
+        key_mouse_manager.click(0.1203, 0.1093)
+        tm = time.time()
+        while time.time() - tm < 1.6 and self.check("choose_bless", 0.9266, 0.9491, fresh=True):
+            time.sleep(0.1)
+        self.confirm_time = time.time()
+        if self.quan:
+            self.use_e()
+        return 1
+    # F交互界面
+    def do_interaction(self):
+        # is_killed：是否是禁用交互（沉浸奖励、复活装置、下载装置）
+        is_killed = 0
+        time.sleep(0.4)
+        if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
+            for _ in range(4):
+                img = self.get_small_interaction_img(x=0.3181, y=0.4324, mask="mask_f")
+                text = self.ts.similar_list(self.tk.interacts, img)
+                if text is None:
+                    img = self.get_small_interaction_img(x=0.3365, y=0.4231, mask="mask_f")
+                    text = self.ts.similar_list(self.tk.interacts, img)
+                if text is not None:
+                    break
+                time.sleep(0.3)
+                self.get_screen()
+            # 黑塔
+            if self.ts.similar("黑塔"):
+                # 与黑塔交互后30秒内禁止再次交互（防止死循环）
+                if time.time() - self.quit > 30 and self.floor:
+                    self.quit = time.time()
+                    key_mouse_manager.press('f', force=True)
+                    self.battle = 0
+                else:
+                    is_killed = 1
+            else:
+                # tele：区域-xx  exit：离开模拟宇宙
+                if self.ts.similar("区域"):
+                    log.info(f"识别到传送点")
+                    key_mouse_manager.press('f', force=True)
+                    return self.nof()
+                elif self.re_align == 1 and self.debug == 0:
+                    # align_angle(10, 1)
+                    # self.multi = config.multi
+                    self.re_align += 1
+                is_killed = text in ["沉浸", "紧锁", "复活", "下载"]
+                if is_killed == 0:
+                    key_mouse_manager.press('f', force=True)
+                self.battle = 0
+            if is_killed == 0:
+                return 1
+    # 跑图状态
+    def re_init(self):
+        if self.end:
+            time.sleep(1)
+            key_mouse_manager.press('esc')
+            self._stop = 1
+            log.info('已退出模拟宇宙，自动化结束')
+            return 1
+        time.sleep(2)
+        key_mouse_manager.click(0.3448, 0.4926)
+        time.sleep(1)
+        self.init_map()
+    def begin_universite(self):
+        con = self.check("conti", 0.1219, 0.0926)
+        if not con:
+            if self.diffi == 5:
+                key_mouse_manager.click(0.9375, 0.5565)
+                time.sleep(0.2)
+            key_mouse_manager.click(0.9375, 0.8565 - 0.1 * (self.diffi - 1))
+        key_mouse_manager.click(0.1083, 0.1009)
+        if con:
+            self.get_level()
+        else:
+            self.floor = 0
+        self.floor_init = 1
+    def pre_start(self):
+        self.fail_count = 0
+        self.allow_e = 1
+        if self.check("team4", 0.5797, 0.2389):
+            dx = 0.9266 - 0.8552
+            dy = 0.8194 - 0.6741
+            for i in self.order:
+                key_mouse_manager.click(
+                    0.9266 - dx * ((i - 1) % 3), 0.8194 - dy * ((i - 1) // 3)
+                )
+                time.sleep(0.3)
+        key_mouse_manager.click(0.1635, 0.1056)
+    def confirm_fate(self):
+        key_mouse_manager.click(0.1182, 0.0926)
+        self.confirm_time = time.time()
+    def select_fate(self):
+        time.sleep(0.6)
+        click_x = [0.02, 0.98]
+        n = 4  # 重试次数
+        res = None
+        while n:
+            img = self.get_small_interaction_img(x=0.4969, y=0.3750, mask="mask_fate", fresh=True)
+            res = self.ts.split_and_find([self.fate], img)
+            if res[1] == 1 and n:
+                # 没有找到命途
+                log.info(f"未找到 {self.fate} 命途，尝试翻页")
+                key_mouse_manager.click(click_x[n % len(click_x)], 0.5)
+                n -= 1
+                time.sleep(0.5)
+                continue
+            else:
+                break
+        key_mouse_manager.click(*self.calc_point((0.4969, 0.3750), res[0]))
+    def select_bless(self):
+        if not self.click_text(['2星祝福', '奇物']):
+            key_mouse_manager.click(0.5047, 0.4917)
+        key_mouse_manager.click(0.5062, 0.1065)
+        time.sleep(1)
+    # 事件界面
+    def select_event(self):
+        # 事件界面：选择
+        if self.check("arrow", 0.1828, 0.5000, mask="mask_event"):
+            key_mouse_manager.click(self.tx, self.ty)
+        # 事件界面：退出
+        elif self.check("arrow_1", 0.1828, 0.5000, mask="mask_event"):
+            key_mouse_manager.click(self.tx, self.ty)
+        # 事件选择界面
+        elif self.check("star", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
+            tx, ty = self.tx, self.ty
+            try:
+                import yaml
+                with open("config/config/info.yml", "r", encoding="utf-8", errors="ignore") as f:
+                    event_prior = yaml.safe_load(f)["prior"]["事件"]
+            except:
+                event_prior = [
+                    '购买一个',
+                    '丢下雕像',
+                    '和序列扑满玩',
+                    '信仰星神',
+                    '克里珀的恩赐',
+                    '哈克的藏品',
+                    '动作片',
+                    '感恩克里珀星神',
+                    '换取1个星祝福',
+                    '星神的记载',
+                    '翻开牌',
+                    '摧毁黑匣',
+                    '1个1星祝福',
+                    '1个1-星祝福',
+                    '选择里奥'
+                ]
+            event_prior = [self.fate] + event_prior
+            success = self.click_text(event_prior)
+            time.sleep(1)
+            self.get_screen()
+            if success and self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
+                key_mouse_manager.click(self.tx, self.ty)
+            elif self.check("wait_room", 0.880, 0.156, threshold=0.95):
+                key_mouse_manager.click(0.1667, 0.2592)
+            else:
+                key_mouse_manager.click(tx, ty)
+                time.sleep(0.3)
+                key_mouse_manager.click(0.1167, ty - 0.1139)
+            time.sleep(0.5)
+            for _ in range(7):
+                if not self.check("event", 0.9479, 0.9565, fresh=True):
+                    break
+                time.sleep(0.1)
+            self.lst_changed = time.time()
+        else:
+            key_mouse_manager.click(0.9479, 0.9565)
+    # 选取奇物
+    def select_strange(self):
+        time.sleep(0.6)
+        img = self.get_small_interaction_img(x=0.5000, y=0.7333, mask="mask_strange", fresh=True)
+        res = self.ts.split_and_find(self.tk.strange, img, mode="strange")
+        key_mouse_manager.click(*self.calc_point((0.5000, 0.7333), res[0]))
+        key_mouse_manager.click(0.1365, 0.1093)
+        self.wait_flag(lambda: self.check("strange", 0.9417, 0.9481), 1.4)
+    # 丢弃奇物
+    def drop_strange(self):
+        key_mouse_manager.click(0.4714, 0.5500)
+        key_mouse_manager.click(0.1339, 0.1028)
+        self.wait_flag(lambda: self.check("drop", 0.9406, 0.9491), 1.4)
+    def drop_bless(self):
+        time.sleep(1.5)
+        st = set(self.tk.fates) - set(self.tk.secondary)
+        clicked = 0
+        for i, ft in enumerate(self.tk.secondary[::-1]):
+            if ft != self.fate or i == len(self.tk.secondary):
+                img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
+                if self.debug == 2:
+                    print(list(st), self.tk.secondary)
+                res_down = self.ts.split_and_find(list(st), img_down, mode="bless")
+                if res_down[1] == 2:
+                    key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
+                    clicked = 1
+                    break
+                st.add(ft)
+        if not clicked:
+            key_mouse_manager.click(0.4714, 0.5500)
+        time.sleep(0.5)
+        key_mouse_manager.click(0.1203, 0.1093)
+        self.confirm_time = time.time()
+    def setting(self):
+        key_mouse_manager.click(0.2708, 0.2324)
+        self.re_enter()
+    def enhance(self):
+        self.quit = time.time()
+        time.sleep(1.5)
+        for i in [None, (0.7984, 0.6824), (0.6859, 0.6824)]:
+            if self.check("enhance_fail", 0.1068, 0.0907, fresh=True):
+                break
+            if i is not None:
+                key_mouse_manager.click(i[0], i[1])
+                time.sleep(0.3)
+            key_mouse_manager.click(0.1089, 0.0926)
+            time.sleep(0.3)
+            tm = time.time()
+            while not self.check("enhance", 0.9208, 0.9380, fresh=True) and time.time() - tm < 7:
+                key_mouse_manager.click(0.2062, 0.2054)
+                time.sleep(0.3)
+        key_mouse_manager.press("esc")
+        key_mouse_manager.press("w", 2)
+        tm = time.time()
+        while time.time() - tm < 2 and not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,
+                                                      fresh=True) and not self.isrun():
+            time.sleep(0.15)
+        # time.sleep(0.35)
+        # self.mouse_move(-30)
+        self.confirm_time = time.time()
+        self.lst_changed = time.time()
+        if self.floor >= 12:
+            self.floor = 11
+    def confirm_yes(self):
+        key_mouse_manager.click(self.tx, self.ty)
+        time.sleep(1)
+        return 0
+    def fail(self):
+        key_mouse_manager.click(self.tx, self.ty)
+        time.sleep(1.8)
     def find_latest_modified_file(self, folder_path):
         files = [
             os.path.join(folder_path, file)
@@ -1001,22 +1310,37 @@ class SimulatedUniverse(UniverseUtils):
                 json_file = self.default_json
             else:
                 json_file = load_actions(json_path)
-        #查找指定项或者默认项
+
+
+        log.info(f"执行一轮检测")
+        # 查找指定项或者默认项
         for j in action_list if len(action_list) else json_file:
             for i in json_file[j]:
                 trigger = i["trigger"]
                 #获取指定范围的文字
-                text = self.ts.find_with_box(trigger["box"], redundancy=trigger.get("redundancy", 30))
-                #强制跳过或者检查是否存在子串
-                if skip_check or (len(text) and trigger["text"] in merge_text(text)):
-                    log.info(f"触发 {i['name']}:{trigger['text']}")
-                    for j in i["actions"]:
-                        self.do_action(j)
-                    self.action_history.append(i["name"])
-                    #记录最近10个动作
-                    self.action_history = self.action_history[-10:]
-                    #返回触发的名字
-                    return i['name']
+                if trigger.get("text", None):
+                    text = self.ts.find_with_box(trigger["box"], redundancy=trigger.get("redundancy", 30))
+                    #强制跳过或者检查是否存在子串
+                    if skip_check or (len(text) and trigger["text"] in merge_text(text)):
+                        log.info(f"触发 {i['name']}:{trigger['text']}")
+                        for j in i["actions"]:
+                            self.do_action(j)
+                        self.action_history.append(i["name"])
+                        #记录最近10个动作
+                        self.action_history = self.action_history[-10:]
+                        #返回触发的名字
+                        return i['name']
+                elif trigger.get("photo", None):
+                    if self.check(trigger["photo"], trigger["pos"]["x"], trigger["pos"]["y"], mask=trigger.get("mask", None), threshold=trigger.get("threshold", None)):
+                        log.info(f"触发 {i['name']}:{trigger['photo']}")
+                        for j in i["actions"]:
+                            self.do_action(j)
+                        self.action_history.append(i["name"])
+                        #记录最近10个动作
+                        self.action_history = self.action_history[-10:]
+                        #返回触发的名字
+                        return i['name']
+
         return ''
     def do_action(self, action) -> int:
         if type(action) == str:
@@ -1037,7 +1361,7 @@ class SimulatedUniverse(UniverseUtils):
             self.click_position(action["position"])
             return 1
         elif "sleep" in action:
-            self.sleep(float(action["sleep"]))
+            key_mouse_manager.sleep(float(action["sleep"]))
             return 1
         elif "press" in action:
             key_mouse_manager.press(action["press"], action["time"] if "time" in action else 0)
@@ -1048,7 +1372,7 @@ class SimulatedUniverse(UniverseUtils):
         cv.namedWindow("Map", cv.WINDOW_FREERATIO | cv.WINDOW_NORMAL)
         angle_history = []
         last_angle_change_time = 0
-        
+
         while not self._stop:
             if self.debug_map.shape[0] == 8192:
                 continue
@@ -1148,9 +1472,9 @@ class SimulatedUniverse(UniverseUtils):
     def start(self):
         self._stop = False
         key_mouse_manager.start()
-        if self._show_map:
-            self.map_thread = threading.Thread(target=self.show_map)
-            self.map_thread.start()
+        # if self._show_map:
+        #     self.map_thread = threading.Thread(target=self.show_map)
+        #     self.map_thread.start()
         try:
             self.route()
         except Exception as e:
