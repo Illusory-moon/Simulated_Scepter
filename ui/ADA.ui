@@ -437,7 +437,7 @@ border:none</string>
               </layout>
              </item>
              <item>
-              <layout class="QVBoxLayout" name="Lay_Tab1_Right" stretch="0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
+              <layout class="QVBoxLayout" name="Lay_Tab1_Right" stretch="0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
                <property name="spacing">
                 <number>6</number>
                </property>
@@ -900,6 +900,27 @@ border:none</string>
                   <string>打印坐标 F7</string>
                  </property>
                 </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="PrintEdit"/>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="horizontalLayout_15">
+                 <item>
+                  <widget class="QRadioButton" name="PrintPhoto">
+                   <property name="text">
+                    <string>图片</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QRadioButton" name="PrintText">
+                   <property name="text">
+                    <string>文本</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
                </item>
                <item>
                 <widget class="QPushButton" name="clear_logs_btn">

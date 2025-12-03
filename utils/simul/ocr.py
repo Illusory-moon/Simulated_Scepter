@@ -176,19 +176,15 @@ class My_TS:
         """
         识别传入图像的文本并保存在self.res中
         """
-        log.info(f"ocr图片大小{img.shape}")
         if self.forward_img is not None and self.forward_img.shape == img.shape and np.sum(np.abs(self.forward_img-img))<1e-6:
             return
         self.forward_img = img
         self.res = []
-        log.info("真开始ocr")
         ocr_res = self.ts.ocr(img)
-        log.debug(f"识别完成")
         for res in ocr_res:
             res = {'raw_text': res[1][0], 'box': np.array(res[0]), 'score': res[1][1]}
             res['box'] = [int(np.min(res['box'][:,0])),int(np.max(res['box'][:,0])),int(np.min(res['box'][:,1])),int(np.max(res['box'][:,1]))]
             self.res.append(res)
-        log.debug(f"获取文本结果")
         self.res = merge(self.res)
     def find_with_box(self, box=None, redundancy=10, forward=0, mode=0):
         """

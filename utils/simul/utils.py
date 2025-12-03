@@ -132,6 +132,7 @@ class UniverseUtils:
         self.quan = 0
         self.img_map = dict()
         self.gui=gui
+        self.should_update_map=True
         # 用户选择的命途
         for i in range(len(config.fates)):
             if config.fates[i] == self.fate:
@@ -288,7 +289,7 @@ class UniverseUtils:
     def calc_point(self, point, offset):
         return point[0] - offset[0] / self.xx, point[1] - offset[1] / self.yy
 
-    def click_text(self, text,delay=0,box=None,after_delay=0,click=True,find_all=False):
+    def click_text(self, text,delay=0,box=None,after_delay=0,click=True,find_all=False,warning=True):
         if delay:
             time.sleep(delay)
         img = self.get_screen()
@@ -313,7 +314,8 @@ class UniverseUtils:
             if after_delay:
                 time.sleep(after_delay)
             return True
-        log.warning(f"{text}文本未找到")
+        if warning:
+            log.warning(f"{text}文本未找到")
         return False
 
     # 由click_target调用，返回图片匹配结果
@@ -1152,6 +1154,7 @@ class UniverseUtils:
             distance_list = [100000]
             dtm = [time.time()]
             go_direct = 2
+            go_time=random.uniform(0, 1.5)
             retry_time = 0
             has_not_found_red=False
             for i in range(3000):
@@ -1215,7 +1218,10 @@ class UniverseUtils:
                         log.info(f"尝试绕过障碍向{ts[go_direct]}")
                         key_mouse_manager.keyUp("w")
                         key_mouse_manager.press("s", 0.35)
-                        key_mouse_manager.press(ts[go_direct], 0.2*random.randint(1,3))
+                        if go_direct==2:
+                            key_mouse_manager.press(ts[go_direct], go_time)
+                        else:
+                            key_mouse_manager.press(ts[go_direct], go_time+random.uniform(0, 1.5))
                         key_mouse_manager.press("w", 0.3)
                         self.move = 1
                         self.get_screen()
@@ -1606,7 +1612,13 @@ class UniverseUtils:
         if res:
             self.f_time = 0
         return res
-
+    def update_debug_map(self):
+        self.debug_map = deepcopy(get_minimap(self.get_screen(), radius=MINIMAP_RADIUS))
+    def auto_update_map(self):
+        while self.should_update_map:
+            log.debug("更新一次地图")
+            self.update_debug_map()
+            time.sleep(2)
     def get_direc_only_minimap(self):
         """
         self.ang_off 含义
@@ -1622,6 +1634,8 @@ class UniverseUtils:
         是否领取沉浸奖励
         """
         log.info("开始无地图寻路")
+        self.should_update_map=True
+        threading.Thread(target=self.auto_update_map).start()
         if self.debug:
             log.debug(f'当前状态{self.ang_off},{self.mini_state}')
         self.ang_neg=self.ang_off<0
@@ -1641,6 +1655,7 @@ class UniverseUtils:
         #12层并且不要奖励
         if self.mini_state==3 and self.floor==12 and not self.check_bonus:
             self.mini_state=5
+            self.should_update_map = False
             return
         #3，7，12层领奖
         if self.mini_state==3 and self.floor in [3,7,12] and self.check_bonus:
@@ -1671,6 +1686,7 @@ class UniverseUtils:
                 key_mouse_manager.click(0.2385,0.6685)
             self.mini_state=5
             if self.floor==12:
+                self.should_update_map = False
                 return
             key_mouse_manager.press('s',0.4)
         self.ang_off=0
@@ -1715,6 +1731,7 @@ class UniverseUtils:
                     self.stop_move=1
                     need_confirm = 1
                     if self.nof(must_be='event'):
+                        self.should_update_map = False
                         return
                     break
             else:
@@ -1735,6 +1752,7 @@ class UniverseUtils:
                         log.info('等待验证交互文本 '+self.ts.text)
                         if self.nof():
                             key_mouse_manager.keyUp("w")
+                            self.should_update_map = False
                             return
                         break
                     else:
@@ -1742,6 +1760,7 @@ class UniverseUtils:
                         key_mouse_manager.keyUp("w")
                         self.stop_move=1
                         self.mini_state+=2
+                        self.should_update_map = False
                         return
                 if self.check("auto_2", 0.0583, 0.0769): 
                     key_mouse_manager.keyUp("w")
@@ -1803,6 +1822,7 @@ class UniverseUtils:
                                 time.sleep(0.4)
                                 key_mouse_manager.press('w')
                                 time.sleep(1.4)
+                                self.should_update_map = False
                                 return
                             else:
                                 time.sleep(0.8)
@@ -1823,6 +1843,7 @@ class UniverseUtils:
                 self.mini_state+=2
                 if self.mini_state>=7:
                     self.lst_changed = 0
+                    self.should_update_map = False
                     return
                 key_mouse_manager.press('s',0.3)
                 key_mouse_manager.press('a',0.7)
@@ -1836,6 +1857,7 @@ class UniverseUtils:
             log.info("尝试乱转找到交互点")
             for i in "sasddwwaa":
                 if self._stop:
+                    self.should_update_map = False
                     return
                 self.get_screen()
                 if self.mini_target==1:
@@ -1843,6 +1865,7 @@ class UniverseUtils:
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
                         key_mouse_manager.press('f',force= True)
                         if self.nof(must_be='event'):
+                            self.should_update_map = False
                             return
                 elif self.good_f()[0] and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
                     # cv.imshow("f",self.screen)
@@ -1852,11 +1875,13 @@ class UniverseUtils:
                     # cv.imshow("newf",self.screen)
                     # cv.waitKey(0)
                     if self.nof():
+                        self.should_update_map = False
                         return
                 key_mouse_manager.press(i, 0.25)
                 log.info(f"向{i}走0.25秒")
                 time.sleep(0.65)
             key_mouse_manager.click(0.5,0.5)
+            self.should_update_map = False
 
     def solve_snack(self):
         if self.check('snack', 0.3844,0.5065, mask='mask_snack',fresh= True):

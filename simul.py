@@ -176,7 +176,7 @@ class SimulatedUniverse(UniverseUtils):
                         self.in_battle = time.time() - 84 * fp
                         fp = not fp
                         continue
-                    if self.click_text(['点击空白','开始游戏'],click=False):
+                    if self.click_text(['点击空白','开始游戏'],click=False,warning=False):
                         key_mouse_manager.click(0.2062, 0.1554)
                         time.sleep(0.5)
                     if self.ts.nothing:
@@ -234,90 +234,11 @@ class SimulatedUniverse(UniverseUtils):
         # self.lst_changed：最后一次交互时间，长时间无交互则暂离
         bk_lst_changed = self.lst_changed
         self.lst_changed = time.time()
-        log.info("开始ocr")
         self.ts.forward(self.get_screen())
-        log.info("结束ocr")
-        res = self.run_static()
+        res,state = self.run_static()
         if res!='':
-            return 1
-        # 战斗界面
-        # if self.check("c", 0.988, 0.1028, threshold=0.985) or self.check(
-        #     "auto_2", 0.0583, 0.0769):
-        #     # 需要打开自动战斗
-        #     if self.check("c", 0.988, 0.1028, threshold=0.985):
-        #         key_mouse_manager.press("v")
-        #     if time.time() - self.f_time < 20:
-        #         self.f_time = 0
-        #         self.floor -= 1
-        #         self.restore_map()
-        #     if self.fate == "丰饶":
-        #         if random.randint(0, 6) == 3:
-        #             key_mouse_manager.press("r")
-        #     # self.battle：最后一次处于战斗状态的时间，0表示处于非战斗状态
-        #     self.battle = time.time()
-        #     self.in_battle = time.time()
-        #     return 1
-        # # 祝福界面/回响界面 （放在一起处理了）
-        # if self.check("choose_bless", 0.9266, 0.9491):
-        #     time.sleep(0.3)
-        #     chose = 0
-        #     self.battle = 0
-        #     if self.check("reset",0.2938,0.0954):
-        #         for _ in range(14):
-        #             img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask",fresh=True)
-        #             if (
-        #                 self.ts.split_and_find(self.tk.fates, img_down, mode="bless")[1]
-        #                 or self._stop
-        #             ):
-        #                 time.sleep(0.2)
-        #                 break
-        #             if not self.check("choose_bless", 0.9266, 0.9491):
-        #                 return 1
-        #             time.sleep(0.2)
-        #         img_up = self.get_small_interaction_img(x=0.5047,y=0.5491,mask="mask_bless",fresh=True)
-        #         res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
-        #         img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask")
-        #         res_down = self.ts.split_and_find([self.fate], img_down, mode="bless")
-        #         if res_up[1] == 2:
-        #             key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
-        #             chose = 1
-        #         elif res_down[1] == 2:
-        #             key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
-        #             chose = 1
-        #         if not chose:
-        #             key_mouse_manager.click(0.2990, 0.1046)
-        #             time.sleep(1.2)
-        #     # 未匹配到优先祝福，刷新祝福并再次匹配
-        #     if not chose:
-        #         for _ in range(8):
-        #             img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask",fresh=True)
-        #             if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
-        #                 time.sleep(0.2)
-        #                 break
-        #             if not self.check("choose_bless", 0.9266, 0.9491):
-        #                 return 1
-        #             time.sleep(0.2)
-        #         img_up = self.get_small_interaction_img(x=0.5047,y=0.5491,mask="mask_bless",fresh=True)
-        #         res_up = self.ts.split_and_find(self.tk.prior_bless, img_up,bless_skip=self.tk.skip)
-        #         img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask")
-        #         res_down = self.ts.split_and_find(
-        #             self.tk.secondary, img_down, mode="bless"
-        #         )
-        #         if res_up[1] == 2:
-        #             key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
-        #         elif res_down[1] >= 2:
-        #             key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
-        #         else:
-        #             key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
-        #         time.sleep(0.4)
-        #     key_mouse_manager.click(0.1203, 0.1093)
-        #     tm=time.time()
-        #     while time.time()-tm<1.6 and self.check("choose_bless", 0.9266, 0.9491,fresh=True):
-        #         time.sleep(0.1)
-        #     self.confirm_time = time.time()
-        #     if self.quan:
-        #         self.use_e()
-        #     return 1
+            return state
+
         # # F交互界面
         # elif self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
         #     # is_killed：是否是禁用交互（沉浸奖励、复活装置、下载装置）
@@ -394,79 +315,82 @@ class SimulatedUniverse(UniverseUtils):
                     self.now_map_sim = -1
                     self.now_map = -1
                     #只有第一，第六层才寻找匹配的地图
-                    if self.click_text(text=["事件","休整","精英","遭遇"], click=False, box=[55, 164, 12, 40]):
+                    if self.click_text(text="战斗", click=False, box=[55, 164, 12, 40]):
                         self.get_level()
-                        self.debug_map = deepcopy(get_minimap(self.get_screen(), radius=MINIMAP_RADIUS))
-                    if self.floor in [0, 5]:
-                        self.mini_state = 0
-                        self.stop_move = 0
-                        no_find=False
-                        while True:
-                            self.exist_minimap()
-                            now_map, now_map_sim = self.match_scr(self.loc_scr)
-                            if self.now_map_sim < now_map_sim:
-                                self.now_map, self.now_map_sim = now_map, now_map_sim
-                            # 地图匹配超时或找到相似匹配
-                            if (
-                                (self.now_map_sim > 0.85 or time.time() - now_time > 2.5)
-                                and self.now_map_sim != -1
-                            ) or self._stop:
-                                break
-                            time.sleep(0.3)
-                        log.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
-                        self.find=True
-                        if self.now_map_sim < 0.35 :
-                            log.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor},匹配地图{self.now_map}")
-                            if self.debug==2:
-                                time.sleep(10000)
-                            self.find=False
-                            self.init_map()
-                            no_find=True
-                            return 1
-                        if "m" in self.now_map:
-                            log.warning(f"未完成的地图{self.now_map}")
-                            self.find = False
-                            return 1
-                        if self.debug == 2:
-                            try:
-                                with open(
-                                    "check_map.txt",
-                                    "r",
-                                    encoding="utf-8",
-                                    errors="ignore",
-                                ) as fh:
-                                    s = fh.readline().strip("\n")
-                                s = eval(s)
-                                self.must_end = 0
-                                if not self.now_map in s:
-                                    s.append(self.now_map)
-                                    notif(f"地图编号：{self.now_map}",f"相似度：{self.now_map_sim}")
-                                else:
-                                    #self.kl = 1
+                        if self.floor in [0, 5]:
+                            self.mini_state = 0
+                            self.stop_move = 0
+                            no_find=False
+                            while True:
+                                self.exist_minimap()
+                                now_map, now_map_sim = self.match_scr(self.loc_scr)
+                                if self.now_map_sim < now_map_sim:
+                                    self.now_map, self.now_map_sim = now_map, now_map_sim
+                                # 地图匹配超时或找到相似匹配
+                                if (
+                                    (self.now_map_sim > 0.85 or time.time() - now_time > 2.5)
+                                    and self.now_map_sim != -1
+                                ) or self._stop:
+                                    break
+                                time.sleep(0.3)
+                            log.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
+                            self.find=True
+                            if self.now_map_sim < 0.35 :
+                                log.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor},匹配地图{self.now_map}")
+                                if self.debug==2:
+                                    time.sleep(10000)
+                                self.find=False
+                                self.init_map()
+                                no_find=True
+                                return 1
+                            if "m" in self.now_map:
+                                log.warning(f"未完成的地图{self.now_map}")
+                                self.find = False
+                                return 1
+                            if self.debug == 2:
+                                try:
+                                    with open(
+                                        "check_map.txt",
+                                        "r",
+                                        encoding="utf-8",
+                                        errors="ignore",
+                                    ) as fh:
+                                        s = fh.readline().strip("\n")
+                                    s = eval(s)
+                                    self.must_end = 0
+                                    if not self.now_map in s:
+                                        s.append(self.now_map)
+                                        notif(f"地图编号：{self.now_map}",f"相似度：{self.now_map_sim}")
+                                    else:
+                                        #self.kl = 1
+                                        pass
+                                    with open(
+                                        "check_map.txt",
+                                        "w",
+                                        encoding="utf-8",
+                                    ) as fh:
+                                        fh.write(str(s))
+                                except:
                                     pass
-                                with open(
-                                    "check_map.txt",
-                                    "w",
-                                    encoding="utf-8",
-                                ) as fh:
-                                    fh.write(str(s))
-                            except:
-                                pass
-                        if not no_find:
-                            self.now_pth = "resource/imgs/maps/" + self.now_map + "/"
-                            files = self.find_latest_modified_file(self.now_pth)
-                            self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
-                            self.debug_map = deepcopy(self.big_map)
-                            #从文件名获取初始坐标
-                            xy = files.split("/")[-1].split("_")[1:3]
-                            self.now_loc = (4096 - int(xy[0]), 4096 - int(xy[1]))
-                            #获取目标路径
-                            self.target = self.get_target(self.now_pth + "target.jpg")
-                            self.get_screen()
-                            # shape = (int(self.scx * 190), int(self.scx * 190))
-                            self.rotation,d=update_minimap_data(self.screen,rotation=0,direction=0)
-                            self.init_ang = 270 + d
-                            log.info("已从地图获取目标路径点%s" % self.target)
+                            if not no_find:
+                                self.now_pth = "resource/imgs/maps/" + self.now_map + "/"
+                                files = self.find_latest_modified_file(self.now_pth)
+                                self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
+                                self.debug_map = deepcopy(self.big_map)
+                                #从文件名获取初始坐标
+                                xy = files.split("/")[-1].split("_")[1:3]
+                                self.now_loc = (4096 - int(xy[0]), 4096 - int(xy[1]))
+                                #获取目标路径
+                                self.target = self.get_target(self.now_pth + "target.jpg")
+                                self.get_screen()
+                                # shape = (int(self.scx * 190), int(self.scx * 190))
+                                self.rotation,d=update_minimap_data(self.screen,rotation=0,direction=0)
+                                self.init_ang = 270 + d
+                                log.info("已从地图获取目标路径点%s" % self.target)
+                        else:
+                            self.update_debug_map()
+                    else:
+                        self.update_debug_map()
                     if self._stop:
                         return 1
                     if self.consumable and (self.check_bonus or self.count<34) and self.floor in [3, 7, 12][-self.consumable:]:
@@ -482,12 +406,12 @@ class SimulatedUniverse(UniverseUtils):
             self.get_screen()
             if time.time() - self.lst_tm > 5 and self.mini_state == 0:
                 if self.find == 0:
+                    key_mouse_manager.press("s", 0.5)
+                    if self._stop == 0:
+                        key_mouse_manager.keyDown("w")
+                    time.sleep(0.5)
+                    self.get_screen()
                     pass
-                    # key_mouse_manager.press("s", 0.5)
-                    # if self._stop == 0:
-                    #     key_mouse_manager.keyDown("w")
-                    # time.sleep(0.5)
-                    # self.get_screen()
             self.lst_tm = time.time()
             
             self.must_end |= self.floor >= 4 and self.debug == 2
@@ -1304,15 +1228,12 @@ class SimulatedUniverse(UniverseUtils):
             time.sleep(2)
             key_mouse_manager.press('esc')
             self._stop = True
-    def run_static(self, json_path=None, json_file=None, action_list=[], skip_check=0) -> str:
+    def run_static(self, json_path=None, json_file=None, action_list=[], skip_check=0) -> (str,int):
         if json_file is None:
             if json_path is None:
                 json_file = self.default_json
             else:
                 json_file = load_actions(json_path)
-
-
-        log.info(f"执行一轮检测")
         # 查找指定项或者默认项
         for j in action_list if len(action_list) else json_file:
             for i in json_file[j]:
@@ -1322,26 +1243,28 @@ class SimulatedUniverse(UniverseUtils):
                     text = self.ts.find_with_box(trigger["box"], redundancy=trigger.get("redundancy", 30))
                     #强制跳过或者检查是否存在子串
                     if skip_check or (len(text) and trigger["text"] in merge_text(text)):
-                        log.info(f"触发 {i['name']}:{trigger['text']}")
+                        log.info(f"触发文本 {i['name']}:{trigger['text']}")
                         for j in i["actions"]:
                             self.do_action(j)
                         self.action_history.append(i["name"])
                         #记录最近10个动作
                         self.action_history = self.action_history[-10:]
                         #返回触发的名字
-                        return i['name']
+                        return i['name'],1
                 elif trigger.get("photo", None):
                     if self.check(trigger["photo"], trigger["pos"]["x"], trigger["pos"]["y"], mask=trigger.get("mask", None), threshold=trigger.get("threshold", None)):
-                        log.info(f"触发 {i['name']}:{trigger['photo']}")
+                        log.info(f"触发图像 {i['name']}:{trigger['photo']}")
                         for j in i["actions"]:
-                            self.do_action(j)
+                            resu=self.do_action(j)
+                        if resu is None:
+                            resu=0
                         self.action_history.append(i["name"])
                         #记录最近10个动作
                         self.action_history = self.action_history[-10:]
                         #返回触发的名字
-                        return i['name']
+                        return i['name'],resu
 
-        return ''
+        return '',0
     def do_action(self, action) -> int:
         if type(action) == str:
             return getattr(self, action)()
@@ -1363,6 +1286,9 @@ class SimulatedUniverse(UniverseUtils):
         elif "sleep" in action:
             key_mouse_manager.sleep(float(action["sleep"]))
             return 1
+        elif "real_sleep" in action:
+            time.sleep(float(action["real_sleep"]))
+            return 1
         elif "press" in action:
             key_mouse_manager.press(action["press"], action["time"] if "time" in action else 0)
             return 1
@@ -1372,74 +1298,109 @@ class SimulatedUniverse(UniverseUtils):
         cv.namedWindow("Map", cv.WINDOW_FREERATIO | cv.WINDOW_NORMAL)
         angle_history = []
         last_angle_change_time = 0
+    
+        # 缓存上一次的状态，避免不必要的重绘
+        last_real_loc = None
+        last_target_loc = None
+        last_target_type = None
+        last_ang = None
+        last_updated_image = None
 
         while not self._stop:
             if self.debug_map.shape[0] == 8192:
+                cv.waitKey(100)
                 continue
+
+            # 检查是否有变化，如果没有变化则跳过更新
+            current_real_loc = (int(self.real_loc[0]), int(self.real_loc[1]))
+            current_target_loc = (int(self.target_loc[0]), int(self.target_loc[1]))
+            current_target_type = getattr(self, 'target_type', None)
+            current_ang = getattr(self, 'ang', None)
+
+            # 如果没有重要变化，则短暂等待后继续
+            if (last_real_loc == current_real_loc and
+                last_target_loc == current_target_loc and
+                last_target_type == current_target_type and
+                last_ang == current_ang):
+                cv.waitKey(100)
+                continue
+
+            # 更新缓存值
+            last_real_loc = current_real_loc
+            last_target_loc = current_target_loc
+            last_target_type = current_target_type
+            last_ang = current_ang
+
+            # 只在需要时才拷贝图像
             updated_image = self.debug_map.copy()
             try:
                 updated_image = cv.cvtColor(updated_image, cv.COLOR_GRAY2RGB)
             except:
-                updated_image = self.debug_map.copy()
+                pass  # 如果转换失败，保持原图
+
             # 确保坐标值为整数类型，避免切片索引错误
-            real_x, real_y = int(self.real_loc[0]), int(self.real_loc[1])
-            target_x, target_y = int(self.target_loc[0]), int(self.target_loc[1])
+            real_x, real_y = current_real_loc
+            target_x, target_y = current_target_loc
 
-            updated_image[
-                real_x - 2 : real_x + 3,
-                real_y - 2 : real_y + 3,
-            ] = [49, 140, 49]
-            if hasattr(self, 'target_type'):
-                if self.target_type==0:
-                    updated_image[
-                        target_x - 2 : target_x + 3,
-                        target_y - 2 : target_y + 3,
-                    ] = [49, 140, 140]
-                elif self.target_type==1:
-                    updated_image[
-                        target_x - 2 : target_x + 3,
-                        target_y - 2 : target_y + 3,
-                    ] = [49, 49, 140]
-                elif self.target_type==2:
-                    updated_image[
-                        target_x - 2 : target_x + 3,
-                        target_y - 2 : target_y + 3,
-                    ] = [49, 140, 49]
-                elif self.target_type==3:
-                    updated_image[
-                        target_x - 2 : target_x + 3,
-                        target_y - 2 : target_y + 3,
-                    ] = [140, 140, 49]
+            # 绘制当前位置（绿色）
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    if (0 <= real_x + dx < updated_image.shape[0] and
+                        0 <= real_y + dy < updated_image.shape[1]):
+                        updated_image[real_x + dx, real_y + dy] = [49, 140, 49]
 
-            if hasattr(self, 'ang') and self.ang is not None:
+            # 绘制目标位置
+            if current_target_type is not None:
+                color_map = {
+                    0: [49, 140, 140],  # 黄色
+                    1: [49, 49, 140],   # 红色
+                    2: [49, 140, 49],   # 绿色
+                    3: [140, 140, 49]   # 青色
+                }
+                target_color = color_map.get(current_target_type, [49, 140, 140])
+
+                for dx in range(-2, 3):
+                    for dy in range(-2, 3):
+                        if (0 <= target_x + dx < updated_image.shape[0] and
+                            0 <= target_y + dy < updated_image.shape[1]):
+                            updated_image[target_x + dx, target_y + dy] = target_color
+
+            # 绘制朝向箭头
+            if current_ang is not None:
                 import math
-                angle_rad = math.radians(- self.ang)  # 使用正确的坐标转换
+                angle_rad = math.radians(-current_ang)
                 line_length = 20
                 end_point = (
                     int(real_y + line_length * math.cos(angle_rad)),
-                    int(real_x - line_length * math.sin(angle_rad))  # 注意y轴方向
+                    int(real_x - line_length * math.sin(angle_rad))
                 )
-                cv.arrowedLine(
-                    updated_image, 
-                    (real_y, real_x),
-                    end_point, 
-                    (0, 255, 0), 
-                    1,
-                    tipLength=0.4
-                )
-            
+
+                # 确保线条端点在图像范围内
+                if (0 <= real_y < updated_image.shape[1] and
+                    0 <= real_x < updated_image.shape[0] and
+                    0 <= end_point[0] < updated_image.shape[1] and
+                    0 <= end_point[1] < updated_image.shape[0]):
+                    cv.arrowedLine(
+                        updated_image,
+                        (real_y, real_x),
+                        end_point,
+                        (0, 255, 0),
+                        1,
+                        tipLength=0.4
+                    )
+
             # 更新角度历史记录
             current_time = time.time()
-            if hasattr(self, 'ang') and self.ang is not None:
-                if not angle_history or angle_history[-1][1] != self.ang:
-                    angle_history.append((current_time, self.ang))
+            if current_ang is not None:
+                if not angle_history or angle_history[-1][1] != current_ang:
+                    angle_history.append((current_time, current_ang))
                     last_angle_change_time = current_time
                 # 保留最近5秒的角度记录
                 while angle_history and current_time - angle_history[0][0] > 5:
                     angle_history.pop(0)
-            
+
             # 在左上角显示角度数值
-            if hasattr(self, 'ang') and self.ang is not None:
+            if current_ang is not None:
                 # 计算颜色 (新变更红色，随时间推移逐渐变蓝)
                 elapsed_time = current_time - last_angle_change_time
                 if elapsed_time < 2:  # 2秒内变为蓝色
@@ -1449,22 +1410,24 @@ class SimulatedUniverse(UniverseUtils):
                 else:
                     color = (255, 0, 0)  # 蓝色
 
-                angle_text = f"Angle: {-self.ang:.1f}"
-                cv.putText(updated_image, angle_text, (10, 30), 
+                angle_text = f"Angle: {-current_ang:.1f}"
+                cv.putText(updated_image, angle_text, (10, 30),
                           cv.FONT_HERSHEY_SIMPLEX, 0.3, color, 1)
-            
+
             # 在左上角显示目标坐标
             target_text = f"Target: ({target_x}, {target_y})"
-            cv.putText(updated_image, target_text, (10, 50), 
+            cv.putText(updated_image, target_text, (10, 50),
                       cv.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 255), 1)
-            
-            # 将图片放大两倍
+
+            # 将图片放大两倍（只放大感兴趣区域或使用更高效的算法）
             updated_image = cv.resize(
                 updated_image, None, fx=2, fy=2, interpolation=cv.INTER_LINEAR
             )
 
             cv.imshow("Map", updated_image)
-            cv.waitKey(1000)
+            # 更合理的等待时间，平衡性能和响应性
+            if cv.waitKey(100) & 0xFF == ord('q'):
+                break
 
         cv.destroyAllWindows()
 
@@ -1472,9 +1435,9 @@ class SimulatedUniverse(UniverseUtils):
     def start(self):
         self._stop = False
         key_mouse_manager.start()
-        # if self._show_map:
-        #     self.map_thread = threading.Thread(target=self.show_map)
-        #     self.map_thread.start()
+        if self._show_map:
+            self.map_thread = threading.Thread(target=self.show_map)
+            self.map_thread.start()
         try:
             self.route()
         except Exception as e:

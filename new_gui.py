@@ -345,7 +345,13 @@ class MainWindow(QMainWindowLog):
                 int(config_diver.speed_mode)
             )
             self.task_manager.current_task = su
-            su.click_target('resource/imgs/herta_office.jpg',0.9,True,use_binary= False)
+            print_text = self.PrintEdit.text()
+            if self.PrintPhoto.isChecked():
+                su.click_target(f'test/{print_text}', 0.9, True, use_binary=False)
+            elif self.PrintText.isChecked():
+                su.click_text(print_text,click=0)
+            else:
+                su.click_text(print_text,click=1)
 
         try:
             self.task_manager.start_task(task)
