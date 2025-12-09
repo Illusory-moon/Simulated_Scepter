@@ -21,6 +21,7 @@ from math import sin, cos
 import traceback
 
 from config.GLOBAL import key_mouse_manager
+from diver import merge_text
 from utils.simul.config import config
 from utils.log import log
 import utils.simul.ocr as ocr
@@ -242,7 +243,7 @@ class UniverseUtils:
             time.sleep(0.5)
         # 点击使用
         key_mouse_manager.click(0.154,0.088)
-        self.wait_flag(lambda:not self.check("yes1", 0.3812, 0.2926), 1.2)
+        self.wait_flag(lambda:not self.click_text(text="确认",box=[1126, 1252, 716, 812],click=False,ocr_line=False,warning=False), 1.2)
         # 点击确认
         key_mouse_manager.click(0.386,0.294)
         r = self.wait_flag(lambda:not self.check("use_replace", 0.5260, 0.6935), 0.8)
@@ -289,10 +290,20 @@ class UniverseUtils:
     def calc_point(self, point, offset):
         return point[0] - offset[0] / self.xx, point[1] - offset[1] / self.yy
 
-    def click_text(self, text,delay=0,box=None,after_delay=0,click=True,find_all=False,warning=True):
+    def click_text(self, text,delay=0,box=None,after_delay=0,click=True,find_all=False,warning=True,ocr_line=True,need_fresh=True,allow_fail=False):
         if delay:
             time.sleep(delay)
-        img = self.get_screen()
+        if not ocr_line:
+            ocr_text = self.ts.find_with_box(box)
+            if len(ocr_text) and text in merge_text(ocr_text):
+                return True
+            else:
+                if warning:
+                    log.warning(f"{text}文本未找到(非单行)当前返回结果{ocr_text}")
+        if need_fresh:
+            img = self.get_screen()
+        else:
+            img = self.screen
         if box:
             match=self.ts.ocr_one_row(img,box)
             log.info(f"尝试匹配：{text}匹配结果：{match}")
@@ -304,6 +315,12 @@ class UniverseUtils:
                 if after_delay:
                     time.sleep(after_delay)
                 return True
+            elif len(match):
+                if after_delay:
+                    time.sleep(after_delay)
+                return True
+            elif allow_fail:
+                return False
         pt = self.ts.find_text(img, text,find_all)
         if pt is not None:
             if click:
@@ -691,7 +708,7 @@ class UniverseUtils:
         white = np.array([210, 210, 210])
         gray = np.array([55, 55, 55])
         shape = (int(self.scx * 190), int(self.scx * 190))
-        if re_screen and self.check("choose_bless", 0.9266, 0.9491, fresh=True):
+        if re_screen and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
             return None
         if local_screen is None:
             local_screen = self.get_local(0.9333, 0.8657, shape)
@@ -799,7 +816,7 @@ class UniverseUtils:
                     break
         if self.floor!=old_floor and old_floor!=0:
             log.error(f"层数已更新为：{self.floor+1}")
-            raise FloorError(f"层数不一致旧{old_floor+1}, 新{self.floor+1}")
+            # raise FloorError(f"层数不一致旧{old_floor+1}, 新{self.floor+1}")
         key_mouse_manager.press("m", 0.2)
         time.sleep(1)
         return 0
@@ -1178,7 +1195,8 @@ class UniverseUtils:
                             np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True) - red) ** 2, axis=-1) <= 512)
                         log.info(f"距离小于35,开始清除{(self.target_loc, 1)}从{self.target}")
                         if not has_not_found_red:
-                            self.target.remove((self.target_loc, 1))
+                            # self.target.remove((self.target_loc, 1))
+                            break
                         if rd[0].shape[0] > 0:
                             recent_loc = (self.real_loc[0] + rd[0][0] - 93, self.real_loc[1] + rd[1][0] - 93)
                             log.info(f"当前目标集合{self.target}")
@@ -1319,7 +1337,7 @@ class UniverseUtils:
             if self.target_type == 3:
                 for i in range(9):
                     self.get_screen()
-                    if self.quan and self.check("choose_bless", 0.9266, 0.9491):
+                    if self.quan and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                         return
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
                         log.info("大图识别到类型三传送点")
@@ -1584,14 +1602,6 @@ class UniverseUtils:
                 except:
                     pass
 
-    def check_auto(self):
-        auto = self.get_small_interaction_img(x=0.0878,y=0.9630,mask="mask_auto")
-        cvt = cv.cvtColor(auto, cv.COLOR_BGR2HSV)
-        lower = np.array([22, 58, 100])
-        upper = np.array([26, 100, 255])
-        mask = cv.inRange(cvt, lower, upper)
-        result = np.sum(mask)//255
-        return result > 100 and result < 280
     
     def isrun(self):
         scr = self.screen
@@ -1769,7 +1779,7 @@ class UniverseUtils:
                     break
                 if self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
                     self.stop_move=1
-                    time.sleep(1.7+self.slow*1.1-(self.quan and self.floor not in [3, 7, 12])*0.5)
+                    # time.sleep(1.7+self.slow*1.1-(self.quan and self.floor not in [3, 7, 12])*0.5)
                     if self.mini_state==1 and self.floor in [3, 7, 12] and not self.quan:
                         key_mouse_manager.keyUp("w")
                         if not self.check("ruan",0.0625,0.7065,threshold=0.95) and not self.check("U", 0.0240,0.7759):
@@ -1902,12 +1912,12 @@ class UniverseUtils:
         time.sleep(0.4)
         if not self.quan:
             time.sleep(0.8)
-        if self.check('e',0.4995,0.7500,fresh= True):
+        if self.click_text(text="快速恢复",box=[864, 1058, 224, 318],click=False,ocr_line=False,warning=False):
             self.solve_snack()
 
     def bless(self):
         self.get_screen()
-        if self.wait_flag(lambda:not self.check("choose_bless", 0.9266, 0.9491), 2.3):
+        if self.wait_flag(lambda:not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False), 2.3):
             self.wait_flag(lambda:not self.check("reset", 0.2938, 0.0954), 0.7)
             time.sleep(1.2)
         else:
@@ -1925,7 +1935,7 @@ class UniverseUtils:
                     ):
                         time.sleep(0.2)
                         break
-                    if not self.check("choose_bless", 0.9266, 0.9491, threshold=0.945):
+                    if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                         return 1
                     time.sleep(0.2)
                 img_up = self.get_small_interaction_img(x=0.5047,y=0.5491,mask="mask_bless",fresh= True)
@@ -1948,7 +1958,7 @@ class UniverseUtils:
                     if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
                         time.sleep(0.2)
                         break
-                    if not self.check("choose_bless", 0.9266, 0.9491, threshold=0.945):
+                    if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                         return 1
                     time.sleep(0.2)
                 img_up = self.get_small_interaction_img(x=0.5047,y=0.5491,mask="mask_bless",fresh=True)
@@ -1967,7 +1977,7 @@ class UniverseUtils:
             key_mouse_manager.click(0.1203, 0.1093)
             time.sleep(1.7)
             self.get_screen()
-            if not self.check("choose_bless", 0.9266, 0.9491, threshold=0.945):
+            if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                 return
 
     def click_box(self, box):

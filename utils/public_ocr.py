@@ -1,3 +1,5 @@
+import json
+from collections import defaultdict
 from functools import cmp_to_key
 import cv2 as cv
 import numpy as np
@@ -11,8 +13,25 @@ def sort_text(text):
         return y1 - y2
     text = sorted(text, key=cmp_to_key(compare))
     return text
+def load_actions(json_path):
+    res = defaultdict(list)
+    with open(json_path, "r", encoding="utf-8") as f:
+        for i in json.load(f):
+            res[i["name"]].append(i)
+    return res
 
 
+def clean_text(text, char=1):
+    """
+    清除内容中的特殊字符
+    """
+    symbols = r"[!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~—“”‘’«»„…·¿¡£¥€©®™°±÷×¶§‰]，。！？；：（）【】「」《》、￥ "
+    if char:
+        symbols += r"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    translator = str.maketrans('', '', symbols)
+    return text.translate(translator)
+def merge_text(text, char=1):
+    return clean_text(''.join([i['raw_text'] for i in sort_text(text)]), char)
 def merge(text):
     if len(text) == 0:
         return text

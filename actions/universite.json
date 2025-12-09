@@ -1,0 +1,325 @@
+[
+    {
+        "name": "模拟宇宙外",
+        "trigger":{
+            "text": "模拟宇宙",
+            "box": [1217, 1351, 589, 621],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "press": "f"
+            },
+            {
+                "sleep": 1
+            }
+        ]
+    },
+    {
+        "name": "自动战斗检测",
+        "trigger":{
+            "photo": "c",
+            "pos": {"x":0.988,"y":0.1028},
+            "threshold":0.985
+        },
+        "actions":
+        [
+            "auto_battle"
+        ]
+    },
+    {
+        "name": "自动战斗检测II",
+        "trigger":{
+            "photo": "auto_2",
+            "pos": {"x":0.988,"y":0.1028},
+            "threshold":0.985
+        },
+        "actions":
+        [
+            "auto_battle"
+        ]
+    },
+    {
+        "name": "选择祝福",
+        "trigger":{
+            "text": "选择祝福",
+            "box": [98, 202, 59, 95],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "choose_bless"
+        ]
+    },
+    {
+        "name": "自动交互",
+        "trigger":{
+            "photo": "f",
+            "pos": {"x":0.4443,"y":0.4417},
+            "mask":"mask_f1",
+            "threshold":0.96
+        },
+        "actions":
+        [
+            "do_interaction"
+        ]
+    },
+    {
+        "name": "使用零食",
+        "trigger":{
+            "text": "快速恢复",
+            "box": [892, 1024, 250, 286],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "solve_snack"
+        ]
+    },
+    {
+        "name": "初始化",
+        "trigger":{
+            "text": "技能树",
+            "box": [104, 184, 235, 269],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "re_init"
+        ]
+    },
+    {
+        "name": "开始游戏",
+        "trigger":{
+            "text": "首次通关奖励",
+            "box": [1152, 1312, 196, 224],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "begin_universite"
+        ]
+    },
+    {
+        "name": "备战开始",
+        "trigger":{
+            "text": "推荐信息",
+            "box": [611, 717, 169, 201],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "pre_start"
+        ]
+    },
+    {
+        "name": "确认命途",
+        "trigger":{
+            "text": "确认命途",
+            "box": [1643, 1744, 965, 994],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "confirm_fate"
+        ]
+    },
+    {
+        "name": "选择命途",
+        "trigger":{
+            "text": "踏上的命途",
+            "box": [817, 1100, 123, 154],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "select_fate"
+        ]
+    },
+    {
+        "name": "选择开局奖励",
+        "trigger":{
+            "text": "开拓",
+            "box": [589, 1327, 130, 163],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "select_bless"
+        ]
+    },
+    {
+        "name": "选择事件",
+        "trigger":{
+            "text": "事件",
+            "box": [99, 156, 61, 96],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "select_event"
+        ]
+    },
+    {
+        "name": "选择奇物",
+        "trigger":{
+            "text": "选择奇物",
+            "box": [98, 202, 60, 95],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "select_strange"
+        ]
+    },
+    {
+        "name": "丢弃奇物",
+        "trigger":{
+            "text": "丢弃奇物",
+            "box": [100, 201, 62, 94],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "drop_strange"
+        ]
+    },
+    {
+        "name": "丢弃祝福",
+        "trigger":{
+            "text": "丢弃祝福",
+            "box": [99, 200, 62, 94],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "drop_bless"
+        ]
+    },
+    {
+        "name": "设置界面",
+        "trigger":{
+            "text": "暂离",
+            "box": [1328, 1389, 792, 829],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "setting"
+        ]
+    },
+    {
+        "name": "强化祝福",
+        "trigger":{
+            "text": "祝福强化",
+            "box": [98, 202, 60, 96],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "enhance"
+        ]
+    },
+    {
+        "name": "祝福强化界面",
+        "trigger":{
+            "text": "祝福强化",
+            "box": [98, 202, 60, 96],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "press": "esc"
+            },
+            {
+                "real_sleep": 1
+            },
+            "move_to_end",
+            {
+                "press": "w",
+                "time": 0.5
+            }
+            
+        ]
+    },
+    {
+        "name": "确认图片",
+        "trigger":{
+            "photo": "yes1",
+            "pos": {"x":0.5,"y":0.5},
+            "mask":"mask_end"
+        },
+        "actions":
+        [
+            "confirm_yes"
+        ]
+    },
+    {
+        "name": "确认纯文本",
+        "trigger":{
+            "text": "确认",
+            "box": [232, 1690, 154, 928],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "confirm_yes"
+        ]
+    },
+    {
+        "name": "失败",
+        "trigger":{
+            "text": "终止战斗并结算",
+            "box": [627, 800, 971, 1002],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "auto_battle"
+        ]
+    },
+    {
+        "name": "点击空白祝福",
+        "trigger":{
+            "text": "点击空白",
+            "box": [872, 1044, 984, 1015],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "position": [900, 1000]
+            }
+        ]
+    },
+    {
+        "name": "点击空白碎片",
+        "trigger":{
+            "text": "点击空白",
+            "box": [873, 1044, 764, 791],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "position": [900, 1000]
+            }
+        ]
+    },
+    {
+        "name": "点击空白奇物",
+        "trigger":{
+            "text": "点击空白",
+            "box": [873, 1047, 878, 909],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "position": [900, 1000]
+            }
+        ]
+    }
+]

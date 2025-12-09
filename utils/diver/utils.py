@@ -4,7 +4,6 @@ import numpy as np
 import time
 
 import win32api
-import win32gui
 import win32print
 import win32con
 from copy import deepcopy
@@ -20,10 +19,10 @@ import traceback
 
 from config.GLOBAL import key_mouse_manager
 from utils.diver.config import config
-from utils.diver.args import args
 from utils.log import log
 import utils.diver.ocr as ocr
 import utils.diver.keyops as keyops
+from utils.public_ocr import merge_text
 from utils.screenshot import Screen
 import threading
 from utils.log import my_print as print
@@ -218,7 +217,7 @@ class UniverseUtils:
             time.sleep(0.5)
         # 点击使用
         self.click((0.154,0.088))
-        self.wait_fig(lambda:not self.check("yes1",0.3812,0.2926), 1.2)
+        self.wait_fig(lambda:not self.click_text(text="确认",box=[1126, 1252, 716, 812],click=False,ocr_line=False,warning=False), 1.2)
         # 点击确认
         self.click((0.386,0.294))
         r = self.wait_fig(lambda:not self.check("use_replace",0.5260,0.6935), 0.8)
@@ -271,13 +270,24 @@ class UniverseUtils:
     def click_position(self, position):
         self.click_box([position[0], position[0], position[1], position[1]])
 
-    def click_text(self, text, delay=0, box=None, after_delay=0, click=1):
+    def click_text(self, text, delay=0, box=None, after_delay=0, click=True, find_all=False, warning=True,
+                   ocr_line=True, need_fresh=True):
         if delay:
             time.sleep(delay)
-        img = self.get_screen()
+        if not ocr_line:
+            ocr_text = self.ts.find_with_box(box)
+            if len(ocr_text) and text in merge_text(ocr_text):
+                return True
+            else:
+                if warning:
+                    log.warning(f"{text}文本未找到(非单行)")
+        if need_fresh:
+            img = self.get_screen()
+        else:
+            img = self.screen
         if box:
             match = self.ts.ocr_one_row(img, box)
-            log.info(f"匹配结果：{match}")
+            log.info(f"尝试匹配：{text}匹配结果：{match}")
             if len(match) and click:
                 key_mouse_manager.click(
                     (box[0] + box[1]) // 2,
@@ -285,8 +295,8 @@ class UniverseUtils:
                 )
                 if after_delay:
                     time.sleep(after_delay)
-                return 1
-        pt = self.ts.find_text(img, text)
+                return True
+        pt = self.ts.find_text(img, text, find_all)
         if pt is not None:
             if click:
                 key_mouse_manager.click(
@@ -295,8 +305,10 @@ class UniverseUtils:
                 )
             if after_delay:
                 time.sleep(after_delay)
-            return 1
-        return 0
+            return True
+        if warning:
+            log.warning(f"{text}文本未找到")
+        return False
 
     # 由click_target调用，返回图片匹配结果
     def scan_screenshot(self, prepared, mask=None, refine_mask=None, use_binary=False):
@@ -724,7 +736,7 @@ class UniverseUtils:
         shape = (int(self.scx * 190), int(self.scx * 190))
         if gs:
             self.get_screen()
-            if self.check("choose_bless", 0.9266, 0.9491):
+            if self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                 return None
         if local_screen is None:
             local_screen = self.get_local(0.9333, 0.8657, shape)
@@ -1168,7 +1180,7 @@ class UniverseUtils:
             if type == 3:
                 for i in range(9):
                     self.get_screen()
-                    if self.quan and self.check("choose_bless", 0.9266, 0.9491):
+                    if self.quan and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                         return
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
                         log.info("大图识别到传送点")
@@ -1664,13 +1676,12 @@ class UniverseUtils:
         time.sleep(0.4)
         if not self.quan:
             time.sleep(0.8)
-        self.get_screen()
-        if self.check('e',0.4995,0.7500):
+        if self.click_text(text="快速恢复",box=[864, 1058, 224, 318],click=False,ocr_line=False,warning=False):
             self.solve_snack()
 
     def bless(self):
         self.get_screen()
-        if self.wait_fig(lambda:not self.check("choose_bless", 0.9266, 0.9491), 2.3):
+        if self.wait_fig(lambda:not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False), 2.3):
             self.wait_fig(lambda:not self.check("reset",0.2938,0.0954), 0.7)
             time.sleep(1.2)
         else:
@@ -1689,7 +1700,7 @@ class UniverseUtils:
                     ):
                         time.sleep(0.2)
                         break
-                    if not self.check("choose_bless", 0.9266, 0.9491, threshold=0.945):
+                    if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                         return 1
                     time.sleep(0.2)
                 self.get_screen()
@@ -1714,7 +1725,7 @@ class UniverseUtils:
                     if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
                         time.sleep(0.2)
                         break
-                    if not self.check("choose_bless", 0.9266, 0.9491, threshold=0.945):
+                    if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                         return 1
                     time.sleep(0.2)
                 self.get_screen()
@@ -1734,7 +1745,7 @@ class UniverseUtils:
             self.click((0.1203, 0.1093))
             time.sleep(1.7)
             self.get_screen()
-            if not self.check("choose_bless", 0.9266, 0.9491, threshold=0.945):
+            if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                 return
 
     def get_text_position(self, clean=0):

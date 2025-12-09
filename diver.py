@@ -24,31 +24,16 @@ from utils.diver.keyops import KeyController
 import bisect
 from collections import defaultdict
 
+from utils.public_ocr import load_actions, clean_text, merge_text
+
 # 版本号
 version = "v8.042"
 
 
-def load_actions(json_path):
-    res = defaultdict(list)
-    with open(json_path, "r", encoding="utf-8") as f:
-        for i in json.load(f):
-            res[i["name"]].append(i)
-    return res
 
 
-def clean_text(text, char=1):
-    """
-    清除内容中的特殊字符
-    """
-    symbols = r"[!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~—“”‘’«»„…·¿¡£¥€©®™°±÷×¶§‰]，。！？；：（）【】「」《》、￥ "
-    if char:
-        symbols += r"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    translator = str.maketrans('', '', symbols)
-    return text.translate(translator)
 
 
-def merge_text(text, char=1):
-    return clean_text(''.join([i['raw_text'] for i in sort_text(text)]), char)
 
 
 class DivergentUniverse(UniverseUtils):
@@ -764,8 +749,7 @@ class DivergentUniverse(UniverseUtils):
             return
         self.press('e')
         time.sleep(0.4)
-        self.get_screen()
-        if self.check('e',0.4995,0.7500):
+        if self.click_text(text="快速恢复",box=[864, 1058, 224, 318],click=False,ocr_line=False,warning=False):
             self.solve_snack()
             if quan and self.allow_e:
                 time.sleep(0.4)
