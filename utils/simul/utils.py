@@ -1,6 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
+import keyboard
 import pyautogui
 import cv2 as cv
 import numpy as np
@@ -134,6 +135,7 @@ class UniverseUtils:
         self.img_map = dict()
         self.gui=gui
         self.should_update_map=True
+        self.big_map = np.zeros((8192, 8192), dtype=np.uint8)
         # 用户选择的命途
         for i in range(len(config.fates)):
             if config.fates[i] == self.fate:
@@ -246,7 +248,7 @@ class UniverseUtils:
         self.wait_flag(lambda:not self.click_text(text="确认",box=[1126, 1252, 716, 812],click=False,ocr_line=False,warning=False), 1.2)
         # 点击确认
         key_mouse_manager.click(0.386,0.294)
-        r = self.wait_flag(lambda:not self.check("use_replace", 0.5260, 0.6935), 0.8)
+        r = self.wait_flag(lambda:not self.click_text(text="替换同类",box=[816, 1006, 284, 380],click=False,warning=False), 0.8)
         if r:
             # 覆盖效果
             key_mouse_manager.click(0.386,0.294)
@@ -702,6 +704,9 @@ class UniverseUtils:
             进一步得到小地图的黑白格式
             re_screen：是否重新截图
         """
+        if self.find == 0:
+            log.debug("等人物静止按下F8键录制地图")
+            keyboard.wait('f8')
         self.mag = "self._stop = os.system('pi"
         yellow = np.array([145, 192, 220])
         black = np.array([0, 0, 0])
@@ -1108,17 +1113,12 @@ class UniverseUtils:
         self.ang = ang
     # 寻路函数
     def get_direc(self):
+        """
+        np.array颜色为（b,g,r)
+        """
         log.info("开始有地图寻路")
-        gray = np.array([55, 55, 55])
-        blue = np.array([234, 191, 4])
-        white = np.array([210, 210, 210])
-        sred = np.array([49, 49, 140])
-        yellow = np.array([145, 192, 220])
-        black = np.array([0, 0, 0])
-        shape = (int(self.scx * 190), int(self.scx * 190))
         bw_map = self.get_bw_map(re_screen=0)
         self.loc_off = 0
-        tm = time.time()
         self.get_loc(bw_map, rg = 40 - self.find * 10)
         if self.find == 1:
             key_mouse_manager.press("w", 0.2)
@@ -1391,8 +1391,10 @@ class UniverseUtils:
             else:
                 raise ValueError("正在退出")
 
-    # 在大地图中覆盖小地图
     def write_map(self, bw_map):
+        """
+        绘制self.big_map，从当前小地图获取白线信息，再根据小地图中心（即自身点位）设置大地图对应点位为白线
+        """
         for i in range(bw_map.shape[0]):
             for j in range(bw_map.shape[1]):
                 if ((i - 88) ** 2 + (j - 88) ** 2) > 80**2:
@@ -1416,7 +1418,7 @@ class UniverseUtils:
         fbw=0表示当前人物是静止状态，因此缩放到移动状态与大地图匹配）
         ps：大地图是移动状态录制的
         """
-        log.info(f"获取新坐标,范围{rg},是否移动{fbw},偏移{offset}")
+        log.info(f"获取新坐标,当前坐标{self.now_loc}范围{rg},是否移动{fbw},偏移{offset}")
         rge = 88 + rg
         #创建一个2rge大小的地图
         loc_big = np.zeros((rge * 2, rge * 2), dtype=self.big_map.dtype)
@@ -1501,6 +1503,9 @@ class UniverseUtils:
 
     # 从8192*8192的超大地图中找到有意义的大地图
     def get_map(self):
+        """
+        先对self.big_map裁剪出含有白色的所有有效区域
+        """
         x1, x2, y1, y2 = 0, 8191, 0, 8191
         while x1 < 8192 and np.sum(self.big_map[x1, :]) == 0:
             x1 += 1
@@ -1513,28 +1518,26 @@ class UniverseUtils:
         if x1 >= x2 or y1 >= y2:
             return
         # 权重得大于一个值，才能被判定为白线（否则是噪声）
-        tp = deepcopy(self.big_map[x1 - 1 : x2 + 2, y1 - 1 : y2 + 2])
-        tp[tp >= 100] = 255
-        bk = deepcopy(tp)
-        for i in range(tp.shape[0]):
-            for j in range(tp.shape[1]):
-                f = 0
-                for ii in range(0, 1):
-                    for jj in range(0, 1):
-                        if (
-                                0 <= i + ii < tp.shape[0]
-                                and 0 <= j + jj < tp.shape[1]
-                        ):
-                            if bk[i + ii, j + jj] == 255:
-                                f = 1
-                                break
-                if f:
-                    tp[i, j] = 255
-        tp[tp < 100] = 0
+        weight = deepcopy(self.big_map[x1 - 1 : x2 + 2, y1 - 1 : y2 + 2])
+        weight[weight >= 100] = 255
+        #下面似乎是检查邻域是否有白线的代码，但是取值只有某个点本身，没有任何作用
+        # bk = deepcopy(weight)
+        # for i in range(weight.shape[0]):
+        #     for j in range(weight.shape[1]):
+        #         f = 0
+        #         for ii in range(0, 1):
+        #             for jj in range(0, 1):
+        #                 if 0 <= i + ii < weight.shape[0]and 0 <= j + jj < weight.shape[1]:
+        #                     if bk[i + ii, j + jj] == 255:
+        #                         f = 1
+        #                         break
+        #         if f:
+        #             weight[i, j] = 255
+        weight[weight < 100] = 0
         cv.imwrite(
-            self.map_file + "map_" + str(x1 - 1) + "_" + str(y1 - 1) + "_.jpg", tp
+            self.map_file + "map_" + str(x1 - 1) + "_" + str(y1 - 1) + "_.jpg", weight
         )
-        cv.imwrite(self.map_file + "target.jpg", tp)
+        cv.imwrite(self.map_file + "target.jpg", weight)
 
     def extract_features(self, img):
         img = img[50:-50,50:-50,:]
@@ -1585,13 +1588,6 @@ class UniverseUtils:
                 ans = i
         return ans, sim
 
-    # 找小地图中怪点，已弃用
-    def check_sred(self, sred, loc_scr, i, j):
-        for k in range(max(0, i - 2), min(i + 2, loc_scr.shape[0])):
-            for t in range(max(0, j - 2), min(j + 2, loc_scr.shape[1])):
-                if not (sred == loc_scr[k, t]).all():
-                    return 0
-        return 1
 
     def print_stack(self, num=1):
         if self.debug:
@@ -1615,7 +1611,7 @@ class UniverseUtils:
         scr_bak = deepcopy(scr)
         scr[np.min(scr,axis=-1)<=220]=[0,0,0]
         scr[np.min(scr,axis=-1)>220]=[255,255,255]
-        res = self.check('run',0.876,0.7815,threshold=0.91) and sum > 40000 and sum < 65000
+        res = self.check('run', 0.876, 0.7815, threshold=0.91) and 40000 < sum < 65000
         if self.tm>0.96:
             res = 1
         self.screen = deepcopy(scr_bak)
@@ -1687,7 +1683,7 @@ class UniverseUtils:
                 if self.check('bonus_c',0.2385,0.6685,fresh=True):
                     key_mouse_manager.click(0.4453,0.3250)
                     time.sleep(1.5)
-                    if self.check('lack',0.5036,0.6769,fresh=True):
+                    if self.click_text(text="储存沉浸器",box=[838, 1070, 298, 400],click=False,ocr_line=False,warning=False):
                         self.check_bonus = 0
                     key_mouse_manager.click(0.5062, 0.1454)
                     time.sleep(1.4)
@@ -1918,7 +1914,7 @@ class UniverseUtils:
     def bless(self):
         self.get_screen()
         if self.wait_flag(lambda:not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False), 2.3):
-            self.wait_flag(lambda:not self.check("reset", 0.2938, 0.0954), 0.7)
+            self.wait_flag(lambda:not self.click_text(text="重置祝福",box=[1268, 1444, 929, 1025],click=False,warning=False), 0.7)
             time.sleep(1.2)
         else:
             return
@@ -1926,7 +1922,7 @@ class UniverseUtils:
             chose = 0
             self.battle = 0
             self.get_screen()
-            if self.check("reset",0.2938,0.0954, threshold=0.96):
+            if self.click_text(text="重置祝福",box=[1268, 1444, 929, 1025],click=False,warning=False):
                 for _ in range(14):
                     img_down = self.get_small_interaction_img(x=0.5042,y=0.3204,mask="mask",fresh= True)
                     if (

@@ -220,7 +220,7 @@ class UniverseUtils:
         self.wait_fig(lambda:not self.click_text(text="确认",box=[1126, 1252, 716, 812],click=False,ocr_line=False,warning=False), 1.2)
         # 点击确认
         self.click((0.386,0.294))
-        r = self.wait_fig(lambda:not self.check("use_replace",0.5260,0.6935), 0.8)
+        r = self.wait_fig(lambda:not self.click_text(text="替换同类",box=[816, 1006, 284, 380],click=False,warning=False), 0.8)
         if r:
             # 覆盖效果
             self.click((0.386,0.294))
@@ -1499,7 +1499,7 @@ class UniverseUtils:
                     self.click((0.4453,0.3250))
                     time.sleep(1.5)
                     self.get_screen()
-                    if self.check('lack',0.5036,0.6769):
+                    if self.click_text(text="储存沉浸器",box=[838, 1070, 298, 400],click=False,ocr_line=False,warning=False):
                         self.check_bonus = 0
                     self.click((0.5062, 0.1454))
                     time.sleep(1.4)
@@ -1682,7 +1682,7 @@ class UniverseUtils:
     def bless(self):
         self.get_screen()
         if self.wait_fig(lambda:not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False), 2.3):
-            self.wait_fig(lambda:not self.check("reset",0.2938,0.0954), 0.7)
+            self.wait_fig(lambda:not self.click_text(text="重置祝福",box=[1268, 1444, 929, 1025],click=False,warning=False), 0.7)
             time.sleep(1.2)
         else:
             return
@@ -1690,7 +1690,7 @@ class UniverseUtils:
             chose = 0
             self.battle = 0
             self.get_screen()
-            if self.check("reset",0.2938,0.0954, threshold=0.96):
+            if self.click_text(text="重置祝福",box=[1268, 1444, 929, 1025],click=False,warning=False):
                 for _ in range(14):
                     self.get_screen()
                     img_down = self.check("z", 0.5042, 0.3204, mask="mask", large=False)

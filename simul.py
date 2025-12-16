@@ -9,9 +9,8 @@ import random
 from copy import deepcopy
 
 from config.GLOBAL import key_mouse_manager
-from diver import load_actions, merge_text, clean_text
+from diver import load_actions, merge_text
 from utils.log import log, set_debug
-from utils.simul.map_log import map_log
 from utils.simul.update_map import update_map
 from utils.simul.utils import UniverseUtils, set_forground, notif, sprint, get_dis
 import os
@@ -19,8 +18,6 @@ from align_angle import main as align_angle
 from utils.simul.config import config
 import datetime
 import pytz
-
-from utils.utils.minimap_util import get_minimap, MINIMAP_RADIUS
 from utils.utils.mminimap import update_minimap_data
 
 
@@ -238,49 +235,6 @@ class SimulatedUniverse(UniverseUtils):
         res,state = self.run_static()
         if res!='':
             return state
-
-        # # F交互界面
-        # elif self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-        #     # is_killed：是否是禁用交互（沉浸奖励、复活装置、下载装置）
-        #     is_killed = 0
-        #     time.sleep(0.4)
-        #     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
-        #         for _ in range(4):
-        #             img = self.get_small_interaction_img(x=0.3181,y=0.4324,mask="mask_f")
-        #             text = self.ts.similar_list(self.tk.interacts, img)
-        #             if text is None:
-        #                 img = self.get_small_interaction_img(x=0.3365,y=0.4231,mask="mask_f")
-        #                 text = self.ts.similar_list(self.tk.interacts, img)
-        #             if text is not None:
-        #                 break
-        #             time.sleep(0.3)
-        #             self.get_screen()
-        #         # 黑塔
-        #         if self.ts.similar("黑塔"):
-        #             # 与黑塔交互后30秒内禁止再次交互（防止死循环）
-        #             if time.time() - self.quit > 30 and self.floor:
-        #                 self.quit = time.time()
-        #                 key_mouse_manager.press('f',force= True)
-        #                 self.battle = 0
-        #             else:
-        #                 is_killed = 1
-        #         else:
-        #             # tele：区域-xx  exit：离开模拟宇宙
-        #             if self.ts.similar("区域"):
-        #                 log.info(f"识别到传送点")
-        #                 key_mouse_manager.press('f',force= True)
-        #                 return self.nof()
-        #             elif self.re_align == 1 and self.debug == 0:
-        #                 # align_angle(10, 1)
-        #                 # self.multi = config.multi
-        #                 self.re_align += 1
-        #             is_killed = text in ["沉浸", "紧锁", "复活", "下载"]
-        #             if is_killed == 0:
-        #                 key_mouse_manager.press('f',force= True)
-        #             self.battle = 0
-        #         if is_killed == 0:
-        #             return 1
-        # 跑图状态
         if self.isrun():
             log.info("开始匹配地图")
             #检查黄泉
@@ -336,7 +290,7 @@ class SimulatedUniverse(UniverseUtils):
                             log.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
                             self.find=True
                             if self.now_map_sim < 0.35 :
-                                log.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor},匹配地图{self.now_map}")
+                                log.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor+1},匹配地图{self.now_map}")
                                 if self.debug==2:
                                     time.sleep(10000)
                                 self.find=False
@@ -397,14 +351,14 @@ class SimulatedUniverse(UniverseUtils):
                         self.use_consumable(1, 1)
                     key_mouse_manager.press("1")
                 # 录制模式，保存初始小地图
-                else:
+                if not self.find:
                     log.warning("未找到匹配地图")
                     time.sleep(3)
                     self.mini_state = 0
                     self.exist_minimap()
                     cv.imwrite(self.map_file + "init.jpg", self.loc_scr)
             self.get_screen()
-            if time.time() - self.lst_tm > 5 and self.mini_state == 0:
+            if time.time() - self.lst_tm > 5 and self.mini_state == 0 and self.floor not in [0, 5]:
                 if self.find == 0:
                     key_mouse_manager.press("s", 0.5)
                     if self._stop == 0:
@@ -438,6 +392,7 @@ class SimulatedUniverse(UniverseUtils):
                 elif self.fail_count <= 1:
                     log.error(f"地图{self.now_map}未发现目标，当前层数:{self.floor+1},相似度{self.now_map_sim}，尝试暂离")
                     key_mouse_manager.click(0.2708, 0.2324)
+                    key_mouse_manager.keyUp("w")
                     self.re_enter()
                     self.re_align += 1
                     self.fail_count += 1
@@ -479,7 +434,6 @@ class SimulatedUniverse(UniverseUtils):
             return 2
         else:
             return 0
-        return 1
 
     def auto_battle(self):
         # 需要打开自动战斗
@@ -501,7 +455,7 @@ class SimulatedUniverse(UniverseUtils):
         time.sleep(0.3)
         chose = 0
         self.battle = 0
-        if self.check("reset", 0.2938, 0.0954):
+        if self.click_text(text="重置祝福",box=[1268, 1444, 929, 1025],click=False,warning=False):
             for _ in range(14):
                 img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
                 if (
@@ -611,7 +565,7 @@ class SimulatedUniverse(UniverseUtils):
         time.sleep(1)
         self.init_map()
     def begin_universite(self):
-        con = self.check("conti", 0.1219, 0.0926)
+        con = self.click_text(text="继续进度",box=[1610, 1762, 937, 1023],click=False,ocr_line=False,warning=False)
         if not con:
             if self.diffi == 5:
                 key_mouse_manager.click(0.9375, 0.5565)
@@ -700,7 +654,7 @@ class SimulatedUniverse(UniverseUtils):
             self.get_screen()
             if success and self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
                 key_mouse_manager.click(self.tx, self.ty)
-            elif self.check("wait_room", 0.880, 0.156, threshold=0.95):
+            elif self.click_text(text="休息区",box=[187, 289, 903, 941],click=False,warning=False):
                 key_mouse_manager.click(0.1667, 0.2592)
             else:
                 key_mouse_manager.click(tx, ty)
@@ -997,52 +951,7 @@ class SimulatedUniverse(UniverseUtils):
             sprint()
             key_mouse_manager.sleep(4)
             key_mouse_manager.keyUp("w")
-    def loop(self):
-        #截图并识别文本
-        self.ts.forward(self.get_screen())
-        # self.ts.find_with_box()
-        # exit()
-        res = self.run_static()
-        # self.click_target("imgs/c.jpg", threshold=0.9, flag=False)
-        #没有检测到已有的存在的文字
-        if res == '':
-            area_text = clean_text(self.ts.ocr_one_row(self.screen, [50, 350, 3, 35]), char=0)
-            if '位面' in area_text or '区域' in area_text or '第' in area_text:
-                # self.area()
-                self.last_action_time = time.time()
 
-            elif self.check("c", 0.988, 0.1028, threshold=0.925):
-                # 未检查到自动战斗,已经入站,清除秘技持续
-                self.da_hei_ta_effecting = False
-                key_mouse_manager.press('v')
-            # else:
-                # text = merge_text(self.ts.find_with_box([400, 1920, 100, 600], redundancy=0))
-                #速通模式跳过转化
-                # if self.speed and '转化' in text and '继续战斗' not in text and ('数据' in text or '过量' in text):
-                #     log.info('ready to stop')
-                #     time.sleep(6)
-                #     tm = time.time()
-                #     while time.time() - tm < 15:
-                #         log.info('trying to stop')
-                #         self.press('esc')
-                #         time.sleep(2)
-                #         self.ts.forward(self.get_screen())
-                #         static_res = self.run_static(action_list=['过量转化'])
-                #         if static_res != '':
-                #             print(static_res)
-                #             break
-                # else:
-                #     if time.time() - self.last_action_time > 60:
-                #         self.click((0.5, 0.1))
-                #         self.click((0.5, 0.25))
-                #         self.last_action_time = time.time()
-        else:
-            self.last_action_time = time.time()
-        if self.end and res == '加载界面':
-            key_mouse_manager.press('esc')
-            time.sleep(2)
-            key_mouse_manager.press('esc')
-            self._stop = True
     def run_static(self, json_path=None, json_file=None, action_list=[], skip_check=0) -> (str,int):
         if json_file is None:
             if json_path is None:
