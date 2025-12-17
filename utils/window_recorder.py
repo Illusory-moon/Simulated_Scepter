@@ -8,12 +8,7 @@ import numpy as np
 import win32con
 import win32gui
 import win32ui
-
-
-# try:
-#     ctypes.windll.shcore.SetProcessDpiAwareness(2)  # 2 = Per-monitor v2 DPI awareness
-# except:
-#     print("无法设置DPI感知级别")
+from PIL import ImageGrab
 
 
 class WindowRecorder:
@@ -32,56 +27,71 @@ class WindowRecorder:
         self.height = 0
         self.see_time = see_time
         self.is_show = is_show
-        # 添加DC相关属性
-        self.hwndDC = None
-        self.mfcDC = None
-        self.saveDC = None
-        self.saveBitMap = None
 
     def start_recording(self):
         """开始录制指定窗口"""
         if self.recording:
             print("Already recording")
             return
+            
         # 查找目标窗口
         if not self.hwnd:
             self.hwnd = win32gui.FindWindow(self.window_class_name, self.window_title)
-            print(f"{self.hwnd}")
+            print(f"找到窗口句柄: {self.hwnd}")
+            
         if not self.hwnd:
             if self.window_class_name:
                 raise ValueError(f"未找到类名为 '{self.window_class_name}' 且标题包含 '{self.window_title}' 的窗口")
             else:
                 raise ValueError(f"未找到标题包含 '{self.window_title}' 的窗口")
+        
+        # 确保窗口可见且有效
+        if not win32gui.IsWindowVisible(self.hwnd):
+            print("警告: 窗口不可见")
+            
+        if not win32gui.IsWindow(self.hwnd):
+            raise ValueError("窗口句柄无效")
 
-        # 获取窗口尺寸（物理像素）
-        rect = win32gui.GetWindowRect(self.hwnd)
-        self.width = rect[2] - rect[0]
-        self.height = rect[3] - rect[1]
-        # 获取DPI缩放因子
+        # 设置DPI感知
         try:
-            user32 = ctypes.windll.user32
-            hdc = user32.GetDC(None)
-            LOGPIXELSX = 88
-            dpi = ctypes.windll.gdi32.GetDeviceCaps(hdc, LOGPIXELSX)
-            user32.ReleaseDC(None, hdc)
-            # 计算缩放因子
-            self.scale_factor = dpi / 96.0  # 96是标准DPI
-            print(f"检测到DPI缩放因子: {self.scale_factor:.2f}")
-
-            # 如果需要，可以调整尺寸以匹配实际物理像素
-            self.width = int(self.width // self.scale_factor)
-            self.height = int(self.height // self.scale_factor)
-
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # 2 = Per-monitor v2 DPI awareness
         except Exception as e:
-            print(f"获取DPI信息失败: {e}")
-            self.scale_factor = 1.0
+            print(f"无法设置DPI感知级别: {e}")
+            try:
+                ctypes.windll.user32.SetProcessDPIAware()
+            except Exception as e:
+                print(f"无法设置DPI感知级别(备用方法): {e}")
+        
+        # 获取窗口位置和尺寸
+        try:
+            # 获取窗口位置
+            rect = win32gui.GetWindowRect(self.hwnd)
+            self.left, self.top, self.right, self.bottom = rect
+            self.width = self.right - self.left
+            self.height = self.bottom - self.top
+            
+            print(f"窗口位置: ({self.left}, {self.top}, {self.right}, {self.bottom}), 尺寸: {self.width}x{self.height}")
+        except Exception as e:
+            print(f"获取窗口位置失败: {e}")
+            raise
+
+        # 确保输出目录存在
+        import os
+        output_dir = os.path.dirname(self.output_file)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            
         # 设置视频写入器
+        print(f"初始化视频写入器，尺寸: {self.width}x{self.height}")
         self.out = cv2.VideoWriter(
             self.output_file,
             cv2.VideoWriter_fourcc(*'mp4v'),
             self.fps,
             (self.width, self.height)
         )
+        
+        if not self.out.isOpened():
+            raise RuntimeError("无法初始化视频写入器")
 
         # 启动录制线程
         self.recording = True
@@ -91,47 +101,27 @@ class WindowRecorder:
     def _record_window(self):
         """实际的窗口录制线程"""
         try:
-            # 初始化DC资源
-            self.hwndDC = win32gui.GetWindowDC(self.hwnd)
-            if not self.hwndDC:
-                print("无法获取窗口DC")
-                return
-
-            self.mfcDC = win32ui.CreateDCFromHandle(self.hwndDC)
-            self.saveDC = self.mfcDC.CreateCompatibleDC()
-            if not self.saveDC:
-                print("创建兼容DC失败")
-                return
-
-            # 创建位图
-            self.saveBitMap = win32ui.CreateBitmap()
-            self.saveBitMap.CreateCompatibleBitmap(self.mfcDC, self.width, self.height)
-
             while self.recording:
                 try:
-                    # 选择位图对象
-                    self.saveDC.SelectObject(self.saveBitMap)
-                    # 拷贝图像
-                    self.saveDC.BitBlt((0, 0), (self.width, self.height), self.mfcDC, (0, 0), win32con.SRCCOPY)
-
-                    # 转换为numpy数组
-                    bmpinfo = self.saveBitMap.GetInfo()
-                    bmpstr = self.saveBitMap.GetBitmapBits(True)
-                    img = np.frombuffer(bmpstr, dtype=np.uint8)
-                    img.shape = (bmpinfo['bmHeight'], bmpinfo['bmWidth'], 4)
-                    img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+                    # 使用ImageGrab直接捕获窗口区域
+                    bbox = (self.left, self.top, self.right, self.bottom)
+                    img = ImageGrab.grab(bbox=bbox)
+                    
+                    # 转换为OpenCV格式
+                    img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+                    
+                    # 添加时间戳
                     if self.see_time:
-                        # 添加时间戳（关键修改部分）
                         current_date = datetime.datetime.now().strftime("%Y-%m-%d")
                         current_time = datetime.datetime.now().strftime("%H:%M:%S")
 
-                        # 配置参数（优化版）
+                        # 配置参数
                         font_scale = 0.5
                         font_thickness = 2
                         font = cv2.FONT_HERSHEY_SIMPLEX
-                        line_spacing = 15  # 行间距
-                        h_padding = 6  # 水平内边距（原为12）
-                        v_padding = 20  # 垂直内边距保持不变
+                        line_spacing = 15
+                        h_padding = 6
+                        v_padding = 20
 
                         # 获取文本尺寸
                         (text_width1, text_height1), _ = cv2.getTextSize(current_date, font, font_scale, font_thickness)
@@ -142,11 +132,11 @@ class WindowRecorder:
                         total_text_height = text_height1 + text_height2 + line_spacing
 
                         # 优化背景框尺寸计算
-                        rect_width = max_text_width + h_padding * 2  # 水平方向压缩
+                        rect_width = max_text_width + h_padding * 2
                         rect_height = total_text_height + v_padding * 2
 
-                        # 绘制白色背景矩形（更紧凑）
-                        cv2.rectangle(img,
+                        # 绘制白色背景矩形
+                        cv2.rectangle(img_cv,
                                       (5, 5),
                                       (5 + rect_width, 5 + rect_height),
                                       (255, 255, 255),
@@ -156,25 +146,26 @@ class WindowRecorder:
                         line1_y = 5 + v_padding + text_height1
                         line2_y = line1_y + text_height2 + line_spacing
 
-                        cv2.putText(img, current_date,
-                                    (5 + h_padding, line1_y),  # 水平位置调整
+                        cv2.putText(img_cv, current_date,
+                                    (5 + h_padding, line1_y),
                                     font,
                                     font_scale,
                                     (0, 0, 255),
                                     font_thickness)
 
-                        cv2.putText(img, current_time,
-                                    (5 + h_padding, line2_y),  # 水平位置调整
+                        cv2.putText(img_cv, current_time,
+                                    (5 + h_padding, line2_y),
                                     font,
                                     font_scale,
                                     (0, 0, 255),
                                     font_thickness)
 
                     # 写入视频文件
-                    self.out.write(img)
+                    self.out.write(img_cv)
+                    
                     if self.is_show:
-                        # 实时显示当前帧（可选）
-                        cv2.imshow('Window Recorder', img)
+                        # 实时显示当前帧
+                        cv2.imshow('Window Recorder', img_cv)
                         if cv2.waitKey(1) & 0xFF == ord('q'):
                             print("用户按 q 键，停止录制")
                             self.stop_recording()
@@ -182,40 +173,20 @@ class WindowRecorder:
 
                     # 控制帧率
                     time.sleep(1 / self.fps)
+                    
                 except Exception as e:
                     print(f"录制单帧时发生错误: {e}")
                     continue
 
         except Exception as e:
             import traceback
-            traceback.print_exc()  # 打印完整的错误堆栈
+            traceback.print_exc()
         finally:
-            # 释放GDI资源
-            try:
-                if self.saveBitMap:
-                    self.saveBitMap.DeleteObject()
-            except:
-                pass
-            try:
-                if self.saveDC:
-                    self.saveDC.DeleteDC()
-            except:
-                pass
-            try:
-                if self.mfcDC:
-                    self.mfcDC.DeleteDC()
-            except:
-                pass
-            try:
-                if self.hwndDC:
-                    win32gui.ReleaseDC(self.hwnd, self.hwndDC)
-            except:
-                pass
-
-            # 释放视频写入器
+            # 释放资源
             if self.out:
                 self.out.release()
                 self.out = None
+            cv2.destroyAllWindows()
             print("视频写入器已释放")
 
     def stop_recording(self):
