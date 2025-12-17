@@ -437,7 +437,7 @@ border:none</string>
               </layout>
              </item>
              <item>
-              <layout class="QVBoxLayout" name="Lay_Tab1_Right" stretch="0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
+              <layout class="QVBoxLayout" name="Lay_Tab1_Right" stretch="0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
                <property name="spacing">
                 <number>6</number>
                </property>
@@ -660,6 +660,24 @@ border:none</string>
                     </widget>
                    </item>
                   </layout>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="horizontalLayout_23">
+                 <item>
+                  <widget class="QLabel" name="state_label">
+                   <property name="text">
+                    <string>当前状态</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLineEdit" name="state_text">
+                   <property name="enabled">
+                    <bool>false</bool>
+                   </property>
+                  </widget>
                  </item>
                 </layout>
                </item>

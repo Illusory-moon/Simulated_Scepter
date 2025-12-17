@@ -1,10 +1,9 @@
+import json
 import threading
-import traceback
 import pyautogui
 import cv2 as cv
 import numpy as np
 import time
-import win32gui
 import random
 from copy import deepcopy
 
@@ -12,99 +11,99 @@ from config.GLOBAL import key_mouse_manager
 from diver import load_actions, merge_text
 from utils.log import log, set_debug
 from utils.simul.update_map import update_map
-from utils.simul.utils import UniverseUtils, set_forground, notif, sprint, get_dis
+from utils.simul.utils import UniverseUtils, set_forground, sprint, get_dis, extract_features
 import os
 from align_angle import main as align_angle
 from utils.simul.config import config
-import datetime
-import pytz
 from utils.utils.mminimap import update_minimap_data
-
-
-def get_hwnd_and_text():
-    hwnd = win32gui.GetForegroundWindow()
-    Text = win32gui.GetWindowText(hwnd)
-    return hwnd,Text
-
-
-def get_center(img, i, j):
-    """
-    计算图像中指定位置(i,j)附近区域的加权中心坐标
-    """
-    rx, ry, rt = 0, 0, 0
-    for x in range(-7, 7):
-        for y in range(-7, 7):
-            if (
-                    0 <= i + x < img.shape[0]
-                    and 0 <= j + y < img.shape[1]
-            ):
-                s = np.sum(img[i + x, j + y])
-                if 30 < s < 255 * 3 - 30:
-                    rt += 1
-                    rx += x
-                    ry += y
-    return (i + rx / rt, j + ry / rt)
+from utils.utils.tool import get_hwnd_and_text, find_latest_modified_file, get_center
+from utils.window_recorder import WindowRecorder
 
 
 class SimulatedUniverse(UniverseUtils):
-    def __init__(
-        self, find, debug, speed, consumable, slow, nums=-1, unlock=False, bonus=False, update=0, gui=None
-    ):
-        super().__init__(gui)
+    def __init__(self, find, debug, speed, consumable, slow, nums=-1, bonus=False, update=0, gui=None):
+        """
+        初始化模拟宇宙类实例
+        
+        该构造函数用于初始化模拟宇宙的所有参数和状态，包括：
+        1. 基础参数设置（寻路模式、调试模式等）
+        2. 屏幕和坐标系统配置
+        3. 地图和路径相关变量初始化
+        4. 加载地图资源和动作配置
+        
+        参数:
+            find: bool，是否启用寻路模式
+            debug: int，调试级别（0-关闭，1-基础，2-高级）
+            speed: bool，是否启用速通模式
+            consumable: bool，是否使用消耗品
+            slow: bool，是否启用慢速模式
+            nums: int，运行次数限制，默认为-1（无限制）
+            bonus: bool，是否自动领取沉浸奖励，默认False
+            update: int，是否更新地图，默认0（不更新）
+            gui: object，GUI对象引用，默认None
+            
+        返回值:
+            无返回值
+        """
+        super().__init__(speed,gui)
         log.info("当前命途：" + self.fate)
         key_mouse_manager.set_config(config)
         # 设置屏幕参数以支持坐标转换
         key_mouse_manager.set_screen_params(self.x1, self.y1, self.xx, self.yy, self.full)
-        self.now_map = None
-        self.now_map_sim = None
-        self.real_loc = [0, 0]
+        #目标坐标
         self.target_loc = [0, 0]
-        self.debug_map = np.zeros((8192, 8192), dtype=np.uint8)
+        #停止运行标志
         self._stop = True
-        self.img_set = []
+        #是否为寻路模式
         self.find = find
+        #调试级别
         self.debug = debug
-        self.speed = speed
+        #是否使用消耗品
         self.consumable = consumable
+        #是否慢速模式
         self.slow = slow
+        #是否展示地图（调试模式默认开启）
         self._show_map = debug
-        self.floor = 0
-        self.count = 0
-        self.count_tm = time.time()
-        self.floor_tm = time.time()
-        self.init_tm = time.time()
+        #本次运行次数
         self.my_cnt = 0
-        self.re_align = 0
-        self.unlock = unlock
-        self.check_bonus = bonus
-        self.bonus = bonus
-        self.must_end = 0
-        self.fail_count = 0
+        #已运行次数
+        self.count = 0
+        #需要运行次数
         self.nums = nums
+        #启动时时间
+        self.init_time = time.time()
+        #重启次数
+        self.re_align = 0
+        # 是否仍然可用沉浸器
+        self.check_bonus = bonus
+        # 是否领取沉浸奖励
+        self.bonus = bonus
+        # 是否强制结束
+        self.must_end = False
+        #失败次数
+        self.fail_count = 0
+        #是否已完成
         self.end = 0
-        self.quan = 0
-        self.battle = 0
-        self.quit = 0
+        #上次战斗时间
+        self.in_battle = 0
+        #是否初始化层数
         self.floor_init = 0
+        #上次点击确认时间
         self.confirm_time = 0
-        self.threshold = 0.97
         # 添加用于计算FPS的变量
         self.last_get_screen_time = None
         self.fps_list = []
         # 添加地图线程引用
         self.map_thread = None
-
-        self.default_json_path = "actions/universite.json"
+        #事件与行为存储路径
+        self.default_json_path = "actions/universe.json"
         self.default_json = load_actions(self.default_json_path)
         self.action_history = []
-        ex_notif = ""
         if debug != 2:
+            #似乎是避免鼠标越界的一个标志
             pyautogui.FAILSAFE = False
-        if bonus:
-            ex_notif = " 自动领取沉浸奖励"
-            log.info(ex_notif)
         self.update_count()
-        notif("开始运行" + ex_notif, f"初始计数：{self.count}")
+        log.info(f"开始运行,初始计数：{self.count}")
         set_debug(debug > 0)
         if update and find:
             update_map()
@@ -114,25 +113,12 @@ class SimulatedUniverse(UniverseUtils):
             pth = "resource/imgs/maps/" + file + "/init.jpg"
             if os.path.exists(pth):
                 image = cv.imread(pth)
-                self.img_set.append((file, self.extract_features(image)))
+                self.img_set.append((file, extract_features(image)))
                 self.img_map[file]= image
         log.info("加载地图完成，共 %d 张" % len(self.img_set))
+        self.record=True
+        self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",see_time=True)
 
-    # 初始化地图，刚进图时调用
-    def init_map(self):
-        self.backup_map()
-        self.big_map = np.zeros((8192, 8192), dtype=np.uint8)
-        self.big_map_c = 0
-        self.lst_tm = 0
-        self.now_loc = (4096, 4096)
-        self.mini_state = 1
-        self.ang_off = 0
-        self.ang_neg = 0
-        self.first_mini = 1
-        self.in_battle = time.time()
-        self.map_file = "resource/imgs/maps/my_" + str(random.randint(0, 99999)) + "/"
-        if self.find == 0 and not os.path.exists(self.map_file):
-            os.mkdir(self.map_file)
 
     def route(self):
         self.in_battle = 0
@@ -208,21 +194,17 @@ class SimulatedUniverse(UniverseUtils):
         log.info("停止运行")
 
     def end_of_university(self):
-        self.update_count(0)
+        self.update_count(False)
         self.my_cnt += 1
-        tm = int((time.time() - self.init_tm) / 60)
+        tm = int((time.time() - self.init_time) / 60)
         remain_round = self.nums-self.my_cnt
         if remain_round > 0:
-            remain = int(remain_round * (time.time() - self.init_tm) / self.my_cnt / 60)
+            remain = int(remain_round * (time.time() - self.init_time) / self.my_cnt / 60)
         else:
             remain = 0
             remain_round = -1
-        notif(
-            "已完成",
-            f"计数:{self.count} 剩余:{remain_round} 已使用：{tm//60}小时{tm%60}分钟  平均{tm//self.my_cnt}分钟一次  预计剩余{remain//60}小时{remain%60}分钟",
-            cnt=str(self.count),
-        )
-        if self.debug == 0 and self.check_bonus == 0 and self.nums <= self.my_cnt and self.nums >= 0:
+        log.info(f"已完成计数:{self.count} 剩余:{remain_round} 已使用：{tm//60}小时{tm%60}分钟  平均{tm//self.my_cnt}分钟一次  预计剩余{remain//60}小时{remain%60}分钟")
+        if self.debug == 0 and self.check_bonus == 0 and self.my_cnt >= self.nums >= 0:
             log.info('已完成上限，准备停止运行')
             self.end = 1
         self.floor = 0
@@ -235,7 +217,7 @@ class SimulatedUniverse(UniverseUtils):
         res,state = self.run_static()
         if res!='':
             return state
-        if self.isrun():
+        if self.is_run():
             log.info("开始匹配地图")
             #检查黄泉
             if not self.quan and self.check("huangquan", 0.0578,0.7083):
@@ -248,7 +230,7 @@ class SimulatedUniverse(UniverseUtils):
             #上次交互时间
             self.lst_changed = bk_lst_changed
             # self.battle：最后一次处于战斗状态的时间，0表示处于非战斗状态
-            self.battle = 0
+            self.in_battle = 0
             # 刚进图，初始化一些数据
             if self.big_map_c == 0:
                 key_mouse_manager.keyUp("w")
@@ -301,34 +283,9 @@ class SimulatedUniverse(UniverseUtils):
                                 log.warning(f"未完成的地图{self.now_map}")
                                 self.find = False
                                 return 1
-                            if self.debug == 2:
-                                try:
-                                    with open(
-                                        "check_map.txt",
-                                        "r",
-                                        encoding="utf-8",
-                                        errors="ignore",
-                                    ) as fh:
-                                        s = fh.readline().strip("\n")
-                                    s = eval(s)
-                                    self.must_end = 0
-                                    if not self.now_map in s:
-                                        s.append(self.now_map)
-                                        notif(f"地图编号：{self.now_map}",f"相似度：{self.now_map_sim}")
-                                    else:
-                                        #self.kl = 1
-                                        pass
-                                    with open(
-                                        "check_map.txt",
-                                        "w",
-                                        encoding="utf-8",
-                                    ) as fh:
-                                        fh.write(str(s))
-                                except:
-                                    pass
                             if not no_find:
                                 self.now_pth = "resource/imgs/maps/" + self.now_map + "/"
-                                files = self.find_latest_modified_file(self.now_pth)
+                                files = find_latest_modified_file(self.now_pth)
                                 self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
                                 self.debug_map = deepcopy(self.big_map)
                                 #从文件名获取初始坐标
@@ -358,7 +315,8 @@ class SimulatedUniverse(UniverseUtils):
                     self.exist_minimap()
                     cv.imwrite(self.map_file + "init.jpg", self.loc_scr)
             self.get_screen()
-            if time.time() - self.lst_tm > 5 and self.mini_state == 0 and self.floor not in [0, 5]:
+            # if time.time() - self.lst_tm > 5 and self.mini_state == 0 and self.floor not in [0, 5]:
+            if time.time() - self.lst_tm > 5 and self.mini_state == 0:
                 if self.find == 0:
                     key_mouse_manager.press("s", 0.5)
                     if self._stop == 0:
@@ -370,11 +328,7 @@ class SimulatedUniverse(UniverseUtils):
             
             self.must_end |= self.floor >= 4 and self.debug == 2
             # 长时间未交互/战斗，暂离或重开
-            if (((time.time() - self.lst_changed >= 37 - 4 * self.debug + 8 * self.slow)
-                 and self.find == 1)
-                or (self.floor == 12 and self.mini_state > 4)
-                or self.must_end
-            ):
+            if ((time.time() - self.lst_changed >= 37 - 4 * self.debug + 8 * self.slow) and self.find == 1)or (self.floor == 12 and self.mini_state > 4)or self.must_end:
                 time.sleep(2.5)
                 key_mouse_manager.press("esc")
                 time.sleep(2)
@@ -387,7 +341,6 @@ class SimulatedUniverse(UniverseUtils):
                 elif self.debug == 2:
                     log.error(f"地图{self.now_map}出现问题,退出程序")
                     log.info('地图错误')
-                    notif(f"地图{self.now_map}出现问题,退出程序", "DEBUG")
                     self._stop = 1
                 elif self.fail_count <= 1:
                     log.error(f"地图{self.now_map}未发现目标，当前层数:{self.floor+1},相似度{self.now_map_sim}，尝试暂离")
@@ -399,11 +352,10 @@ class SimulatedUniverse(UniverseUtils):
                 else:
                     self.multi = 1.01
                     if self.debug == 0:
-                        notif("中途结算", f"地图{self.now_map}，当前层数:{self.floor+1}")
                         self.floor = 0
                         key_mouse_manager.click(0.2708, 0.1324)
                         log.error(
-                            f"地图{self.now_map}未发现目标,相似度{self.now_map_sim}，尝试退出重进"
+                            f"地图{self.now_map}未发现目标,相似度{self.now_map_sim}，当前层数:{self.floor+1},尝试退出重进"
                         )
                         self.fail_count = 0
                     else:
@@ -430,7 +382,7 @@ class SimulatedUniverse(UniverseUtils):
                 self.get_direc_only_minimap()
             else:
                 #有先验寻路
-                self.get_direc()
+                self.get_direct_with_big_map()
             return 2
         else:
             return 0
@@ -447,14 +399,13 @@ class SimulatedUniverse(UniverseUtils):
             if random.randint(0, 6) == 3:
                 key_mouse_manager.press("r")
         # self.battle：最后一次处于战斗状态的时间，0表示处于非战斗状态
-        self.battle = time.time()
         self.in_battle = time.time()
         return 1
     # 祝福界面/回响界面 （放在一起处理了）
     def choose_bless(self):
         time.sleep(0.3)
         chose = 0
-        self.battle = 0
+        self.in_battle = 0
         if self.click_text(text="重置祝福",box=[1268, 1444, 929, 1025],click=False,warning=False):
             for _ in range(14):
                 img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
@@ -533,7 +484,7 @@ class SimulatedUniverse(UniverseUtils):
                 if time.time() - self.quit > 30 and self.floor:
                     self.quit = time.time()
                     key_mouse_manager.press('f', force=True)
-                    self.battle = 0
+                    self.in_battle = 0
                 else:
                     is_killed = 1
             else:
@@ -549,7 +500,7 @@ class SimulatedUniverse(UniverseUtils):
                 is_killed = text in ["沉浸", "紧锁", "复活", "下载"]
                 if is_killed == 0:
                     key_mouse_manager.press('f', force=True)
-                self.battle = 0
+                self.in_battle = 0
             if is_killed == 0:
                 return 1
     # 跑图状态
@@ -564,7 +515,7 @@ class SimulatedUniverse(UniverseUtils):
         key_mouse_manager.click(0.3448, 0.4926)
         time.sleep(1)
         self.init_map()
-    def begin_universite(self):
+    def begin_universe(self):
         con = self.click_text(text="继续进度",box=[1610, 1762, 937, 1023],click=False,ocr_line=False,warning=False)
         if not con:
             if self.diffi == 5:
@@ -723,7 +674,7 @@ class SimulatedUniverse(UniverseUtils):
         key_mouse_manager.press("w", 2)
         tm = time.time()
         while time.time() - tm < 2 and not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,
-                                                      fresh=True) and not self.isrun():
+                                                      fresh=True) and not self.is_run():
             time.sleep(0.15)
         # time.sleep(0.35)
         # self.mouse_move(-30)
@@ -736,84 +687,57 @@ class SimulatedUniverse(UniverseUtils):
         self.click_text(text="确认")
         time.sleep(1)
         return 0
-    def fail(self):
-        key_mouse_manager.click(self.tx, self.ty)
-        time.sleep(1.8)
-    def find_latest_modified_file(self, folder_path):
-        files = [
-            os.path.join(folder_path, file)
-            for file in os.listdir(folder_path)
-            if file.split("/")[-1][0] == "m"
-        ]
-        nx, ny = 4096, 4096
-        file = ""
-        for i in files:
-            try:
-                x, y = i.split("_")[-3:-1]
-                x, y = int(x), int(y)
-                if x < nx or y < ny:
-                    nx, ny = x, y
-                    file = i
-            except:
-                pass
-        return file
 
     def update_count(self, read=True):
-        file_name = "logs/notif.txt"
+        """
+        更新或读取计数器值
+        
+        该函数用于管理模拟宇宙的运行计数，可以读取保存在文件中的计数器值，
+        或将当前计数器值加1后保存到文件中。
+        
+        参数:
+            read: bool，控制操作模式
+                  True表示读取模式，从文件中读取计数器值
+                  False表示写入模式，将当前计数器值加1后保存到文件中
+                  
+        返回值:
+            无返回值，直接更新实例变量self.count
+        """
+        file_name = "config/backup/count.txt"
         if read:
             new_cnt = 0
             if os.path.exists(file_name):
-                time_cnt = os.path.getmtime(file_name)
                 with open(file_name, "r", encoding="utf-8", errors="ignore") as fh:
                     s = fh.readlines()
                     try:
                         new_cnt = int(s[0].strip("\n"))
-                        time_cnt = float(s[3].strip("\n"))
                     except:
                         pass
             else:
-                os.makedirs("logs", exist_ok=1)
+                os.makedirs("config/backup", exist_ok=True)
                 with open(file_name, "w", encoding="utf-8") as file:
                     file.write("0")
                     file.close()
-                time_cnt = os.path.getmtime(file_name)
         else:
             new_cnt = self.count + 1
-            time_cnt = self.count_tm
-        dt = datetime.datetime.now().astimezone()
-        """
-        America: GMT-5
-        Asia: GMT+8
-        Europe: GMT+1
-        TW, HK, MO: GMT+8
-        """
-        tz_info = None
-        try:
-            tz_dict = {
-                "Default": None,
-                "America": pytz.timezone("US/Central"),
-                "Asia": pytz.timezone("Asia/Shanghai"),
-                "Europe": pytz.timezone("Europe/London"),
-            }
-            tz_info = tz_dict[config.timezone]
-        except:
-            pass
-
-        # convert to server time
-        dt = dt.astimezone(tz_info)
-        current_weekday = dt.weekday()
-        monday = dt + datetime.timedelta(days=-current_weekday)
-        target_datetime = datetime.datetime(
-            monday.year, monday.month, monday.day, 4, 0, 0, tzinfo=tz_info
-        )
-        monday_ts = target_datetime.timestamp()
-        if dt.timestamp() >= monday_ts and time_cnt < monday_ts:
-            self.count = int(not read)
-        else:
-            self.count = new_cnt
-        self.count_tm = time.time()
+        self.count = new_cnt
 
     def del_pt(self, img, A, S, f):
+        """
+        递归删除图像中的连接点
+        
+        该函数通过递归方式删除图像中与起始点相连的像素点，用于清理图像中的特定区域。
+        删除条件包括超出边界、像素值为黑色、不满足特定函数条件且距离起始点较远等情况。
+        
+        参数:
+            img: 图像数组，要处理的图像数据
+            A: tuple，当前处理的像素点坐标 (row, col)
+            S: tuple，起始点坐标 (row, col)
+            f: function，判断像素点是否符合条件的函数
+            
+        返回值:
+            无返回值
+        """
         if (
             A[0] < 0
             or A[1] < 0
@@ -869,29 +793,52 @@ class SimulatedUniverse(UniverseUtils):
                     res.add((i[0], 0))
         return res
 
-    def backup_map(self):
+
+    
+    def restore_map(self):
+        """
+        从磁盘文件恢复地图数据
+        
+        从磁盘文件中读取并恢复之前备份的地图数据和相关属性，包括：
+        1. 从PNG图像文件恢复地图图像数据(big_map)
+        2. 从JSON文件恢复其他地图相关属性
+        
+        备份文件从项目目录下的config/backup文件夹中读取。
+        """
         try:
-            self.bbig_map=self.big_map
-            self.bbig_map_c=self.big_map_c
-            self.blst_tm=self.lst_tm
-            self.bnow_loc=self.now_loc
-            self.bmini_state=self.mini_state
-            self.bang_off=self.ang_off
-            self.bang_neg=self.ang_neg
-            self.bfirst_mini=self.first_mini
+            backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "backup")
+            
+            # 从磁盘读取 big_map 图像文件
+            backup_file = os.path.join(backup_dir, "big_map_backup.png")
+            if os.path.exists(backup_file):
+                self.big_map = cv.imread(backup_file, cv.IMREAD_GRAYSCALE)
+                
+            # 从磁盘读取其他属性
+            attrs_file = os.path.join(backup_dir, "map_attrs_backup.json")
+            if os.path.exists(attrs_file):
+                with open(attrs_file, 'r') as f:
+                    backup_data = json.load(f)
+                    
+                self.big_map_c = backup_data.get('big_map_c', self.big_map_c)
+                self.lst_tm = backup_data.get('lst_tm', self.lst_tm)
+                self.now_loc = tuple(backup_data.get('now_loc', self.now_loc))
+                self.mini_state = backup_data.get('mini_state', self.mini_state)
+                self.ang_off = backup_data.get('ang_off', self.ang_off)
+                self.ang_neg = backup_data.get('ang_neg', self.ang_neg)
+                self.first_mini = backup_data.get('first_mini', self.first_mini)
         except:
             pass
-    def restore_map(self):
-        self.big_map=self.bbig_map
-        self.big_map_c=self.bbig_map_c
-        self.lst_tm=self.blst_tm
-        self.now_loc=self.bnow_loc
-        self.mini_state=self.bmini_state
-        self.ang_off=self.bang_off
-        self.ang_neg=self.bang_neg
-        self.first_mini=self.bfirst_mini
 
     def re_enter(self):
+        """
+        重新进入游戏场景
+        
+        当检测到需要重新进入当前场景时调用此函数，通过连续按下'f'键
+        来完成重新进入操作。通常用于处理角色卡住或其他需要重新加载场景的情况。
+        
+        函数会在10秒内持续检测特定画面元素，一旦检测到就执行三次'f'键按下操作，
+        每次按下间隔0.5秒，然后退出函数。
+        """
         tm = time.time()
         while time.time() - tm < 10:
             self.get_screen()
@@ -906,6 +853,17 @@ class SimulatedUniverse(UniverseUtils):
 
 
     def goto_herta_office(self):
+        """
+        前往黑塔办公室
+        
+        该函数负责自动导航到黑塔办公室，主要流程包括：
+        1. 检查是否已经在办公室内
+        2. 如果不在办公室，则通过地图导航到黑塔办公室
+        3. 进行传送操作并移动到最终目的地
+        
+        函数会利用一系列图像识别和文本识别来确定当前位置，
+        并执行相应的点击、拖拽和键盘操作来完成导航。
+        """
 
         if self.click_text(text="模拟宇宙",box=[1231, 1360, 595, 631],click=False,allow_fail= True):
             log.info("已在办公室，打开模拟宇宙")
@@ -953,6 +911,23 @@ class SimulatedUniverse(UniverseUtils):
             key_mouse_manager.keyUp("w")
 
     def run_static(self, json_path=None, json_file=None, action_list=[], skip_check=0) -> (str,int):
+        """
+        执行静态动作配置文件中的动作
+        
+        根据提供的JSON配置文件或路径，查找并执行匹配的动作。
+        支持基于文本或图像的触发条件，一旦匹配成功即执行相应动作序列。
+        
+        参数:
+            json_path: JSON配置文件路径，如果提供则加载该文件
+            json_file: 已加载的JSON配置对象，优先级高于json_path
+            action_list: 指定要执行的动作列表，为空则执行所有动作
+            skip_check: 是否跳过触发条件检查，1表示跳过，0表示不跳过
+            
+        返回值:
+            tuple: (触发的动作名称, 执行结果)
+                  - 触发的动作名称：空字符串表示未触发任何动作
+                  - 执行结果：0表示未触发，1表示触发成功，其他值表示部分成功
+        """
         if json_file is None:
             if json_path is None:
                 json_file = self.default_json
@@ -990,6 +965,24 @@ class SimulatedUniverse(UniverseUtils):
 
         return '',0
     def do_action(self, action) -> int:
+        """
+        执行单个动作指令
+        
+        根据传入的动作定义执行相应的操作，支持多种类型的动作：
+        1. 字符串类型：调用同名方法
+        2. 文本点击类型：在指定区域内查找包含特定文本的元素并点击
+        3. 位置点击类型：直接点击指定坐标位置
+        4. 延时类型：执行普通延时或真实延时
+        5. 按键类型：按下指定按键
+        
+        参数:
+            action: 动作定义，可以是字符串或字典类型
+                   - 字符串：表示要调用的方法名
+                   - 字典：包含具体的动作参数，支持"text"、"position"、"sleep"、"real_sleep"、"press"等关键字
+        
+        返回值:
+            int: 执行结果，1表示执行成功，0表示未执行或执行失败
+        """
         if type(action) == str:
             return getattr(self, action)()
         if "text" in action:
@@ -1018,6 +1011,19 @@ class SimulatedUniverse(UniverseUtils):
             return 1
         return 0
     def show_map(self):
+        """
+        实时显示模拟宇宙地图的可视化窗口
+        
+        该方法在一个独立线程中运行，创建一个OpenCV窗口用于显示当前游戏地图，
+        并实时更新玩家位置、目标位置和朝向等信息。主要包括以下功能：
+        1. 创建可缩放且不自动聚焦的OpenCV窗口
+        2. 监控角色位置、目标位置和朝向等状态变化，仅在有更新时重绘地图
+        3. 在地图上绘制当前位置（绿色）、目标位置（根据类型着色）及朝向箭头
+        4. 显示当前角度和目标坐标，并通过颜色变化提示角度更新时间
+        5. 放大地图图像并维持合理刷新率，按'q'键退出
+        
+        注意：该方法应在单独的线程中调用，不应直接调用
+        """
         # 创建窗口时使用 WINDOW_FREERATIO 标志以避免自动获取焦点
         cv.namedWindow("Map", cv.WINDOW_FREERATIO | cv.WINDOW_NORMAL)
         angle_history = []
@@ -1157,8 +1163,21 @@ class SimulatedUniverse(UniverseUtils):
 
 
     def start(self):
+        """
+        启动模拟宇宙自动化程序
+        
+        该方法负责初始化并启动整个模拟宇宙运行流程，包括：
+        1. 初始化运行状态
+        2. 启动键盘鼠标管理器
+        3. 启动地图显示线程（如果启用）
+        4. 开始执行主要路线逻辑
+        
+        如果在执行过程中发生异常，会尝试停止运行并重新抛出异常。
+        """
         self._stop = False
         key_mouse_manager.start()
+        if self.record:
+            self.recorder.start_recording()
         if self._show_map:
             self.map_thread = threading.Thread(target=self.show_map)
             self.map_thread.start()
@@ -1172,10 +1191,23 @@ class SimulatedUniverse(UniverseUtils):
             raise
 
     def stop(self, *_, **__):
+        """
+        停止模拟宇宙运行
+        
+        该方法负责安全地停止所有运行中的线程和操作，包括：
+        1. 设置停止标志
+        2. 停止键盘鼠标管理器
+        3. 等待并终止地图显示线程
+        
+        参数:
+            *_: 忽略的位置参数
+            **__: 忽略的关键字参数
+        """
         log.info("尝试停止运行")
         self._stop = 1
         key_mouse_manager.stop()
-
+        if self.record:
+            self.recorder.stop_recording()
         # 等待地图线程结束
         if self.map_thread and self.map_thread.is_alive():
             # 等待最多2秒让线程自行结束

@@ -373,7 +373,6 @@ class MainWindow(QMainWindowLog):
                 int(config_simul.use_consumable),
                 int(config_simul.slow_mode),
                 int(config_simul.max_run),
-                unlock=True,
                 bonus=config_simul.bonus,
                 gui=self
             )
@@ -419,7 +418,6 @@ class MainWindow(QMainWindowLog):
                 int(config_simul.use_consumable),
                 int(config_simul.slow_mode),
                 int(config_simul.max_run),
-                unlock=True,
                 bonus=config_simul.bonus,
                 gui=self
             )
@@ -492,6 +490,9 @@ class MainWindow(QMainWindowLog):
         Fps = 1.0 / float(TimePerFrame)
         Fps = round(Fps, 2)
         self.FPS_Input.setText(str(Fps))
+
+    def set_find_path_state(self, text:str):
+        self.state_text.setText(text)
 def main(show):
     def is_admin():
         try:

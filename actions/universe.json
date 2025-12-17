@@ -98,7 +98,7 @@
         },
         "actions":
         [
-            "begin_universite"
+            "begin_universe"
         ]
     },
     {
@@ -206,7 +206,10 @@
         },
         "actions":
         [
-            "setting"
+            {
+                "position": [1400, 829]
+            },
+            "re_enter"
         ]
     },
     {
