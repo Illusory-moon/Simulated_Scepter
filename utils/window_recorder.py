@@ -9,7 +9,6 @@ import win32con
 import win32gui
 import win32ui
 
-from function.globals.log import CUS_LOGGER
 
 # try:
 #     ctypes.windll.shcore.SetProcessDpiAwareness(2)  # 2 = Per-monitor v2 DPI awareness
@@ -18,12 +17,13 @@ from function.globals.log import CUS_LOGGER
 
 
 class WindowRecorder:
-    def __init__(self, output_file="window_recording.mp4", handle=None, fps=30.0, window_title=None, see_time=False,
+    def __init__(self, output_file="window_recording.mp4", handle=None, fps=30.0, window_title=None, window_class_name=None, see_time=False,
                  is_show=False):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.output_file = output_file + f"{timestamp}.mp4"
         self.fps = fps
         self.window_title = window_title
+        self.window_class_name = window_class_name
         self.recording = False
         self.recording_thread = None
         self.hwnd = handle
@@ -43,12 +43,15 @@ class WindowRecorder:
         if self.recording:
             print("Already recording")
             return
-
         # 查找目标窗口
         if not self.hwnd:
-            self.hwnd = win32gui.FindWindow(None, self.window_title)
+            self.hwnd = win32gui.FindWindow(self.window_class_name, self.window_title)
+            print(f"{self.hwnd}")
         if not self.hwnd:
-            raise ValueError(f"未找到标题包含 '{self.window_title}' 的窗口")
+            if self.window_class_name:
+                raise ValueError(f"未找到类名为 '{self.window_class_name}' 且标题包含 '{self.window_title}' 的窗口")
+            else:
+                raise ValueError(f"未找到标题包含 '{self.window_title}' 的窗口")
 
         # 获取窗口尺寸（物理像素）
         rect = win32gui.GetWindowRect(self.hwnd)
@@ -184,7 +187,6 @@ class WindowRecorder:
                     continue
 
         except Exception as e:
-            CUS_LOGGER.error(f"录制过程中发生错误: {e}")
             import traceback
             traceback.print_exc()  # 打印完整的错误堆栈
         finally:
@@ -228,15 +230,15 @@ class WindowRecorder:
 
 if __name__ == "__main__":
     try:
-        window_title = "aaa"
-        output_file = "test_recording_class.mp4"
+        window_title = "崩坏：星穹铁道"
+        output_file = "../logs/video/"
         fps = 10
 
         print("准备开始录制（5秒后自动停止）...")
         print(f"请在5秒内打开窗口：{window_title}")
         time.sleep(2)
 
-        recorder = WindowRecorder(output_file, fps, window_title)
+        recorder = WindowRecorder(output_file, fps=fps, window_title=window_title,window_class_name="UnityWndClass")
         recorder.start_recording()
         print(f"正在录制窗口：{window_title}")
         print("录制将持续5秒，请在目标窗口中进行一些操作")
