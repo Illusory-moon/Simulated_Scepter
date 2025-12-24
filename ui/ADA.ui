@@ -1151,6 +1151,17 @@ Link Start</string>
            <item>
             <layout class="QVBoxLayout" name="verticalLayout_8">
              <item>
+              <layout class="QVBoxLayout" name="verticalLayout_14">
+               <item>
+                <widget class="QCheckBox" name="recording_checkBox">
+                 <property name="text">
+                  <string>是否录制</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
               <layout class="QVBoxLayout" name="verticalLayout">
                <item>
                 <widget class="QLabel" name="label_6">

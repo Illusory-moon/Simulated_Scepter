@@ -8,6 +8,7 @@ import random
 from copy import deepcopy
 
 from config.GLOBAL import key_mouse_manager
+from config import EXTRA
 from diver import load_actions, merge_text
 from utils.log import log, set_debug
 from utils.simul.update_map import update_map
@@ -18,6 +19,7 @@ from utils.simul.config import config
 from utils.utils.mminimap import update_minimap_data
 from utils.utils.tool import get_hwnd_and_text, find_latest_modified_file, get_center
 from utils.window_recorder import WindowRecorder
+from route import PATHS
 
 
 class SimulatedUniverse(UniverseUtils):
@@ -116,8 +118,14 @@ class SimulatedUniverse(UniverseUtils):
                 self.img_set.append((file, extract_features(image)))
                 self.img_map[file]= image
         log.info("加载地图完成，共 %d 张" % len(self.img_set))
-        self.record=True
-        self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",see_time=True)
+        self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",window_class_name="UnityWndClass",see_time=True, offsets=[10, 50, 10, 10])
+        
+        # 从settings.json获取录制状态
+        with EXTRA.FILE_LOCK:
+            with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
+                data = json.load(file)
+        
+        self.record = data.get("recording_state", True)
 
 
     def route(self):

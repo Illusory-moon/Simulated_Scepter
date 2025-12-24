@@ -13,7 +13,7 @@ from PIL import ImageGrab
 
 class WindowRecorder:
     def __init__(self, output_file="window_recording.mp4", handle=None, fps=30.0, window_title=None, window_class_name=None, see_time=False,
-                 is_show=False):
+                 is_show=False, offsets=None):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.output_file = output_file + f"{timestamp}.mp4"
         self.fps = fps
@@ -27,6 +27,14 @@ class WindowRecorder:
         self.height = 0
         self.see_time = see_time
         self.is_show = is_show
+        # 偏移参数，用于收缩录制范围 [left, top, right, bottom]
+        if offsets is None:
+            offsets = [0, 0, 0, 0]
+        self.offsets = offsets
+        self.left_offset = offsets[0]
+        self.top_offset = offsets[1]
+        self.right_offset = offsets[2]
+        self.bottom_offset = offsets[3]
 
     def start_recording(self):
         """开始录制指定窗口"""
@@ -81,13 +89,17 @@ class WindowRecorder:
         if output_dir and not os.path.exists(output_dir):
             os.makedirs(output_dir)
             
+        # 应用偏移后的实际录制尺寸
+        actual_width = self.width - self.offsets[0] - self.offsets[2]  # 减去左右偏移
+        actual_height = self.height - self.offsets[1] - self.offsets[3]  # 减去上下偏移
+        
         # 设置视频写入器
-        print(f"初始化视频写入器，尺寸: {self.width}x{self.height}")
+        print(f"初始化视频写入器，尺寸: {actual_width}x{actual_height}")
         self.out = cv2.VideoWriter(
             self.output_file,
             cv2.VideoWriter_fourcc(*'mp4v'),
             self.fps,
-            (self.width, self.height)
+            (actual_width, actual_height)
         )
         
         if not self.out.isOpened():
@@ -103,8 +115,14 @@ class WindowRecorder:
         try:
             while self.recording:
                 try:
+                    # 应用偏移值来收缩录制范围 [left, top, right, bottom]
+                    adjusted_left = self.left + self.offsets[0]
+                    adjusted_top = self.top + self.offsets[1]
+                    adjusted_right = self.right - self.offsets[2]
+                    adjusted_bottom = self.bottom - self.offsets[3]
+                    
                     # 使用ImageGrab直接捕获窗口区域
-                    bbox = (self.left, self.top, self.right, self.bottom)
+                    bbox = (adjusted_left, adjusted_top, adjusted_right, adjusted_bottom)
                     img = ImageGrab.grab(bbox=bbox)
                     
                     # 转换为OpenCV格式
@@ -135,26 +153,30 @@ class WindowRecorder:
                         rect_width = max_text_width + h_padding * 2
                         rect_height = total_text_height + v_padding * 2
 
+                        # 计算左下角位置（距离底部和左边5像素）
+                        bottom_y = img_cv.shape[0] - 5
+                        left_x = 5
+
                         # 绘制白色背景矩形
                         cv2.rectangle(img_cv,
-                                      (5, 5),
-                                      (5 + rect_width, 5 + rect_height),
+                                      (left_x, bottom_y - rect_height),
+                                      (left_x + rect_width, bottom_y),
                                       (255, 255, 255),
                                       -1)
 
                         # 优化文字绘制位置
-                        line1_y = 5 + v_padding + text_height1
+                        line1_y = bottom_y - rect_height + v_padding + text_height1
                         line2_y = line1_y + text_height2 + line_spacing
 
                         cv2.putText(img_cv, current_date,
-                                    (5 + h_padding, line1_y),
+                                    (left_x + h_padding, line1_y),
                                     font,
                                     font_scale,
                                     (0, 0, 255),
                                     font_thickness)
 
                         cv2.putText(img_cv, current_time,
-                                    (5 + h_padding, line2_y),
+                                    (left_x + h_padding, line2_y),
                                     font,
                                     font_scale,
                                     (0, 0, 255),
@@ -209,7 +231,7 @@ if __name__ == "__main__":
         print(f"请在5秒内打开窗口：{window_title}")
         time.sleep(2)
 
-        recorder = WindowRecorder(output_file, fps=fps, window_title=window_title,window_class_name="UnityWndClass")
+        recorder = WindowRecorder(output_file, fps=fps, window_title=window_title,window_class_name="UnityWndClass", offsets=[10, 50, 10, 10])
         recorder.start_recording()
         print(f"正在录制窗口：{window_title}")
         print("录制将持续5秒，请在目标窗口中进行一些操作")

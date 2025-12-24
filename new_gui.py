@@ -1,4 +1,5 @@
 import ctypes
+import json
 import logging
 import sys
 import threading
@@ -10,6 +11,8 @@ import time
 import pyuac
 
 
+from config import EXTRA
+from route import PATHS
 from utils.simul.config import config as config_simul
 from utils.diver.config import config as config_diver
 from simul import SimulatedUniverse
@@ -222,6 +225,14 @@ class MainWindow(QMainWindowLog):
 
         # 连接配置保存按钮
         self.config_save_btn.clicked.connect(self.save_config)
+        
+        # 初始化recording_checkBox状态
+        with EXTRA.FILE_LOCK:
+            with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
+                data = json.load(file)
+        
+        recording_state = data.get("recording_state", True)
+        self.recording_checkBox.setChecked(recording_state)
 
         self.calibration_finished.connect(self.show_calibration_result)
 
@@ -234,6 +245,19 @@ class MainWindow(QMainWindowLog):
         keyboard.on_press_key("f5", self._on_key_pressed)
         keyboard.on_press_key("f6", self._on_key_pressed)
         keyboard.on_press_key("f7", self._on_key_pressed)
+
+    def save_recording_checkbox_state_to_settings(self):
+        """保存recording_checkBox的状态到settings.json"""
+        
+        with EXTRA.FILE_LOCK:
+            with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
+                data = json.load(file)
+        
+        data["recording_state"] = self.recording_checkBox.isChecked()
+        
+        with EXTRA.FILE_LOCK:
+            with open(PATHS["root"] + "\\config\\config\\settings.json", mode="w", encoding="UTF-8") as file:
+                json.dump(data, file, ensure_ascii=False, indent=4)
 
     def _on_key_pressed(self, event):
         """
@@ -484,6 +508,10 @@ class MainWindow(QMainWindowLog):
         # 保存配置到文件
         config_simul.save()
         config_diver.save()
+        
+        # 保存recording_checkBox状态到settings.json
+        self.save_recording_checkbox_state_to_settings()
+        
         QMessageBox.information(self, "提示", "配置已保存")
 
     def set_FPS(self,TimePerFrame):
