@@ -116,7 +116,7 @@ class UniverseUtils:
         #调试显示用地图
         self.debug_map = np.zeros((8192, 8192), dtype=np.uint8)
         #当前层数
-        self.floor = 0
+        self.floor = -1
         # 玩家真实坐标
         self.real_loc = [0, 0]
         #最佳匹配地图编号
@@ -125,6 +125,8 @@ class UniverseUtils:
         self.now_map_sim = None
         #上次截屏时间
         self.last_get_screen_time = None
+        #上次路径状态日志时间
+        self.last_path_state_time = None
         #默认匹配阈值
         self.threshold = 0.97
         # 用户选择的命途
@@ -508,6 +510,7 @@ class UniverseUtils:
             dx = self.get_end_point()
             off = 0
             if dx is None:
+                log.debug(f'旋转查找终点')
                 for k in [60,120,60,60,30,30,-60,-60,-60,-60,-60,-60]:
                     if self.ang_neg:
                         key_mouse_manager.mouse_move(k)
@@ -571,7 +574,14 @@ class UniverseUtils:
         return self.screen
 
     def set_path_state(self, text):
-        log.debug(text)
+        current_time = time.time()
+        if self.last_path_state_time is not None:
+            elapsed_time = current_time - self.last_path_state_time
+            log.debug(f"{text} (距离上次日志: {elapsed_time:.2f}秒)")
+        else:
+            log.debug(text)
+        self.last_path_state_time = current_time
+        
         if hasattr(self, 'gui') and self.gui is not None and hasattr(self.gui, 'set_find_path_state'):
             try:
                 self.gui.set_find_path_state(text)
@@ -982,6 +992,7 @@ class UniverseUtils:
         return sc if force else nc
     def update_direction_data(self,mode=None,target=None):
         self.rotation, d = update_minimap_data(self.screen,rotation=self.rotation if hasattr(self, 'rotation') else 0,direction=self.ang - 270 if hasattr(self, 'ang') else 0)
+        log.debug(f"视角{self.rotation}朝向{d}模式{mode}目标{target}")
         if 20<abs(self.rotation-d)<340:
             key_mouse_manager.wait()
             self.rotation, d = update_minimap_data(self.get_screen(),rotation=self.rotation, direction=self.ang - 270)
@@ -1010,7 +1021,7 @@ class UniverseUtils:
         if  mode==2 and sub==0:
             sub=1e-9
         key_mouse_manager.mouse_move(sub)
-        # log.debug("当前人物角度为：" + str(self.ang))
+        log.debug(f"当前人物角度为：{str(self.ang)}变换后角度{ang},视角移动{sub}"  )
         # 此处变换为了目标角度
         self.ang = ang
     # 寻路函数
@@ -1091,6 +1102,7 @@ class UniverseUtils:
                 self.get_screen()
                 bw_map = self.get_bw_map()
                 if bw_map is None:
+                    self.set_path_state("获取地图失败")
                     return
                 #预判实际点位
                 self.get_loc(bw_map, fbw=1, offset=self.get_offset(2 + (retry_time <= 2)),
@@ -1105,10 +1117,7 @@ class UniverseUtils:
                         rd = np.where(
                             np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True) - red) ** 2, axis=-1) <= 512)
                         log.info(f"距离小于35,开始清除{(self.target_loc, 1)}从{self.target}")
-                        if not has_not_found_red:
-                            self.set_path_state("未找到红色！！！")
-                            # self.target.remove((self.target_loc, 1))
-                            break
+                        self.target.remove((self.target_loc, 1))
                         if rd[0].shape[0] > 0:
                             self.set_path_state("尝试找新的敌人点位")
                             recent_loc = (self.real_loc[0] + rd[0][0] - 93, self.real_loc[1] + rd[1][0] - 93)
@@ -1130,12 +1139,13 @@ class UniverseUtils:
                                 log.info(f"在视角下找到新的敌对目标点：{recent_loc}")
                             else:
                                 self.set_path_state("未找到蓝色覆盖红色敌人！！！")
-                                self.target.add((self.target_loc, 0))
-                                log.info(f"未找到敌对目标点，把旧目标点视作路径")
                                 # self.save_screen(not_now=True)
                                 has_not_found_red= True
-                                self.target_type=0
+
                             # self.target_loc, type = self.get_recent_target()
+                        if has_not_found_red:
+                            self.set_path_state("未找到敌人！！！")
+                            break
                 self.set_path_state("开始更新方向2")
                 self.update_direction_data(mode=1)
                 if self.debug:
@@ -1225,6 +1235,10 @@ class UniverseUtils:
             if self.target_type == 0:
                 self.lst_tm = time.time()
             if self.target_type == 1:
+                if has_not_found_red:
+                    self.target.add((self.target_loc, 0))
+                    self.target_type = 0
+                    log.info(f"寻路时未找到敌对目标点，强行攻击后把旧目标点视作路径")
                 self.set_path_state("准备开战")
                 log.info("准备开战")
                 if not self.quan:
@@ -1247,7 +1261,7 @@ class UniverseUtils:
                         key_mouse_manager.click(0.5,0.5)
                 else:
                     key_mouse_manager.keyUp("w")
-                    for ii in range(2):
+                    for ii in range(1):
                         self.use_e()
                         if ii:
                             time.sleep(0.6)
@@ -1551,6 +1565,7 @@ class UniverseUtils:
         if self.ang_off:
             #存在角度偏移值则使视线与角色朝向一致
             time.sleep(0.6)
+            log.debug(f'无地图视角补正{-self.ang_off*1.2}')
             key_mouse_manager.mouse_move(-self.ang_off*1.2)
             time.sleep(0.3)
             key_mouse_manager.press('w',0.3)

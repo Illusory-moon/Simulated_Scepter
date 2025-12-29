@@ -97,6 +97,10 @@ class SimulatedUniverse(UniverseUtils):
         self.fps_list = []
         # 添加地图线程引用
         self.map_thread = None
+        #地图的初始化状态
+        self.map_init=False
+        # 是否首次获取层数
+        self.first_get_floor=False
         #事件与行为存储路径
         self.default_json_path = "actions/universe.json"
         self.default_json = load_actions(self.default_json_path)
@@ -232,7 +236,12 @@ class SimulatedUniverse(UniverseUtils):
                 self.quan = 1
             #长时间离开或者未初始化层数？则重新初始化
             if self.floor_init == 0:
+                log.info("开始重新初始化层数")
+                old_floor = self.floor
                 if self.get_level() == -1:
+                    if old_floor != self.floor:
+                        self.map_init = True
+                    self.first_get_floor=True
                     return 1
                 self.floor_init = 1
             #上次交互时间
@@ -260,8 +269,16 @@ class SimulatedUniverse(UniverseUtils):
                     self.now_map = -1
                     #只有第一，第六层才寻找匹配的地图
                     if self.click_text(text="战斗", click=False, box=[55, 164, 12, 40],ocr_line=False):
-                        self.get_level()
-                        if self.floor in [0, 5]:
+                        if self.first_get_floor:
+                            self.first_get_floor = False
+                        else:
+                            old_floor=self.floor
+                            self.get_level()
+                            if old_floor != self.floor:
+                                self.map_init = True
+                        log.debug(f"检查当前层数：{self.floor}，初始化状态{self.map_init}")
+                        if self.floor in [0, 5] and self.map_init:
+                            self.map_init = False
                             self.mini_state = 0
                             self.stop_move = 0
                             no_find=False
@@ -532,9 +549,16 @@ class SimulatedUniverse(UniverseUtils):
             key_mouse_manager.click(0.9375, 0.8565 - 0.1 * (self.diffi - 1))
         key_mouse_manager.click(0.1083, 0.1009)
         if con:
+            log.info(f"继续游戏附带初始化层数,更新前{self.floor+1}")
+            old_floor = self.floor
             self.get_level()
+            if old_floor != self.floor:
+                log.info(f"继续游戏附带初始化层数,更新后{self.floor + 1}")
+                self.map_init = True
+            self.first_get_floor = True
         else:
             self.floor = 0
+            self.map_init = True
         self.floor_init = 1
     def pre_start(self):
         self.fail_count = 0
