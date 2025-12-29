@@ -1,4 +1,5 @@
 {
     "skin_type": 1,
-    "recording_state": true
+    "recording_state": true,
+    "record_map": true
 }

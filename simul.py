@@ -122,14 +122,14 @@ class SimulatedUniverse(UniverseUtils):
                 self.img_set.append((file, extract_features(image)))
                 self.img_map[file]= image
         log.info("加载地图完成，共 %d 张" % len(self.img_set))
-        self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",window_class_name="UnityWndClass",see_time=True, offsets=[10, 50, 10, 10])
-        
         # 从settings.json获取录制状态
         with EXTRA.FILE_LOCK:
             with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
                 data = json.load(file)
         
         self.record = data.get("recording_state", True)
+        # 根据self._show_map决定是否叠加地图到录制视频上
+        self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",window_class_name="UnityWndClass",see_time=True, offsets=[10, 50, 10, 10], overlay_map=self._show_map)
 
 
     def route(self):

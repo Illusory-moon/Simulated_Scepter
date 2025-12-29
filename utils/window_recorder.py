@@ -13,7 +13,7 @@ from PIL import ImageGrab
 
 class WindowRecorder:
     def __init__(self, output_file="window_recording.mp4", handle=None, fps=30.0, window_title=None, window_class_name=None, see_time=False,
-                 is_show=False, offsets=None):
+                 is_show=False, offsets=None, overlay_map=False):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.output_file = output_file + f"{timestamp}.mp4"
         self.fps = fps
@@ -35,6 +35,8 @@ class WindowRecorder:
         self.top_offset = offsets[1]
         self.right_offset = offsets[2]
         self.bottom_offset = offsets[3]
+        # 是否叠加地图窗口
+        self.overlay_map = overlay_map
 
     def start_recording(self):
         """开始录制指定窗口"""
@@ -128,7 +130,91 @@ class WindowRecorder:
                     # 转换为OpenCV格式
                     img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
                     
-                    # 添加时间戳
+                    # 检查是否需要叠加地图窗口
+                    if self.overlay_map:
+                        # 尝试查找地图窗口（"Map"窗口）
+                        map_hwnd = win32gui.FindWindow(None, "Map")
+                        if map_hwnd and win32gui.IsWindowVisible(map_hwnd):
+                            try:
+                                # 获取地图窗口的位置和大小
+                                map_rect = win32gui.GetWindowRect(map_hwnd)
+                                map_left, map_top, map_right, map_bottom = map_rect
+                                map_width = map_right - map_left
+                                map_height = map_bottom - map_top
+                                
+                                # 应用相同的偏移来裁剪地图窗口
+                                map_adjusted_left = map_left + self.offsets[0]
+                                map_adjusted_top = map_top + self.offsets[1]
+                                map_adjusted_right = map_right - self.offsets[2]
+                                map_adjusted_bottom = map_bottom - self.offsets[3]
+                                
+                                # 确保地图裁剪后的尺寸有效
+                                if (map_adjusted_right > map_adjusted_left and 
+                                    map_adjusted_bottom > map_adjusted_top):
+                                    # 捕获裁剪后的地图窗口
+                                    map_bbox = (map_adjusted_left, map_adjusted_top, map_adjusted_right, map_adjusted_bottom)
+                                    map_img = ImageGrab.grab(bbox=map_bbox)
+                                    map_img_cv = cv2.cvtColor(np.array(map_img), cv2.COLOR_RGB2BGR)
+                                    
+                                    # 进一步缩小地图图像尺寸
+                                    map_scale = 0.1  # 缩放到原图的10%，更小一些
+                                    map_resized_width = int(img_cv.shape[1] * map_scale)  # 基于主窗口宽度计算
+                                    map_resized_height = int(map_resized_width * (map_img_cv.shape[0] / map_img_cv.shape[1]))  # 保持比例
+                                    map_img_resized = cv2.resize(map_img_cv, (map_resized_width, map_resized_height))
+                                    
+                                    # 将调整后的地图图像叠加到主图像的左下角上方
+                                    margin = 10
+                                    # 计算时间戳区域的高度
+                                    # 预先计算时间戳尺寸，以便地图放置在时间戳上方
+                                    if self.see_time:
+                                        current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+                                        current_time = datetime.datetime.now().strftime("%H:%M:%S")
+
+                                        # 配置参数
+                                        font_scale = 0.5
+                                        font_thickness = 2
+                                        font = cv2.FONT_HERSHEY_SIMPLEX
+                                        line_spacing = 15
+                                        h_padding = 6
+                                        v_padding = 20
+
+                                        # 获取文本尺寸
+                                        (text_width1, text_height1), _ = cv2.getTextSize(current_date, font, font_scale, font_thickness)
+                                        (text_width2, text_height2), _ = cv2.getTextSize(current_time, font, font_scale, font_thickness)
+
+                                        # 计算最大宽度和总高度
+                                        max_text_width = max(text_width1, text_height2)
+                                        total_text_height = text_height1 + text_height2 + line_spacing
+
+                                        # 优化背景框尺寸计算
+                                        rect_width = max_text_width + h_padding * 2
+                                        rect_height = total_text_height + v_padding * 2
+
+                                        # 将地图放在时间戳上方
+                                        timestamp_bottom_y = img_cv.shape[0] - 5
+                                        timestamp_top_y = timestamp_bottom_y - rect_height
+                                        map_bottom_y = timestamp_top_y - margin  # 地图在时间戳上方，留出间距
+                                        map_top_y = map_bottom_y - map_resized_height
+                                        
+                                        # 确保地图在窗口范围内
+                                        if map_top_y > margin:  # 如果地图放置在时间戳上方后仍在窗口内
+                                            img_cv[map_top_y:map_bottom_y, 
+                                                   margin:margin+map_resized_width] = map_img_resized
+                                        else:
+                                            # 如果放不下，则不叠加地图
+                                            pass
+                                    else:
+                                        # 如果不需要时间戳，将地图放在左下角
+                                        img_cv[img_cv.shape[0]-map_resized_height-margin:img_cv.shape[0]-margin, 
+                                               margin:margin+map_resized_width] = map_img_resized
+                                else:
+                                    print("地图窗口裁剪后尺寸无效，跳过叠加")
+                            except Exception as e:
+                                print(f"叠加地图窗口失败: {e}")
+                                # 如果叠加地图失败，继续录制主窗口
+                                pass
+
+                    # 添加时间戳（如果需要）
                     if self.see_time:
                         current_date = datetime.datetime.now().strftime("%Y-%m-%d")
                         current_time = datetime.datetime.now().strftime("%H:%M:%S")
