@@ -4,7 +4,6 @@ from scipy import signal
 from PIL import Image
 
 from route import PATHS
-
 MINIMAP_RADIUS = 93
 MINIMAP_CENTER = (45 + MINIMAP_RADIUS, 56 + MINIMAP_RADIUS)#(138,149)
 DIRECTION_RADIUS = 17
@@ -347,12 +346,45 @@ def area_offset(area, offset):
     upper_left_x, upper_left_y, bottom_right_x, bottom_right_y = area
     x, y = offset
     return upper_left_x + x, upper_left_y + y, bottom_right_x + x, bottom_right_y + y
-def get_minimap(image, radius,copy=False):
+
+
+def rotate_minimap(minimap, angle):
+    """
+    以(93,93)为中心旋转小地图
+
+    Args:
+        minimap: 小地图图像数组
+        angle: 旋转角度（度），正数为顺时针
+
+    Returns:
+        旋转后的小地图图像
+    """
+    height, width = minimap.shape[:2]
+    center = (MINIMAP_RADIUS, MINIMAP_RADIUS)
+    # 计算旋转矩阵
+    rotation_matrix = cv2.getRotationMatrix2D(center, -angle, 1.0)  # 负号是因为OpenCV中正角度是逆时针
+    rotated_minimap = cv2.warpAffine(minimap, rotation_matrix, (width, height),
+                                     flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT,
+                                     borderValue=(0, 0, 0))  # 使用黑色填充边界
+
+    return rotated_minimap
+def get_minimap(image, radius,copy=False,rotation=False):
     """
     Crop the minimap area on image.
     """
     area = area_offset((-radius, -radius, radius, radius), offset=MINIMAP_CENTER)
     image = crop(image, area, copy=copy)
+    if rotation:
+        from utils.utils.mminimap import update_rotation
+        # 获取输入图片的视角角度
+        input_rotation = update_rotation(minimap=image)
+        # 读取0度视角纹理图
+        zero_degree_texture_path = "resource/imgs/only_rotated.png"
+        zero_texture = cv2.imread(zero_degree_texture_path)
+        # 根据输入图片的视角旋转0度视角纹理图
+        rotated_texture = rotate_minimap(zero_texture, input_rotation)
+        # 将输入图片的小地图与旋转后的视角纹理相减
+        image = cv2.subtract(image, rotated_texture)
     return image
 def convolve(arr, kernel=3):
     """

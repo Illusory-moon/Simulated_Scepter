@@ -272,12 +272,13 @@ class SimulatedUniverse(UniverseUtils):
                         if self.first_get_floor:
                             self.first_get_floor = False
                         else:
+                            self.map_init = False
                             old_floor=self.floor
                             self.get_level()
                             if old_floor != self.floor:
                                 self.map_init = True
                         log.debug(f"检查当前层数：{self.floor}，初始化状态{self.map_init}")
-                        if self.floor in [0, 5] and self.map_init:
+                        if self.floor in [0, 5]:
                             self.map_init = False
                             self.mini_state = 0
                             self.stop_move = 0
@@ -1068,7 +1069,6 @@ class SimulatedUniverse(UniverseUtils):
         last_target_loc = None
         last_target_type = None
         last_ang = None
-        last_updated_image = None
 
         while not self._stop:
             if self.debug_map.shape[0] == 8192:
@@ -1097,7 +1097,9 @@ class SimulatedUniverse(UniverseUtils):
 
             # 只在需要时才拷贝图像
             updated_image = self.debug_map.copy()
-            
+            # 初始化坐标偏移量
+            x_offset = 0
+            y_offset = 0
             # 检查是否存在tmp地图，如果有则与原始地图拼接
             if hasattr(self, 'tmp_map') and self.tmp_map is not None:
                 try:
@@ -1114,7 +1116,7 @@ class SimulatedUniverse(UniverseUtils):
                     
                     # 调整图像尺寸以匹配垂直拼接的宽度
                     max_width = max(updated_image.shape[1], tmp_colored.shape[1])
-                    
+
                     # 调整两个图像的宽度以匹配最大宽度
                     if updated_image.shape[1] < max_width:
                         # 为updated_image添加右侧填充
@@ -1122,6 +1124,7 @@ class SimulatedUniverse(UniverseUtils):
                         left_pad = width_diff // 2
                         right_pad = width_diff - left_pad
                         updated_image = np.pad(updated_image, ((0, 0), (left_pad, right_pad), (0, 0)), mode='constant', constant_values=0)
+                        x_offset = left_pad  # 更新x方向偏移量
                     
                     if tmp_colored.shape[1] < max_width:
                         # 为tmp_colored添加右侧填充
@@ -1129,11 +1132,13 @@ class SimulatedUniverse(UniverseUtils):
                         left_pad = width_diff // 2
                         right_pad = width_diff - left_pad
                         tmp_colored = np.pad(tmp_colored, ((0, 0), (left_pad, right_pad), (0, 0)), mode='constant', constant_values=0)
+                        if x_offset == 0:  # 如果updated_image没有偏移，则使用tmp_colored的偏移
+                            x_offset = left_pad
                     
                     # 在正常地图上方添加间距
                     top_spacing = 10  # 上方间距像素
                     top_spacing_img = np.zeros((top_spacing, max_width, 3), dtype=np.uint8)
-                    
+                    y_offset = top_spacing  # 上方间距
                     # 在两个图像之间添加一些间距
                     middle_spacing = 10  # 间距像素
                     middle_spacing_img = np.zeros((middle_spacing, max_width, 3), dtype=np.uint8)
@@ -1157,12 +1162,19 @@ class SimulatedUniverse(UniverseUtils):
             real_x, real_y = current_real_loc
             target_x, target_y = current_target_loc
 
+
+            # 调整坐标以适应图像拼接后的偏移
+            adjusted_real_x = real_x + y_offset
+            adjusted_real_y = real_y + x_offset
+            adjusted_target_x = target_x + y_offset
+            adjusted_target_y = target_y + x_offset
+
             # 绘制当前位置（绿色）
             for dx in range(-2, 3):
                 for dy in range(-2, 3):
-                    if (0 <= real_x + dx < updated_image.shape[0] and
-                        0 <= real_y + dy < updated_image.shape[1]):
-                        updated_image[real_x + dx, real_y + dy] = [49, 140, 49]
+                    if (0 <= adjusted_real_x + dx < updated_image.shape[0] and
+                        0 <= adjusted_real_y + dy < updated_image.shape[1]):
+                        updated_image[adjusted_real_x + dx, adjusted_real_y + dy] = [49, 140, 49]
 
             # 绘制目标位置
             if current_target_type is not None:
@@ -1176,9 +1188,9 @@ class SimulatedUniverse(UniverseUtils):
 
                 for dx in range(-2, 3):
                     for dy in range(-2, 3):
-                        if (0 <= target_x + dx < updated_image.shape[0] and
-                            0 <= target_y + dy < updated_image.shape[1]):
-                            updated_image[target_x + dx, target_y + dy] = target_color
+                        if (0 <= adjusted_target_x + dx < updated_image.shape[0] and
+                            0 <= adjusted_target_y + dy < updated_image.shape[1]):
+                            updated_image[adjusted_target_x + dx, adjusted_target_y + dy] = target_color
 
             # 绘制朝向箭头
             if current_ang is not None:
@@ -1186,18 +1198,18 @@ class SimulatedUniverse(UniverseUtils):
                 angle_rad = math.radians(-current_ang)
                 line_length = 20
                 end_point = (
-                    int(real_y + line_length * math.cos(angle_rad)),
-                    int(real_x - line_length * math.sin(angle_rad))
+                    int(adjusted_real_y + line_length * math.cos(angle_rad)),
+                    int(adjusted_real_x - line_length * math.sin(angle_rad))
                 )
 
                 # 确保线条端点在图像范围内
-                if (0 <= real_y < updated_image.shape[1] and
-                    0 <= real_x < updated_image.shape[0] and
+                if (0 <= adjusted_real_y < updated_image.shape[1] and
+                    0 <= adjusted_real_x < updated_image.shape[0] and
                     0 <= end_point[0] < updated_image.shape[1] and
                     0 <= end_point[1] < updated_image.shape[0]):
                     cv.arrowedLine(
                         updated_image,
-                        (real_y, real_x),
+                        (adjusted_real_y, adjusted_real_x),
                         end_point,
                         (0, 255, 0),
                         1,
@@ -1226,12 +1238,12 @@ class SimulatedUniverse(UniverseUtils):
                     color = (255, 0, 0)  # 蓝色
 
                 angle_text = f"Angle: {-current_ang:.1f}"
-                cv.putText(updated_image, angle_text, (10, 30),
+                cv.putText(updated_image, angle_text, (10 + x_offset, 30),
                           cv.FONT_HERSHEY_SIMPLEX, 0.3, color, 1)
 
             # 在左上角显示目标坐标
             target_text = f"Target: ({target_x}, {target_y})"
-            cv.putText(updated_image, target_text, (10, 50),
+            cv.putText(updated_image, target_text, (10 + x_offset, 50),
                       cv.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 255), 1)
 
             # 根据窗口大小调整图像尺寸以适应200x600的窗口

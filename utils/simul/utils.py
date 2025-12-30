@@ -737,52 +737,38 @@ class UniverseUtils:
         """
         寻找最近的目标点位与类型
         """
-        need_retry = True
         has_removed = False
-        while need_retry:
-            mn_dis = 100000
-            recent_loc = 0
-            recent_type = -1
-            # log.info(f"当前状态{self.target}")
-            for target_loc, target_type in self.target:
-                # log.info(f"遍历当前状态{self.target}")
-                dis=get_dis(target_loc, self.real_loc)
-                if dis < mn_dis:
-                    mn_dis = dis
-                    recent_loc = target_loc
-                    recent_type = target_type
-                    has_removed = False
-            need_retry = False
-            # 如果找不到，将最后一个完成的目标点作为目标点
-            if recent_loc == 0:
-                recent_loc = self.last
-                recent_type = 3
-            if recent_type==1 and mn_dis<40:
-                red = [60, 60, 226]
-                rd = np.where(np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True) - red) ** 2, axis=-1) <= 512)
-                if not has_removed:
-                    self.target.remove((recent_loc, 1))
-                    log.info(f"移除目标{recent_loc},当前状态{self.target},距离{mn_dis}")
-                    has_removed = True
-                if rd[0].shape[0] > 0:
-                    recent_loc = (self.real_loc[0]+rd[0][0]-93, self.real_loc[1]+rd[1][0]-93)
-                    self.target.add((recent_loc, 1))
-                    log.info(f"找到新的敌对目标点：{recent_loc}")
-                else:
-                    red_and_blue=[115, 100, 200]
-                    rd = np.where(
-                        np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True) - red_and_blue) ** 2, axis=-1) <= 512)
-                    if rd[0].shape[0] > 0:
-                        recent_loc = (self.real_loc[0] + rd[0][0] - 93, self.real_loc[1] + rd[1][0] - 93)
-                        self.target.add((recent_loc, 1))
-                        log.info(f"在视角下找到新的敌对目标点：{recent_loc}")
-                    else:
-                        self.target.add((recent_loc, 0))
-                        log.info(f"未找到敌对目标点，使用当前作为路径点位：{recent_loc}")
-                        recent_type=0
-                    break
-                    need_retry = True
-
+        mn_dis = 100000
+        recent_loc = 0
+        recent_type = -1
+        # log.info(f"当前状态{self.target}")
+        for target_loc, target_type in self.target:
+            # log.info(f"遍历当前状态{self.target}")
+            dis=get_dis(target_loc, self.real_loc)
+            if dis < mn_dis:
+                mn_dis = dis
+                recent_loc = target_loc
+                recent_type = target_type
+                has_removed = False
+        # 如果找不到，将最后一个完成的目标点作为目标点
+        if recent_loc == 0:
+            recent_loc = self.last
+            recent_type = 3
+        if recent_type==1 and mn_dis<40:
+            red = [47, 47, 232]
+            rd = np.where(np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True) - red) ** 2, axis=-1) <= 4500)
+            if not has_removed:
+                self.target.remove((recent_loc, 1))
+                log.info(f"移除目标{recent_loc},当前状态{self.target},距离{mn_dis}")
+                has_removed = True
+            if rd[0].shape[0] > 0:
+                recent_loc = (self.real_loc[0]+rd[0][0]-93, self.real_loc[1]+rd[1][0]-93)
+                self.target.add((recent_loc, 1))
+                log.info(f"找到新的敌对目标点：{recent_loc}")
+            else:
+                self.target.add((recent_loc, 0))
+                log.info(f"未找到敌对目标点，使用当前作为路径点位：{recent_loc}")
+                recent_type=0
         return recent_loc, recent_type
 
     def move_to_interact(self, ii=0):
@@ -792,7 +778,7 @@ class UniverseUtils:
         # shape = (int(self.scx * 190), int(self.scx * 190))
         # curloc = (118 + 2, 125 + 2)
         # blue = np.array([234, 191, 4])
-        local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True)
+        local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True)
         target = ((-1, -1), 0)
         mini_icon = cv.imread(self.format_path("mini" + str(ii + 1)))
         sp = mini_icon.shape
@@ -827,23 +813,13 @@ class UniverseUtils:
                     local_screen[i, j] = [0, 0, 0]
         #两个交互都没有找红色点位（应该是敌人）
         if max_val <= threshold:
-            red = [60, 60, 226]
-            rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 512)
+            red = [47, 47, 232]
+            rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 4500)
             if rd[0].shape[0] > 0:
                 nearest = (rd[0][0], rd[1][0])
                 target = (nearest, 3)
                 if self.floor == 11:
                     self.floor = 12
-            else:
-                red_and_blue = [115, 100, 200]
-                rd = np.where(
-                    np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True) - red_and_blue) ** 2,
-                           axis=-1) <= 512)
-                if rd[0].shape[0] > 0:
-                    nearest = (rd[0][0], rd[1][0])
-                    target = (nearest, 3)
-                    if self.floor == 11:
-                        self.floor = 12
         if self.mini_target == 0:
             self.mini_target = target[1]
         if target[1] >= 1:
@@ -1114,9 +1090,9 @@ class UniverseUtils:
                     now_distance = get_dis(self.real_loc, self.target_loc)
                     if now_distance<35:
                         self.set_path_state("距离敌人过近")
-                        red = [60, 60, 226]
+                        red = [47, 47, 232]
                         rd = np.where(
-                            np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True) - red) ** 2, axis=-1) <= 512)
+                            np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True,rotation=True) - red) ** 2, axis=-1) <= 4500)
                         log.info(f"距离小于35,开始清除{(self.target_loc, 1)}从{self.target}")
                         self.target.remove((self.target_loc, 1))
                         if rd[0].shape[0] > 0:
@@ -1127,23 +1103,10 @@ class UniverseUtils:
                             self.target_loc=recent_loc
                             log.info(f"找到新的敌对目标点：{recent_loc}")
                         else:
-                            self.set_path_state("尝试找视角覆盖下的敌人")
-                            red_and_blue = [115, 100, 200]
-                            rd = np.where(
-                                np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True) - red_and_blue) ** 2,
-                                       axis=-1) <= 512)
-                            log.info(f"尝试找视角下的敌人结果{rd}")
-                            if rd[0].shape[0] > 0:
-                                self.set_path_state("找到视角下的敌人")
-                                recent_loc = (self.real_loc[0] + rd[0][0] - 93, self.real_loc[1] + rd[1][0] - 93)
-                                self.target.add((recent_loc, 1))
-                                self.target_loc = recent_loc
-                                log.info(f"在视角下找到新的敌对目标点：{recent_loc}")
-                            else:
-                                self.set_path_state("未找到蓝色覆盖红色敌人！！！")
-                                self.save_screen(not_now= True)
-                                # self.save_screen(not_now=True)
-                                has_not_found_red= True
+                            self.set_path_state("未找到红色敌人！！！")
+                            self.save_screen(not_now= True)
+                            # self.save_screen(not_now=True)
+                            has_not_found_red= True
 
                             # self.target_loc, type = self.get_recent_target()
                         if has_not_found_red:
@@ -1546,7 +1509,7 @@ class UniverseUtils:
     def update_debug_map(self):
         self.debug_map = deepcopy(get_minimap(self.get_screen(), radius=MINIMAP_RADIUS))
     def auto_update_map(self):
-        while self.should_update_map:
+        while self.should_update_map and not self._stop:
             log.debug("更新一次地图")
             self.update_debug_map()
             time.sleep(2)
@@ -1724,25 +1687,14 @@ class UniverseUtils:
                             break
                         curloc = (120, 127)
                         shape = (int(self.scx * 190), int(self.scx * 190))
-                        local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True)
-                        red = [60, 60, 226]
-                        rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 512)
+                        local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True)
+                        red = [47, 47, 232]
+                        rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 4500)
                         if rd[0].shape[0] > 0:
                             target = ((rd[0][0], rd[1][0]), 3)
                             self.get_screen()
                             # local_screen = self.get_local(0.9333, 0.8657, shape)
-
                             self.update_direction_data(mode=2,target=target)
-                        else:
-                            red_and_blue = [115, 100, 200]
-                            rd = np.where(
-                                np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True) - red_and_blue) ** 2,
-                                       axis=-1) <= 512)
-                            if rd[0].shape[0] > 0:
-                                target = ((rd[0][0], rd[1][0]), 3)
-                                self.get_screen()
-                                # local_screen = self.get_local(0.9333, 0.8657, shape)
-                                self.update_direction_data(mode=2, target=target)
                         ds = get_dis(self.real_loc, self.target_loc)
                         if ds>28:
                             log.debug(f"距离目标{ds},太远，等待{(ds-20)//8}秒")

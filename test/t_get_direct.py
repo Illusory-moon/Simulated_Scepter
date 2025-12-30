@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import cv2
 import numpy as np
 from scipy import signal
@@ -329,18 +331,108 @@ def analyze_red(img):
     cv2.destroyAllWindows()
     
     print(rd)
+
+def rotate_minimap(minimap, angle):
+    """
+    以(93,93)为中心旋转小地图
+    
+    Args:
+        minimap: 小地图图像数组
+        angle: 旋转角度（度），正数为顺时针
+        
+    Returns:
+        旋转后的小地图图像
+    """
+    # 获取图像尺寸
+    height, width = minimap.shape[:2]
+    
+    # 定义旋转中心
+    center = (93, 93)
+    
+    # 计算旋转矩阵
+    rotation_matrix = cv2.getRotationMatrix2D(center, -angle, 1.0)  # 负号是因为OpenCV中正角度是逆时针
+    
+    # 执行旋转
+    rotated_minimap = cv2.warpAffine(minimap, rotation_matrix, (width, height), 
+                                     flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, 
+                                     borderValue=(0, 0, 0))  # 使用黑色填充边界
+    
+    return rotated_minimap
+
+
+def subtract_rotated_texture(image_path, zero_degree_texture_path):
+    """
+    传入一张图片，获取其minimap与其视角，然后根据其视角旋转该视角纹理图，
+    然后把传入的图片的minimap旋转对应角度的视角纹理相减以获取正确的小地图背景
+    
+    Args:
+        image_path (str): 输入图片路径
+        zero_degree_texture_path (str): 0度视角纹理图路径
+        
+    Returns:
+        np.ndarray: 相减后的小地图背景
+    """
+    # 读取输入图片
+    img = cv2.imread(image_path)
+    if img is None:
+        print(f"无法读取图片: {image_path}")
+        return None
+    
+    # 获取输入图片的小地图区域
+    input_minimap = get_minimap(img, radius=MINIMAP_RADIUS)
+    
+    # 获取输入图片的视角角度
+    input_rotation = update_rotation(minimap=input_minimap)
+    print(f"输入图片的视角角度为: {input_rotation}度")
+    
+    # 读取0度视角纹理图
+    zero_texture = cv2.imread(zero_degree_texture_path)
+    if zero_texture is None:
+        print(f"无法读取0度视角纹理图: {zero_degree_texture_path}")
+        return None
+    
+    # 根据输入图片的视角旋转0度视角纹理图
+    rotated_texture = rotate_minimap(zero_texture, input_rotation)
+    
+    # 将输入图片的小地图与旋转后的视角纹理相减
+    background_diff = cv2.subtract(input_minimap, rotated_texture)
+    
+    # 显示结果
+    cv2.imshow("Minimap Background Difference", background_diff)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = f"minimap_background_diff_{timestamp}.png"
+    success = cv2.imwrite(output_path, background_diff)
+    if success:
+        print(f"小地图背景差异图已保存至: {output_path}")
+    else:
+        print(f"小地图背景差异图保存失败: {output_path}")
+    
+    return background_diff
+
 if __name__ == "__main__":
-    pth="../temp/20251229_222051.png"
-    image = cv2.imread(pth)
-    # analyze_red(image)
-    rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS)
-    # direction_minimap = get_minimap(image.copy(), radius=DIRECTION_RADIUS)
-    # s_time = time.time()
-    # rotation=update_rotation(minimap=rotation_minimap)
-    # d_time = time.time()
-    # # direct=get_now_direct(minimap)
-    # direct=update_direction(image)
-    # e_time = time.time()
-    # print('更新视角耗时:', d_time - s_time, '更新方向耗时:', e_time - d_time)
-    rotation, direct =update_minimap_data(image)
-    show_minimap(rotation_minimap, rotation, direct)
+    # pth="../temp/20251230_164205.png"
+    # image = cv2.imread(pth)
+    # # analyze_red(image)
+    # rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS)
+    # # direction_minimap = get_minimap(image.copy(), radius=DIRECTION_RADIUS)
+    # # s_time = time.time()
+    # # rotation=update_rotation(minimap=rotation_minimap)
+    # # d_time = time.time()
+    # # # direct=get_now_direct(minimap)
+    # # direct=update_direction(image)
+    # # e_time = time.time()
+    # # print('更新视角耗时:', d_time - s_time, '更新方向耗时:', e_time - d_time)
+    # rotation, direct =update_minimap_data(image)
+    # show_minimap(rotation_minimap, rotation, direct)
+    pth1 = "./rotated_minimap_20251230_171434.png"
+    pth2 = "./20251230_180756.png"
+    # pth2= "../temp/20251230_164150.png"
+    # compare_minimap_textures(pth1, pth2)
+    # img = cv2.imread(pth1)
+    # test_rotation_with_minimap(img)
+    # 测试获取视角角度
+    # rotation = get_minimap_rotation(pth1)
+    subtract_rotated_texture(pth2, pth1)

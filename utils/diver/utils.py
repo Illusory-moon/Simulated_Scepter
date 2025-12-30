@@ -891,8 +891,8 @@ class UniverseUtils:
                 if self.get_dis((120, 128), (i, j)) >= 82:
                     local_screen[i, j] = [0, 0, 0]
         if max_val <= threshold:
-            red = [60, 60, 226]
-            rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 512)
+            red = [47, 47, 232]
+            rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 4500)
             if rd[0].shape[0] > 0:
                 nearest = (rd[0][0], rd[1][0])
                 target = (nearest, 3)
