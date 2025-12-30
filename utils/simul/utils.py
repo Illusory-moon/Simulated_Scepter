@@ -115,6 +115,8 @@ class UniverseUtils:
         self.quit = 0
         #调试显示用地图
         self.debug_map = np.zeros((8192, 8192), dtype=np.uint8)
+        # 用于存储tmp地图
+        self.tmp_map = None
         #当前层数
         self.floor = -1
         # 玩家真实坐标
@@ -289,15 +291,13 @@ class UniverseUtils:
         if box:
             match=self.ts.ocr_one_row(img,box)
             log.info(f"尝试匹配：{text}匹配结果：{match}")
-            if len(match) and click:
-                key_mouse_manager.click(
-                    (box[0]+box[1])//2,
-                    (box[2]+box[3])//2
-                )
-                if after_delay:
-                    time.sleep(after_delay)
-                return True
-            elif len(match):
+            # 检查匹配结果是否包含目标文本
+            if len(match) and text in match:
+                if click:
+                    key_mouse_manager.click(
+                        (box[0]+box[1])//2,
+                        (box[2]+box[3])//2
+                    )
                 if after_delay:
                     time.sleep(after_delay)
                 return True
@@ -993,6 +993,7 @@ class UniverseUtils:
     def update_direction_data(self,mode=None,target=None):
         self.rotation, d = update_minimap_data(self.screen,rotation=self.rotation if hasattr(self, 'rotation') else 0,direction=self.ang - 270 if hasattr(self, 'ang') else 0)
         log.debug(f"视角{self.rotation}朝向{d}模式{mode}目标{target}")
+        log.debug(f"当前点位{self.real_loc}目标点位{self.target_loc}")
         if 20<abs(self.rotation-d)<340:
             key_mouse_manager.wait()
             self.rotation, d = update_minimap_data(self.get_screen(),rotation=self.rotation, direction=self.ang - 270)
@@ -1131,6 +1132,7 @@ class UniverseUtils:
                             rd = np.where(
                                 np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True) - red_and_blue) ** 2,
                                        axis=-1) <= 512)
+                            log.info(f"尝试找视角下的敌人结果{rd}")
                             if rd[0].shape[0] > 0:
                                 self.set_path_state("找到视角下的敌人")
                                 recent_loc = (self.real_loc[0] + rd[0][0] - 93, self.real_loc[1] + rd[1][0] - 93)
@@ -1139,6 +1141,7 @@ class UniverseUtils:
                                 log.info(f"在视角下找到新的敌对目标点：{recent_loc}")
                             else:
                                 self.set_path_state("未找到蓝色覆盖红色敌人！！！")
+                                self.save_screen(not_now= True)
                                 # self.save_screen(not_now=True)
                                 has_not_found_red= True
 
@@ -1146,8 +1149,10 @@ class UniverseUtils:
                         if has_not_found_red:
                             self.set_path_state("未找到敌人！！！")
                             break
-                self.set_path_state("开始更新方向2")
-                self.update_direction_data(mode=1)
+                ds = get_dis(self.real_loc, self.target_loc)
+                if ds>threshold_distance[self.target_type]:
+                    self.set_path_state("距离较远，开始更新方向2")
+                    self.update_direction_data(mode=1)
                 if self.debug:
                     self.big_map[
                         self.real_loc[0] - 1 : self.real_loc[0] + 2,
@@ -1411,6 +1416,9 @@ class UniverseUtils:
         if self.debug:
             cv.imwrite('tp/'+str(time.time())+'.jpg',tmp)
             # log.debug("匹配结果已写入")
+            # 保存tmp地图供show_map函数使用
+            self.tmp_map = tmp.copy()
+            log.debug(f"tmp地图已保存，形状: {self.tmp_map.shape if self.tmp_map is not None else 'None'}")
 
     def get_real_loc(self,delta=0):
         x, y = self.now_loc
@@ -1735,6 +1743,10 @@ class UniverseUtils:
                                 self.get_screen()
                                 # local_screen = self.get_local(0.9333, 0.8657, shape)
                                 self.update_direction_data(mode=2, target=target)
+                        ds = get_dis(self.real_loc, self.target_loc)
+                        if ds>28:
+                            log.debug(f"距离目标{ds},太远，等待{(ds-20)//8}秒")
+                            time.sleep((ds-20)//8)
                         if self.quan:
                             key_mouse_manager.keyUp("w")
                             self.use_e()

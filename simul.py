@@ -1058,6 +1058,8 @@ class SimulatedUniverse(UniverseUtils):
         """
         # 创建窗口时使用 WINDOW_FREERATIO 标志以避免自动获取焦点
         cv.namedWindow("Map", cv.WINDOW_FREERATIO | cv.WINDOW_NORMAL)
+        # 设置窗口初始大小
+        cv.resizeWindow("Map", 200, 600)
         angle_history = []
         last_angle_change_time = 0
     
@@ -1095,10 +1097,61 @@ class SimulatedUniverse(UniverseUtils):
 
             # 只在需要时才拷贝图像
             updated_image = self.debug_map.copy()
-            try:
-                updated_image = cv.cvtColor(updated_image, cv.COLOR_GRAY2RGB)
-            except:
-                pass  # 如果转换失败，保持原图
+            
+            # 检查是否存在tmp地图，如果有则与原始地图拼接
+            if hasattr(self, 'tmp_map') and self.tmp_map is not None:
+                try:
+                    # 确保tmp_map和debug_map都是彩色图像以进行拼接
+                    if len(updated_image.shape) == 2:
+                        updated_image = cv.cvtColor(updated_image, cv.COLOR_GRAY2RGB)
+                    
+                    tmp_map_to_use = self.tmp_map
+                    # 确保tmp_map也是彩色图像
+                    if len(tmp_map_to_use.shape) == 2:
+                        tmp_colored = cv.cvtColor(tmp_map_to_use, cv.COLOR_GRAY2RGB)
+                    else:
+                        tmp_colored = tmp_map_to_use
+                    
+                    # 调整图像尺寸以匹配垂直拼接的宽度
+                    max_width = max(updated_image.shape[1], tmp_colored.shape[1])
+                    
+                    # 调整两个图像的宽度以匹配最大宽度
+                    if updated_image.shape[1] < max_width:
+                        # 为updated_image添加右侧填充
+                        width_diff = max_width - updated_image.shape[1]
+                        left_pad = width_diff // 2
+                        right_pad = width_diff - left_pad
+                        updated_image = np.pad(updated_image, ((0, 0), (left_pad, right_pad), (0, 0)), mode='constant', constant_values=0)
+                    
+                    if tmp_colored.shape[1] < max_width:
+                        # 为tmp_colored添加右侧填充
+                        width_diff = max_width - tmp_colored.shape[1]
+                        left_pad = width_diff // 2
+                        right_pad = width_diff - left_pad
+                        tmp_colored = np.pad(tmp_colored, ((0, 0), (left_pad, right_pad), (0, 0)), mode='constant', constant_values=0)
+                    
+                    # 在正常地图上方添加间距
+                    top_spacing = 10  # 上方间距像素
+                    top_spacing_img = np.zeros((top_spacing, max_width, 3), dtype=np.uint8)
+                    
+                    # 在两个图像之间添加一些间距
+                    middle_spacing = 10  # 间距像素
+                    middle_spacing_img = np.zeros((middle_spacing, max_width, 3), dtype=np.uint8)
+                    
+                    # 垂直拼接：上方间距 + 正常地图 + 中间间距 + tmp地图
+                    updated_image = np.vstack((top_spacing_img, updated_image, middle_spacing_img, tmp_colored))
+                except Exception as e:
+                    # 如果拼接失败，使用原逻辑
+                    try:
+                        updated_image = cv.cvtColor(updated_image, cv.COLOR_GRAY2RGB)
+                    except:
+                        pass  # 如果转换失败，保持原图
+            else:
+                # 如果没有tmp地图，使用原逻辑
+                try:
+                    updated_image = cv.cvtColor(updated_image, cv.COLOR_GRAY2RGB)
+                except:
+                    pass  # 如果转换失败，保持原图
 
             # 确保坐标值为整数类型，避免切片索引错误
             real_x, real_y = current_real_loc
@@ -1181,9 +1234,16 @@ class SimulatedUniverse(UniverseUtils):
             cv.putText(updated_image, target_text, (10, 50),
                       cv.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 255), 1)
 
-            # 将图片放大两倍（只放大感兴趣区域或使用更高效的算法）
+            # 根据窗口大小调整图像尺寸以适应200x600的窗口
+            img_height, img_width = updated_image.shape[:2]
+            max_width, max_height = 200, 600
+            
+            # 计算缩放比例，保持宽高比
+            scale = min(max_width / img_width, max_height / img_height)
+            
+            # 调整图像大小以适应窗口
             updated_image = cv.resize(
-                updated_image, None, fx=2, fy=2, interpolation=cv.INTER_LINEAR
+                updated_image, None, fx=scale, fy=scale, interpolation=cv.INTER_LINEAR
             )
 
             cv.imshow("Map", updated_image)
