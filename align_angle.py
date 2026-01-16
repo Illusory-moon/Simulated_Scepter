@@ -8,34 +8,32 @@ from utils.log import log
 from utils.utils.mminimap import update_minimap_data
 
 
-def get_angle(su, safe):
-    import cv2
+def get_angle(su):
     key_mouse_manager.press("w")
     time.sleep(0.5)
     su.get_screen()
     # shape = (int(su.scx * 190), int(su.scx * 190))
     # local_screen = su.get_local(0.9333, 0.8657, shape)  # 裁剪后得到的小地图
     r, d = update_minimap_data(su.screen)
-    return d
+    return r
+
+
 
 
 # 不同电脑鼠标移动速度、放缩比、分辨率等不同，因此需要校准
 # 基本逻辑：每次转60度，然后计算实际转了几度，计算出误差比
-def main(cnt=10, safe=0, ang=[1,1,3], su=None):
+def main(safe=0, ang=[1,1,3], su=None):
     key_mouse_manager.start()
-    if su is None or 'Diver' in su.__class__.__name__:
-        from utils.diver.config import config
-    else:
-        from utils.simul.config import config
-    if float(config.angle)>2 and len(ang)<3 and su is not None:
-        su.multi = config.multi
-        return
-    log.info("开始校准")
     if su is None:
         from utils.simul.utils import UniverseUtils
         su = UniverseUtils()
-    su.multi = 1
-    init_ang = get_angle(su, safe)
+    if 'Diver' in su.__class__.__name__:
+        from utils.diver.config import config
+    else:
+        from utils.simul.config import config
+    log.info("开始校准")
+    key_mouse_manager.multi = 1
+    init_ang = get_angle(su)
     lst_ang = init_ang
     for i in ang:
         if lst_ang != init_ang and i==1:
@@ -43,36 +41,40 @@ def main(cnt=10, safe=0, ang=[1,1,3], su=None):
         ang_list = []
         for j in range(i):
             key_mouse_manager.mouse_move(60, fine=3 // i)
+            key_mouse_manager.wait()
             time.sleep(0.2)
-            now_ang = get_angle(su, safe)
-            sub = lst_ang - now_ang
+            now_ang = get_angle(su)
+            sub = now_ang - lst_ang
             while sub < 0:
                 sub += 360
             ang_list.append(sub)
             lst_ang = now_ang
         ang_list = np.array(ang_list)
         # 十/3次转身的角度
-        print(ang_list)
+        print(f"基本角度变化: {ang_list}")
         ax = 0
         ay = 0
         for j in ang_list:
             if abs(j - np.median(ang_list)) <= 3:
                 ax += 60
                 ay += j
-        su.multi *= ax / ay
-    su.multi += 1e-9
+        print(f"原始倍率：{key_mouse_manager.multi}倍率变化: {ax}/{ay}")
+        key_mouse_manager.multi *= ax / ay
+    key_mouse_manager.multi += 1e-9
     try:
-        if not abs(su.multi) <= 2:
-            su.multi = 1
+        if abs(key_mouse_manager.multi) > 2:
+            key_mouse_manager.multi = 1
     except:
-        su.multi = 1
-    config.angle = str(su.multi+len(ang)-1)
+        key_mouse_manager.multi = 1
+    
+    # 打印基本校准后的角度校准值
+    log.info(f"基本角度校准值: {key_mouse_manager.multi}")
+    print(f"基本角度校准值: {key_mouse_manager.multi}")
+
+    
+    log.info("所有校准完成")
+    config.angle = str(key_mouse_manager.multi)
     config.save()
-    if su is None:
-        from utils.simul.config import config
-        config.angle = str(su.multi+len(ang)-1)
-        config.save()
-    log.info("校准完成")
     return 1
 
 

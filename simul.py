@@ -937,7 +937,7 @@ class SimulatedUniverse(UniverseUtils):
                 time.sleep(0.5)
             while not self.click_text(text="黑塔的办公室",box=[55, 187, 11, 42],click=False):
                 time.sleep(0.5)
-            key_mouse_manager.mouse_move(20)
+            key_mouse_manager.mouse_move(15)
             key_mouse_manager.keyDown("w")
             sprint()
             key_mouse_manager.sleep(4)
