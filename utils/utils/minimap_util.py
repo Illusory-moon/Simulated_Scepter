@@ -368,6 +368,45 @@ def rotate_minimap(minimap, angle):
                                      borderValue=(0, 0, 0))  # 使用黑色填充边界
 
     return rotated_minimap
+
+
+def mask_minimap_center(minimap, center_radius=80):
+    """
+    保留小地图圆心区域，其余部分用黑色遮蔽
+
+    Args:
+        minimap: 小地图图像数组
+        center_radius: 圆心区域的半径，默认为40
+
+    Returns:
+        处理后的小地图图像，仅保留中心圆形区域
+    """
+    height, width = minimap.shape[:2]
+    center = (93, 93)
+    mask = np.zeros((height, width), dtype=np.uint8)
+    cv2.circle(mask, center, center_radius, (255), -1)
+    masked_minimap = cv2.bitwise_and(minimap, minimap, mask=mask)
+
+    return masked_minimap
+
+
+def mask_minimap_outside(minimap, center_radius=80):
+    """
+    保留小地图非圆心区域（圆环区域），圆心部分用黑色遮蔽
+
+    Args:
+        minimap: 小地图图像数组
+        center_radius: 圆心区域的半径，默认为40
+
+    Returns:
+        处理后的小地图图像，仅保留非中心圆形区域
+    """
+    height, width = minimap.shape[:2]
+    center = (93, 93)
+    mask = np.ones((height, width), dtype=np.uint8) * 255
+    cv2.circle(mask, center, center_radius, (0), -1)
+    masked_minimap = cv2.bitwise_and(minimap, minimap, mask=mask)
+    return masked_minimap
 def get_minimap(image, radius,copy=False,rotation=False):
     """
     Crop the minimap area on image.
@@ -385,6 +424,8 @@ def get_minimap(image, radius,copy=False,rotation=False):
         rotated_texture = rotate_minimap(zero_texture, input_rotation)
         # 将输入图片的小地图与旋转后的视角纹理相减
         image = cv2.subtract(image, rotated_texture)
+        #掩膜掩盖非中心区域避免遇敌红色圈干扰敌人追踪
+        image = mask_minimap_center(image, center_radius=80)
     return image
 def convolve(arr, kernel=3):
     """

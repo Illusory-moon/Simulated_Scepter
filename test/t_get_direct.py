@@ -359,6 +359,62 @@ def rotate_minimap(minimap, angle):
     
     return rotated_minimap
 
+def mask_minimap_center(minimap, center_radius=40):
+    """
+    保留小地图圆心区域，其余部分用黑色遮蔽
+    
+    Args:
+        minimap: 小地图图像数组
+        center_radius: 圆心区域的半径，默认为40
+        
+    Returns:
+        处理后的小地图图像，仅保留中心圆形区域
+    """
+    # 获取图像尺寸
+    height, width = minimap.shape[:2]
+    
+    # 定义中心点（根据代码中的信息，小地图中心为(93,93)）
+    center = (93, 93)
+    
+    # 创建一个黑色掩码
+    mask = np.zeros((height, width), dtype=np.uint8)
+    
+    # 在掩码上绘制一个白色圆形区域
+    cv2.circle(mask, center, center_radius, (255), -1)
+    
+    # 将掩码应用到原图像
+    masked_minimap = cv2.bitwise_and(minimap, minimap, mask=mask)
+    
+    return masked_minimap
+
+def mask_minimap_outside(minimap, center_radius=40):
+    """
+    保留小地图非圆心区域（圆环区域），圆心部分用黑色遮蔽
+    
+    Args:
+        minimap: 小地图图像数组
+        center_radius: 圆心区域的半径，默认为40
+        
+    Returns:
+        处理后的小地图图像，仅保留非中心圆形区域
+    """
+    # 获取图像尺寸
+    height, width = minimap.shape[:2]
+    
+    # 定义中心点（根据代码中的信息，小地图中心为(93,93)）
+    center = (93, 93)
+    
+    # 创建一个全白掩码
+    mask = np.ones((height, width), dtype=np.uint8) * 255
+    
+    # 在掩码中心绘制一个黑色圆形区域（即遮蔽中心区域）
+    cv2.circle(mask, center, center_radius, (0), -1)
+    
+    # 将掩码应用到原图像
+    masked_minimap = cv2.bitwise_and(minimap, minimap, mask=mask)
+    
+    return masked_minimap
+
 
 def subtract_rotated_texture(image_path, zero_degree_texture_path):
     """
@@ -412,6 +468,93 @@ def subtract_rotated_texture(image_path, zero_degree_texture_path):
     
     return background_diff
 
+def test_mask_minimap_center(image_path, center_radius=40):
+    """
+    测试函数：传入完整图片，提取小地图，应用中心区域掩码，并保存结果
+    
+    Args:
+        image_path (str): 完整图片路径
+        center_radius (int): 圆心区域的半径，默认为40
+        
+    Returns:
+        np.ndarray: 应用掩码后的小地图图像
+    """
+    # 读取完整图片
+    img = cv2.imread(image_path)
+    if img is None:
+        print(f"无法读取图片: {image_path}")
+        return None
+    
+    # 从小地图中提取指定半径的区域
+    minimap = get_minimap(img, radius=MINIMAP_RADIUS)
+    
+    # 应用中心区域掩码
+    masked_minimap = mask_minimap_center(minimap, center_radius=center_radius)
+    
+    # 显示结果
+    cv2.imshow("Original Minimap", minimap)
+    cv2.imshow("Masked Minimap Center", masked_minimap)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    
+    # 保存结果
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = f"masked_minimap_center_{timestamp}.png"
+    success = cv2.imwrite(output_path, masked_minimap)
+    if success:
+        print(f"中心区域掩码小地图已保存至: {output_path}")
+    else:
+        print(f"中心区域掩码小地图保存失败: {output_path}")
+    
+    return masked_minimap
+
+def test_mask_minimap_outside(image_path, center_radius=40):
+    """
+    测试函数：传入完整图片，提取小地图，应用非圆心区域掩码（圆环区域），并保存结果
+    
+    Args:
+        image_path (str): 完整图片路径
+        center_radius (int): 圆心区域的半径，默认为40
+        
+    Returns:
+        np.ndarray: 应用掩码后的小地图图像
+    """
+    # 读取完整图片
+    img = cv2.imread(image_path)
+    if img is None:
+        print(f"无法读取图片: {image_path}")
+        return None
+    
+    # 从小地图中提取指定半径的区域
+    minimap = get_minimap(img, radius=MINIMAP_RADIUS)
+    
+    # 应用非圆心区域掩码（圆环区域）
+    masked_minimap = mask_minimap_outside(minimap, center_radius=80)
+    
+    # 在掩码后的小地图中查找红色点 [47, 47, 232]
+    red = [47, 47, 232]
+    rd = np.where(
+        np.sum((masked_minimap - red) ** 2, axis=-1) <= 512)
+    print(rd[0].shape[0])
+
+    cv2.imshow("Masked Minimap Outside (Ring)", masked_minimap)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    
+    # 打印rd结果
+    print('rd:', rd)
+    
+    # 保存结果
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = f"masked_minimap_outside_{timestamp}.png"
+    success = cv2.imwrite(output_path, masked_minimap)
+    if success:
+        print(f"圆环区域掩码小地图已保存至: {output_path}")
+    else:
+        print(f"圆环区域掩码小地图保存失败: {output_path}")
+    
+    return masked_minimap
+
 if __name__ == "__main__":
     # pth="../temp/20251230_164205.png"
     # image = cv2.imread(pth)
@@ -428,11 +571,12 @@ if __name__ == "__main__":
     # rotation, direct =update_minimap_data(image)
     # show_minimap(rotation_minimap, rotation, direct)
     pth1 = "./rotated_minimap_20251230_171434.png"
-    pth2 = "./20251230_180756.png"
+    pth2 = "./20251021_203128.png"
     # pth2= "../temp/20251230_164150.png"
     # compare_minimap_textures(pth1, pth2)
     # img = cv2.imread(pth1)
     # test_rotation_with_minimap(img)
     # 测试获取视角角度
     # rotation = get_minimap_rotation(pth1)
-    subtract_rotated_texture(pth2, pth1)
+    test_mask_minimap_outside(pth2, center_radius=40)
+    # subtract_rotated_texture(pth2, pth1)

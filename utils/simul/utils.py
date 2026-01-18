@@ -31,7 +31,7 @@ import threading
 from utils.simul.text_key import text_keys
 from utils.utils.Error import BigAngError
 from utils.utils.get_win_rect import get_window_rect
-from utils.utils.minimap_util import get_minimap, MINIMAP_RADIUS
+from utils.utils.minimap_util import get_minimap, MINIMAP_RADIUS, mask_minimap_outside
 from utils.utils.mminimap import update_minimap_data
 
 
@@ -1090,28 +1090,35 @@ class UniverseUtils:
                     now_distance = get_dis(self.real_loc, self.target_loc)
                     if now_distance<35:
                         self.set_path_state("距离敌人过近")
-                        red = [47, 47, 232]
-                        rd = np.where(
-                            np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True,rotation=True) - red) ** 2, axis=-1) <= 4500)
                         log.info(f"距离小于35,开始清除{(self.target_loc, 1)}从{self.target}")
                         self.target.remove((self.target_loc, 1))
-                        if rd[0].shape[0] > 0:
-                            self.set_path_state("尝试找新的敌人点位")
-                            recent_loc = (self.real_loc[0] + rd[0][0] - 93, self.real_loc[1] + rd[1][0] - 93)
-                            log.info(f"当前目标集合{self.target}")
-                            self.target.add((recent_loc, 1))
-                            self.target_loc=recent_loc
-                            log.info(f"找到新的敌对目标点：{recent_loc}")
-                        else:
-                            self.set_path_state("未找到红色敌人！！！")
-                            self.save_screen(not_now= True)
-                            # self.save_screen(not_now=True)
-                            has_not_found_red= True
-
-                            # self.target_loc, type = self.get_recent_target()
-                        if has_not_found_red:
-                            self.set_path_state("未找到敌人！！！")
+                        red = [47, 47, 232]
+                        outside=mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True), center_radius=80)
+                        rd = np.where(
+                            np.sum((outside - red) ** 2, axis=-1) <= 512)
+                        if rd[0].shape[0]>50:
+                            #就在旁边
                             break
+                        else:
+                            rd = np.where(
+                                np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True,
+                                                    rotation=True) - red) ** 2, axis=-1) <= 4500)
+                            if rd[0].shape[0] > 0:
+                                self.set_path_state("尝试找新的敌人点位")
+                                recent_loc = (self.real_loc[0] + rd[0][0] - 93, self.real_loc[1] + rd[1][0] - 93)
+                                log.info(f"当前目标集合{self.target}")
+                                self.target.add((recent_loc, 1))
+                                self.target_loc=recent_loc
+                                log.info(f"找到新的敌对目标点：{recent_loc}")
+                            else:
+                                self.set_path_state("未找到红色敌人！！！")
+                                self.save_screen(not_now= True)
+                                # self.save_screen(not_now=True)
+                                has_not_found_red= True
+                                # self.target_loc, type = self.get_recent_target()
+                            if has_not_found_red:
+                                self.set_path_state("未找到敌人！！！")
+                                break
                 ds = get_dis(self.real_loc, self.target_loc)
                 if ds>threshold_distance[self.target_type]:
                     self.set_path_state("距离较远，开始更新方向2")
@@ -1687,18 +1694,26 @@ class UniverseUtils:
                             break
                         curloc = (120, 127)
                         shape = (int(self.scx * 190), int(self.scx * 190))
-                        local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True)
                         red = [47, 47, 232]
-                        rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 4500)
-                        if rd[0].shape[0] > 0:
-                            target = ((rd[0][0], rd[1][0]), 3)
-                            self.get_screen()
-                            # local_screen = self.get_local(0.9333, 0.8657, shape)
-                            self.update_direction_data(mode=2,target=target)
-                        ds = get_dis(self.real_loc, self.target_loc)
-                        if ds>28:
-                            log.debug(f"距离目标{ds},太远，等待{(ds-20)//8}秒")
-                            time.sleep((ds-20)//8)
+                        outside=mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True), center_radius=80)
+                        rd = np.where(
+                            np.sum((outside - red) ** 2, axis=-1) <= 512)
+                        if rd[0].shape[0]>50:
+                            #就在旁边
+                            pass
+                        else:
+                            local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True)
+
+                            rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 4500)
+                            if rd[0].shape[0] > 0:
+                                target = ((rd[0][0], rd[1][0]), 3)
+                                self.get_screen()
+                                # local_screen = self.get_local(0.9333, 0.8657, shape)
+                                self.update_direction_data(mode=2,target=target)
+                            ds = get_dis(self.real_loc, self.target_loc)
+                            if ds>28:
+                                log.debug(f"距离目标{ds},太远，等待{(ds-20)//8}秒")
+                                time.sleep((ds-20)//8)
                         if self.quan:
                             key_mouse_manager.keyUp("w")
                             self.use_e()
