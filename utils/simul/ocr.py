@@ -4,7 +4,7 @@ from utils.onnxocr.onnx_paddleocr import ONNXPaddleOcr
 from utils.diver.args import args
 import numpy as np
 import cv2 as cv
-from utils.log import log
+from utils.log import CUS_LOGGER
 from utils.public_ocr import filter_non_white, box_contain, sort_text, merge
 
 
@@ -166,7 +166,7 @@ class My_TS:
                 found = text in self.text
                 
             if found:
-                log.debug(f"识别到文本：{matched_text}匹配文本：{self.text},位置：{[int(res['box'][0][0]), int(res['box'][1][0]), int(res['box'][0][1]), int(res['box'][2][1])]}")
+                CUS_LOGGER.debug(f"识别到文本：{matched_text}匹配文本：{self.text},位置：{[int(res['box'][0][0]), int(res['box'][1][0]), int(res['box'][0][1]), int(res['box'][2][1])]}")
                 if not find_all:
                     return res['box']
                 else:
@@ -208,7 +208,7 @@ class My_TS:
         ans = []
         for res in self.res:
             if box is None:
-                log.debug(f"文本：{res['raw_text']}, 坐标：{res['box']}")
+                CUS_LOGGER.debug(f"文本：{res['raw_text']}, 坐标：{res['box']}")
             elif forward == 0:
                 if box_contain(box, res['box'], redundancy=redundancy):
                     ans.append(res)

@@ -556,10 +556,10 @@ def test_mask_minimap_outside(image_path, center_radius=40):
     return masked_minimap
 
 if __name__ == "__main__":
-    # pth="../temp/20251230_164205.png"
-    # image = cv2.imread(pth)
+    pth="../temp/20260120_123030.png"
+    image = cv2.imread(pth)
     # # analyze_red(image)
-    # rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS)
+    rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS)
     # # direction_minimap = get_minimap(image.copy(), radius=DIRECTION_RADIUS)
     # # s_time = time.time()
     # # rotation=update_rotation(minimap=rotation_minimap)
@@ -568,15 +568,15 @@ if __name__ == "__main__":
     # # direct=update_direction(image)
     # # e_time = time.time()
     # # print('更新视角耗时:', d_time - s_time, '更新方向耗时:', e_time - d_time)
-    # rotation, direct =update_minimap_data(image)
-    # show_minimap(rotation_minimap, rotation, direct)
-    pth1 = "./rotated_minimap_20251230_171434.png"
-    pth2 = "./20251021_203128.png"
+    rotation, direct =update_minimap_data(image)
+    show_minimap(rotation_minimap, rotation, direct)
+    # pth1 = "./rotated_minimap_20251230_171434.png"
+    # pth2 = "./20251021_203128.png"
     # pth2= "../temp/20251230_164150.png"
     # compare_minimap_textures(pth1, pth2)
     # img = cv2.imread(pth1)
     # test_rotation_with_minimap(img)
     # 测试获取视角角度
     # rotation = get_minimap_rotation(pth1)
-    test_mask_minimap_outside(pth2, center_radius=40)
+    # test_mask_minimap_outside(pth2, center_radius=40)
     # subtract_rotated_texture(pth2, pth1)

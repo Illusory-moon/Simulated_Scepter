@@ -2,7 +2,7 @@ from utils.onnxocr.onnx_paddleocr import ONNXPaddleOcr
 from utils.diver.args import args
 import numpy as np
 import cv2 as cv
-from utils.log import log
+from utils.log import CUS_LOGGER
 import time
 
 from utils.public_ocr import filter_non_white, box_contain, sort_text, merge
@@ -30,21 +30,21 @@ class My_TS:
         """
         识别传入图像的文本并保存在self.res中
         """
-        log.info(f"ocr图片大小{img.shape}")
+        CUS_LOGGER.info(f"ocr图片大小{img.shape}")
         if self.forward_img is not None and self.forward_img.shape == img.shape and np.sum(
                 np.abs(self.forward_img - img)) < 1e-6:
             return
         self.forward_img = img
         self.res = []
-        log.info("真开始ocr")
+        CUS_LOGGER.info("真开始ocr")
         ocr_res = self.ts.ocr(img)
-        log.debug(f"识别结果：{ocr_res}")
+        CUS_LOGGER.debug(f"识别结果：{ocr_res}")
         for res in ocr_res:
             res = {'raw_text': res[1][0], 'box': np.array(res[0]), 'score': res[1][1]}
             res['box'] = [int(np.min(res['box'][:, 0])), int(np.max(res['box'][:, 0])), int(np.min(res['box'][:, 1])),
                           int(np.max(res['box'][:, 1]))]
             self.res.append(res)
-        log.debug(f"获取文本结果：{self.res}")
+        CUS_LOGGER.debug(f"获取文本结果：{self.res}")
         self.res = merge(self.res)
 
     def find_with_text(self, text=[]):
@@ -78,7 +78,7 @@ class My_TS:
                 found = text in self.text
 
             if found:
-                log.debug(
+                CUS_LOGGER.debug(
                     f"识别到文本：{matched_text}匹配文本：{self.text},位置：{[int(res['box'][0][0]), int(res['box'][1][0]), int(res['box'][0][1]), int(res['box'][2][1])]}")
                 if not find_all:
                     return res['box']
@@ -108,7 +108,7 @@ class My_TS:
         ans = []
         for res in self.res:
             if box is None:
-                log.debug(f"文本：{res['raw_text']}, 坐标：{res['box']}")
+                CUS_LOGGER.debug(f"文本：{res['raw_text']}, 坐标：{res['box']}")
             elif forward == 0:
                 if box_contain(box, res['box'], redundancy=redundancy):
                     ans.append(res)

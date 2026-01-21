@@ -3,7 +3,7 @@ from ctypes import Structure
 from ctypes.wintypes import DWORD,LONG,WORD
 from threading import Lock
 import numpy as np
-from utils.log import log
+from utils.log import CUS_LOGGER
 import time
 
 class BITMAPINFOHEADER(Structure):
@@ -45,12 +45,18 @@ class Screen():
 
     def grab(self, x, y):
         with lock:
-            for _ in range(10):
-                self.gdi.BitBlt(self.memdc, 0, 0, self.width, self.height, self.srcdc, x, y, 0x40CC0020)
-                bits = self.gdi.GetDIBits(self.memdc, self.bmp, 0, self.height, self.data, self.bmi, 0)
-                if bits != self.height:
-                    log.info('截图失败！')
+            for attempt in range(10):
+                try:
+                    self.gdi.BitBlt(self.memdc, 0, 0, self.width, self.height, self.srcdc, x, y, 0x40CC0020)
+                    bits = self.gdi.GetDIBits(self.memdc, self.bmp, 0, self.height, self.data, self.bmi, 0)
+                    if bits != self.height:
+                        CUS_LOGGER.info(f'截图失败！第{attempt + 1}次尝试')
+                        time.sleep(0.05)
+                        continue
+                    return np.frombuffer(bytearray(self.data), dtype=np.uint8).reshape((self.height,self.width,4))[:,:,:3]
+                except Exception as e:
+                    CUS_LOGGER.info(f'截图过程中发生异常: {e}, 第{attempt + 1}次尝试')
                     time.sleep(0.05)
                     continue
-                return np.frombuffer(bytearray(self.data), dtype=np.uint8).reshape((self.height,self.width,4))[:,:,:3]
-        return np.zeros((self.height,self.width,4))
+        CUS_LOGGER.info('截图失败！已达到最大重试次数')
+        return np.zeros((self.height,self.width,3), dtype=np.uint8)

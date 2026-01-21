@@ -19,7 +19,7 @@ import traceback
 
 from config.GLOBAL import key_mouse_manager
 from utils.diver.config import config
-from utils.log import log
+from utils.log import CUS_LOGGER
 import utils.diver.ocr as ocr
 import utils.diver.keyops as keyops
 from utils.public_ocr import merge_text
@@ -37,7 +37,7 @@ from utils.utils.get_win_rect import get_window_rect
 def notif(title, msg, cnt=None):
     # if '完成' in title:
     #     return 0
-    log.info("通知：" + msg + "  " + title)
+    CUS_LOGGER.info("通知：" + msg + "  " + title)
     if cnt is not None:
         tm = str(time.time())
     else:
@@ -111,7 +111,7 @@ class UniverseUtils:
         self.lst_mask = None
         self.event_mask = None
         self.bx, self.by = 1920, 1080
-        log.warning("等待游戏窗口")
+        CUS_LOGGER.warning("等待游戏窗口")
         self.tss = "ey.jpg"
         while True:
             try:
@@ -149,12 +149,12 @@ class UniverseUtils:
                 try:
                     self.scale = ctypes.windll.user32.GetDpiForWindow(hwnd) / 96.0
                 except:
-                    log.info('DPI获取失败')
+                    CUS_LOGGER.info('DPI获取失败')
                     self.scale = 1.0
-                log.info(
+                CUS_LOGGER.info(
                     "DPI: " + str(self.scale) + " A:" + str(int(self.multi * 100) / 100)
                 )
-                log.info("TEXT: " + str(Text))
+                CUS_LOGGER.info("TEXT: " + str(Text))
                 # 计算出真实分辨率
                 self.real_width = int(self.xx * scale_x)
                 # x01y01:窗口左上右下坐标
@@ -162,7 +162,7 @@ class UniverseUtils:
                 # scx scy:当前窗口和基准窗口（1920*1080）缩放大小比例
                 if Text == "崩坏：星穹铁道" or Text == "云·星穹铁道":
                     if self.xx != 1920 or self.yy != 1080:
-                        log.error(f"分辨率错误 {self.xx} {self.yy} 请设为1920*1080")
+                        CUS_LOGGER.error(f"分辨率错误 {self.xx} {self.yy} 请设为1920*1080")
                     break
                 else:
                     time.sleep(0.3)
@@ -183,7 +183,7 @@ class UniverseUtils:
 
     def press(self, c, t=0):
         if c not in "3r":
-            log.debug(f"按下按钮 {c}，等待 {t} 秒后释放")
+            CUS_LOGGER.debug(f"按下按钮 {c}，等待 {t} 秒后释放")
         if c=='e' and self.allow_e==0:
             return
         if self.slow and c=='shift':
@@ -257,7 +257,7 @@ class UniverseUtils:
         # 得到一个点的浮点表示
         x = self.x1 - x
         y = self.y1 - y
-        log.debug("获取到点：{:.4f},{:.4f}".format(x / self.xx, y / self.yy))
+        CUS_LOGGER.debug("获取到点：{:.4f},{:.4f}".format(x / self.xx, y / self.yy))
 
     def calc_point(self, point, offset):
         return (point[0] - offset[0] / self.xx, point[1] - offset[1] / self.yy)
@@ -280,14 +280,14 @@ class UniverseUtils:
                 return True
             else:
                 if warning:
-                    log.warning(f"{text}文本未找到(非单行)")
+                    CUS_LOGGER.warning(f"{text}文本未找到(非单行)")
         if need_fresh:
             img = self.get_screen()
         else:
             img = self.screen
         if box:
             match = self.ts.ocr_one_row(img, box)
-            log.info(f"尝试匹配：{text}匹配结果：{match}")
+            CUS_LOGGER.info(f"尝试匹配：{text}匹配结果：{match}")
             if len(match) and click:
                 key_mouse_manager.click(
                     (box[0] + box[1]) // 2,
@@ -307,7 +307,7 @@ class UniverseUtils:
                 time.sleep(after_delay)
             return True
         if warning:
-            log.warning(f"{text}文本未找到")
+            CUS_LOGGER.warning(f"{text}文本未找到")
         return False
 
     # 由click_target调用，返回图片匹配结果
@@ -452,10 +452,10 @@ class UniverseUtils:
         while True:
             result = self.scan_screenshot(target, mask, refine_mask, use_binary)
             if result["max_val"] > threshold:
-                log.info(f"匹配度{result['max_val']}")
+                CUS_LOGGER.info(f"匹配度{result['max_val']}")
                 points = self.calculated(result, target.shape)
                 self.get_point(*points)
-                log.info(f"target shape: {target.shape}")
+                CUS_LOGGER.info(f"target shape: {target.shape}")
                 if click:
                     self.click(points)
                 return
@@ -519,7 +519,7 @@ class UniverseUtils:
         self.tm = max_val
         if max_val > threshold:
             if self.last_info != path:
-                log.info("匹配到图片 %s 相似度 %f 阈值 %f" % (path, max_val, threshold))
+                CUS_LOGGER.info("匹配到图片 %s 相似度 %f 阈值 %f" % (path, max_val, threshold))
             self.last_info = path
         return max_val > threshold
     
@@ -544,7 +544,7 @@ class UniverseUtils:
         self.tm = max_val
         if max_val > threshold:
             if self.last_info != path:
-                log.info("匹配到图片 %s 相似度 %f 阈值 %f" % (path, max_val, threshold))
+                CUS_LOGGER.info("匹配到图片 %s 相似度 %f 阈值 %f" % (path, max_val, threshold))
             self.last_info = path
         return max_val > threshold
 
@@ -652,7 +652,7 @@ class UniverseUtils:
         hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
         Text = win32gui.GetWindowText(hwnd)
         while Text != "崩坏：星穹铁道" and Text != "云·星穹铁道" and not self._stop:
-            log.warning("等待游戏窗口")
+            CUS_LOGGER.warning("等待游戏窗口")
             time.sleep(0.5)
             hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
             Text = win32gui.GetWindowText(hwnd)
@@ -819,7 +819,7 @@ class UniverseUtils:
             for i in range(12, -1, -1):
                 if self.check("floor/ff" + str(i + 1), 0.0589, 0.8796):
                     self.floor = i
-                    log.info(f"当前层数：{i+1}")
+                    CUS_LOGGER.info(f"当前层数：{i + 1}")
                     self.floor_init = 1
                     break
         self.press("m", 0.2)
@@ -832,7 +832,7 @@ class UniverseUtils:
             text = self.ts.ocr_one_row(self.screen, [1206, 1437, 587, 635])
             print(text)
             if len(text):
-                log.info('识别到交互信息：'+text)
+                CUS_LOGGER.info('识别到交互信息：' + text)
                 for i in is_in:
                     if i in text:
                         return 1
@@ -872,7 +872,7 @@ class UniverseUtils:
         if max_val > threshold:
             nearest = (max_loc[1] + sp[0] // 2, max_loc[0] + sp[1] // 2)
             target = (nearest, 1)
-            log.info(f"交互点相似度{max_val}，位置{max_loc[1]},{max_loc[0]}")
+            CUS_LOGGER.info(f"交互点相似度{max_val}，位置{max_loc[1]},{max_loc[0]}")
             if self.floor >= 12:
                 self.floor = 11
         else:  # 226 64 66
@@ -883,7 +883,7 @@ class UniverseUtils:
             if max_val > threshold-0.035*(self.floor in [4,8,11]):
                 nearest = (max_loc[1] + sp[0] // 2, max_loc[0] + sp[1] // 2)
                 target = (nearest, 2)
-                log.info(f"黑塔相似度{max_val}，位置{max_loc[1]},{max_loc[0]}")
+                CUS_LOGGER.info(f"黑塔相似度{max_val}，位置{max_loc[1]},{max_loc[0]}")
                 if self.floor >= 12:
                     self.floor = 11
         for i in range(local_screen.shape[0]):
@@ -964,7 +964,7 @@ class UniverseUtils:
                     "f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96
                 ) and not self.isrun():
                 ava = 1
-        log.info('交互点生效：'+str(ava))
+        CUS_LOGGER.info('交互点生效：' + str(ava))
         if ava:
             if must_be == 'event':
                 self.mini_state += 2
@@ -973,7 +973,7 @@ class UniverseUtils:
                 self.floor += 1
                 self.f_time = time.time()
                 self.lst_changed = time.time()
-                log.info(f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor+1}层")
+                CUS_LOGGER.info(f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor + 1}层")
             else:
                 if self.ts.sim("黑塔"):
                     self.quit = time.time()
@@ -1028,7 +1028,7 @@ class UniverseUtils:
                 for j in deepcopy(self.target):
                     if j[1] == 2:
                         self.target.remove(j)
-                        log.info("removed:" + str(j))
+                        CUS_LOGGER.info("removed:" + str(j))
                 return
             self.mouse_move(sub)
             self.ang = ang
@@ -1112,7 +1112,7 @@ class UniverseUtils:
                         dls = [100000]
                         dtm = [time.time()]
                         self.target.remove((loc, type))
-                        log.info("removed:" + str((loc, type)))
+                        CUS_LOGGER.info("removed:" + str((loc, type)))
                         self.lst_changed = time.time()
                         loc, type = self.get_tar()
                         if type == 3:
@@ -1129,7 +1129,7 @@ class UniverseUtils:
                         self.press('f')
                         keyops.keyUp("w")
                         if self.nof(must_be='tp'):
-                            log.info('大图识别到传送点!')
+                            CUS_LOGGER.info('大图识别到传送点!')
                             return
                     elif (type != 3 and self.goodf()) or not self.isrun():
                         keyops.keyUp("w")
@@ -1141,7 +1141,7 @@ class UniverseUtils:
                     dtm = dtm[1:]
                     dls = dls[1:]
                 c += 1
-            log.info(f"进入新地图或者进入战斗 {nds}")
+            CUS_LOGGER.info(f"进入新地图或者进入战斗 {nds}")
             if type == 0:
                 self.lst_tm = time.time()
             if type == 1:
@@ -1183,7 +1183,7 @@ class UniverseUtils:
                     if self.quan and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                         return
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                        log.info("大图识别到传送点")
+                        CUS_LOGGER.info("大图识别到传送点")
                         self.press('f')
                         if self.nof(must_be='tp'):
                             time.sleep(1.5)
@@ -1198,7 +1198,7 @@ class UniverseUtils:
             elif nds <= 20 or self.quan:
                 try:
                     self.target.remove((loc, type))
-                    log.info("removed:" + str((loc, type)))
+                    CUS_LOGGER.info("removed:" + str((loc, type)))
                     self.lst_changed = time.time()
                 except:
                     pass
@@ -1374,7 +1374,7 @@ class UniverseUtils:
         matcher = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
         matches = matcher.match(key1, key2)
         similarity_score = len(matches) / max(len(key1), len(key2))
-        log.info(f"相似度：{similarity_score}")
+        CUS_LOGGER.info(f"相似度：{similarity_score}")
         return
 
     # 匹配地图，找到最相似的地图，确定当前房间对应的地图
@@ -1547,7 +1547,7 @@ class UniverseUtils:
             if self.mini_target==1:
                 if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
                     self.press('f')
-                    log.info('发现事件交互')
+                    CUS_LOGGER.info('发现事件交互')
                     self.stop_move=1
                     need_confirm = 1
                     if self.nof(must_be='event'):
@@ -1558,7 +1558,7 @@ class UniverseUtils:
                 if self.goodf() and not (self.ts.sim("黑塔") and time.time() - self.quit < 30):
                     if self.speed <= 0 or not self.ts.sim("黑塔"):
                         self.press('f')
-                        log.info('need_confirm '+self.ts.text)
+                        CUS_LOGGER.info('need_confirm ' + self.ts.text)
                         self.stop_move=1
                         need_confirm = 1
                         if self.nof():

@@ -23,7 +23,7 @@ import traceback
 from config.GLOBAL import key_mouse_manager
 from diver import merge_text
 from utils.simul.config import config
-from utils.log import log
+from utils.log import CUS_LOGGER
 import utils.simul.ocr as ocr
 from utils.screenshot import Screen
 import threading
@@ -76,6 +76,7 @@ def extract_features(img):
 
 class UniverseUtils:
     def __init__(self,speed=False,gui=None):
+        self.ang = 270
         #是否速通
         self.speed = speed
         #当前计算坐标
@@ -136,12 +137,12 @@ class UniverseUtils:
             if config.fates[i] == self.fate:
                 self.my_fate = i
         if self.my_fate == -1:
-            log.info("info有误，自动选择巡猎命途    错误：" + self.fate)
+            CUS_LOGGER.info("info有误，自动选择巡猎命途    错误：" + self.fate)
             self.my_fate = 4
         self.tk = text_keys(self.my_fate)
         self.debug, self.find = 0, 0
         self.bx, self.by = 1920, 1080
-        log.warning("等待游戏窗口")
+        CUS_LOGGER.warning("等待游戏窗口")
         while True:
             try:
                 hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
@@ -175,12 +176,12 @@ class UniverseUtils:
                 try:
                     self.scale = ctypes.windll.user32.GetDpiForWindow(hwnd) / 96.0
                 except:
-                    log.info('DPI获取失败')
+                    CUS_LOGGER.info('DPI获取失败')
                     self.scale = 1.0
-                log.info(
+                CUS_LOGGER.info(
                     "DPI: " + str(self.scale) + " A:" + str(int(self.multi * 100) / 100)
                 )
-                log.info("TEXT: " + str(Text))
+                CUS_LOGGER.info("TEXT: " + str(Text))
                 # 计算出真实分辨率
                 self.real_width = int(self.xx * scale_x)
                 # x01y01:窗口左上右下坐标
@@ -189,7 +190,7 @@ class UniverseUtils:
                 if Text == "崩坏：星穹铁道" or Text == "云·星穹铁道":
                     time.sleep(1)
                     if self.xx != 1920 or self.yy != 1080:
-                        log.error("分辨率错误")
+                        CUS_LOGGER.error("分辨率错误")
                     break
                 else:
                     time.sleep(0.3)
@@ -283,14 +284,14 @@ class UniverseUtils:
                 return True
             else:
                 if warning:
-                    log.warning(f"{text}文本未找到(非单行)当前返回结果{ocr_text}")
+                    CUS_LOGGER.warning(f"{text}文本未找到(非单行)当前返回结果{ocr_text}")
         if need_fresh:
             img = self.get_screen()
         else:
             img = self.screen
         if box:
             match=self.ts.ocr_one_row(img,box)
-            log.info(f"尝试匹配：{text}匹配结果：{match}")
+            CUS_LOGGER.info(f"尝试匹配：{text}匹配结果：{match}")
             # 检查匹配结果是否包含目标文本
             if len(match) and text in match:
                 if click:
@@ -314,7 +315,7 @@ class UniverseUtils:
                 time.sleep(after_delay)
             return True
         if warning:
-            log.warning(f"{text}文本未找到")
+            CUS_LOGGER.warning(f"{text}文本未找到")
         return False
 
     # 由click_target调用，返回图片匹配结果
@@ -350,10 +351,10 @@ class UniverseUtils:
         while True:
             result = self.scan_screenshot(target)
             if result["max_val"] > threshold:
-                log.info(f"匹配度{result['max_val']}")
+                CUS_LOGGER.info(f"匹配度{result['max_val']}")
                 points = self.calculated(result, target.shape)
                 self.get_point(*points)
-                log.info(f"target shape: {target.shape}")
+                CUS_LOGGER.info(f"target shape: {target.shape}")
                 if click:
                     key_mouse_manager.click(points)
                 return
@@ -463,7 +464,7 @@ class UniverseUtils:
         self.tm = max_val
         if max_val > threshold:
             if self.last_info != path:
-                log.info("匹配到图片 %s 相似度 %f 阈值 %f" % (path, max_val, threshold))
+                CUS_LOGGER.info("匹配到图片 %s 相似度 %f 阈值 %f" % (path, max_val, threshold))
             self.last_info = path
         return max_val > threshold
 
@@ -510,7 +511,7 @@ class UniverseUtils:
             dx = self.get_end_point()
             off = 0
             if dx is None:
-                log.debug(f'旋转查找终点')
+                CUS_LOGGER.debug(f'旋转查找终点')
                 for k in [60,120,60,60,30,30,-60,-60,-60,-60,-60,-60]:
                     if self.ang_neg:
                         key_mouse_manager.mouse_move(k)
@@ -526,7 +527,7 @@ class UniverseUtils:
                     key_mouse_manager.mouse_move(off*1.03)
                     time.sleep(0.3)
                     return 0
-        log.debug(f"移动面向终点 参数{i}移动距离{dx}" )
+        CUS_LOGGER.debug(f"移动面向终点 参数{i}移动距离{dx}")
         if i == 0:
             key_mouse_manager.mouse_move(dx / 3)
             time.sleep(0.3)
@@ -577,9 +578,9 @@ class UniverseUtils:
         current_time = time.time()
         if self.last_path_state_time is not None:
             elapsed_time = current_time - self.last_path_state_time
-            log.debug(f"{text} (距离上次日志: {elapsed_time:.2f}秒)")
+            CUS_LOGGER.debug(f"{text} (距离上次日志: {elapsed_time:.2f}秒)")
         else:
-            log.debug(text)
+            CUS_LOGGER.debug(text)
         self.last_path_state_time = current_time
         
         if hasattr(self, 'gui') and self.gui is not None and hasattr(self.gui, 'set_find_path_state'):
@@ -702,11 +703,11 @@ class UniverseUtils:
             for i in range(12, -1, -1):
                 if self.check("floor/ff" + str(i + 1), 0.0589, 0.8796):
                     self.floor = i
-                    log.info(f"当前层数：{i+1}")
+                    CUS_LOGGER.info(f"当前层数：{i + 1}")
                     self.floor_init = 1
                     break
         if self.floor!=old_floor and old_floor!=0:
-            log.error(f"层数已更新为：{self.floor+1}")
+            CUS_LOGGER.error(f"层数已更新为：{self.floor + 1}")
             # raise FloorError(f"层数不一致旧{old_floor+1}, 新{self.floor+1}")
         key_mouse_manager.press("m", 0.2)
         time.sleep(1)
@@ -716,7 +717,7 @@ class UniverseUtils:
         """
         不是"沉浸", "紧锁", "复活", "下载"的交互
         """
-        log.debug("尝试判断当前交互是否最佳")
+        CUS_LOGGER.debug("尝试判断当前交互是否最佳")
         t_start=time.time()
         if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
             return False,0
@@ -728,8 +729,8 @@ class UniverseUtils:
             text = self.ts.similar_list(self.tk.interacts, img)
         is_killed = text in ["沉浸", "紧锁", "复活", "下载"]
         if text is not None:
-            log.info('识别到交互信息：'+text)
-        log.debug(f"交互最佳结果判断{text is not None and not is_killed}")
+            CUS_LOGGER.info('识别到交互信息：' + text)
+        CUS_LOGGER.debug(f"交互最佳结果判断{text is not None and not is_killed}")
         t_end=time.time()
         return text is not None and not is_killed, t_end-t_start
 
@@ -759,21 +760,21 @@ class UniverseUtils:
             rd = np.where(np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True) - red) ** 2, axis=-1) <= 4500)
             if not has_removed:
                 self.target.remove((recent_loc, 1))
-                log.info(f"移除目标{recent_loc},当前状态{self.target},距离{mn_dis}")
+                CUS_LOGGER.info(f"移除目标{recent_loc},当前状态{self.target},距离{mn_dis}")
                 has_removed = True
             if rd[0].shape[0] > 0:
                 recent_loc = (self.real_loc[0]+rd[0][0]-93, self.real_loc[1]+rd[1][0]-93)
                 self.target.add((recent_loc, 1))
-                log.info(f"找到新的敌对目标点：{recent_loc}")
+                CUS_LOGGER.info(f"找到新的敌对目标点：{recent_loc}")
             else:
                 self.target.add((recent_loc, 0))
-                log.info(f"未找到敌对目标点，使用当前作为路径点位：{recent_loc}")
+                CUS_LOGGER.info(f"未找到敌对目标点，使用当前作为路径点位：{recent_loc}")
                 recent_type=0
         return recent_loc, recent_type
 
     def move_to_interact(self, ii=0):
         self.get_screen()
-        log.info("正在寻找交互点")
+        CUS_LOGGER.info("正在寻找交互点")
         threshold = 0.88
         # shape = (int(self.scx * 190), int(self.scx * 190))
         # curloc = (118 + 2, 125 + 2)
@@ -788,7 +789,7 @@ class UniverseUtils:
         if max_val > threshold:
             nearest = (max_loc[1] + sp[0] // 2, max_loc[0] + sp[1] // 2)
             target = (nearest, 1)
-            log.info(f"交互点相似度{max_val}，位置{max_loc[1]},{max_loc[0]},图像序号{ii}")
+            CUS_LOGGER.info(f"交互点相似度{max_val}，位置{max_loc[1]},{max_loc[0]},图像序号{ii}")
             
             if self.floor >= 12:
                 self.floor = 11
@@ -801,7 +802,7 @@ class UniverseUtils:
             if max_val > threshold-0.035*(self.floor in [4,8,11]):
                 nearest = (max_loc[1] + sp[0] // 2, max_loc[0] + sp[1] // 2)
                 target = (nearest, 2)
-                log.info(f"黑塔相似度{max_val}，位置{max_loc[1]},{max_loc[0]}")
+                CUS_LOGGER.info(f"黑塔相似度{max_val}，位置{max_loc[1]},{max_loc[0]}")
 
                 
                 if self.floor >= 12:
@@ -823,7 +824,7 @@ class UniverseUtils:
         if self.mini_target == 0:
             self.mini_target = target[1]
         if target[1] >= 1:
-            log.info(f"交互点类型{target[1]}，位置{target[0][0]},{target[0][1]}")
+            CUS_LOGGER.info(f"交互点类型{target[1]}，位置{target[0][0]},{target[0][1]}")
             self.get_screen()
             # shape = (int(self.scx * 190), int(self.scx * 190))
             # local_screen = self.get_local(0.9333, 0.8657, shape)
@@ -835,7 +836,7 @@ class UniverseUtils:
             return 0
 
     def move_thread(self):
-        log.info("启动移动线程")
+        CUS_LOGGER.info("启动移动线程")
         me = 0
         if self.mini_state > 2:
             me = self.move_to_end()
@@ -854,7 +855,7 @@ class UniverseUtils:
                 self.move_to_interact()
             else:
                 me = max(self.move_to_end(me), me)
-        log.info("停止移动线程")
+        CUS_LOGGER.info("停止移动线程")
         try:
             '''
             exec(
@@ -927,7 +928,7 @@ class UniverseUtils:
             if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True) and (not self.is_run() or must_be == 'tp'):
                 ava = True
         if ava:
-            log.debug('交互点生效')
+            CUS_LOGGER.debug('交互点生效')
             if must_be == 'event':
                 self.mini_state += 2
             elif must_be== 'tp':
@@ -935,13 +936,13 @@ class UniverseUtils:
                 self.floor += 1
                 self.f_time = time.time()
                 self.lst_changed = time.time()
-                log.info(f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor+1}层")
+                CUS_LOGGER.info(f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor + 1}层")
             else:
                 if self.ts.similar("黑塔"):
                     self.quit = time.time()
                 self.mini_state += 2
         else:
-            log.warning('交互点未生效')
+            CUS_LOGGER.warning('交互点未生效')
         return ava
     def save_screen(self, save_path=r"./temp",force=False,not_now=False):
         """
@@ -968,18 +969,18 @@ class UniverseUtils:
         return sc if force else nc
     def update_direction_data(self,mode=None,target=None):
         self.rotation, d = update_minimap_data(self.screen,rotation=self.rotation if hasattr(self, 'rotation') else 0,direction=self.ang - 270 if hasattr(self, 'ang') else 0)
-        log.debug(f"视角{self.rotation}朝向{d}模式{mode}目标{target}")
-        log.debug(f"当前点位{self.real_loc}目标点位{self.target_loc}")
+        CUS_LOGGER.debug(f"视角{self.rotation}朝向{d}模式{mode}目标{target}")
+        CUS_LOGGER.debug(f"当前点位{self.real_loc}目标点位{self.target_loc}")
         if 20<abs(self.rotation-d)<340:
             key_mouse_manager.wait()
-            self.rotation, d = update_minimap_data(self.get_screen(),rotation=self.rotation, direction=self.ang - 270)
+            self.rotation, d = update_minimap_data(self.get_screen(),rotation=self.rotation, direction=self.ang-270)
             if 20<abs(self.rotation-d)<340 and mode !=1:
                 # cv.imshow("now", self.screen)
                 self.save_screen(not_now=True)
-                log.error(f"角度误差过大视角{self.rotation}朝向{d}模式{mode}")
+                CUS_LOGGER.error(f"角度误差过大视角{self.rotation}朝向{d}模式{mode}")
                 raise BigAngError(f"角度误差过大视角{self.rotation}朝向{d}")
             elif 20<abs(self.rotation-d)<340:
-                log.debug(f"角度误差过大视角{self.rotation}朝向{d}模式1")
+                CUS_LOGGER.debug(f"角度误差过大视角{self.rotation}朝向{d}模式1")
                 d=self.rotation
         self.ang = 270 + d
         self.ang%=360
@@ -998,7 +999,7 @@ class UniverseUtils:
         if  mode==2 and sub==0:
             sub=1e-9
         key_mouse_manager.mouse_move(sub)
-        log.debug(f"当前人物角度为：{str(self.ang)}变换后角度{ang},视角移动{sub}"  )
+        CUS_LOGGER.debug(f"当前人物角度为：{str(self.ang)}变换后角度{ang},视角移动{sub}")
         # 此处变换为了目标角度
         self.ang = ang
     # 寻路函数
@@ -1006,7 +1007,7 @@ class UniverseUtils:
         """
         np.array颜色为（b,g,r)
         """
-        log.info("开始有地图寻路")
+        CUS_LOGGER.info("开始有地图寻路")
         self.set_path_state("开始有地图寻路")
         bw_map = self.get_bw_map(re_screen=0)
         self.loc_off = 0
@@ -1019,9 +1020,9 @@ class UniverseUtils:
         # local_screen = self.get_local(0.9333, 0.8657, shape)
         # 录图模式，将小地图覆盖到录制的大地图中
         if self.find == 0:
-            log.debug("尝试记录地图中")
+            CUS_LOGGER.debug("尝试记录地图中")
             self.write_map(bw_map)
-            log.debug("尝试查找地图中")
+            CUS_LOGGER.debug("尝试查找地图中")
             self.get_map()
         # 寻路模式
         else:
@@ -1038,12 +1039,10 @@ class UniverseUtils:
                     #类型为二，交互点
                     if j[1] == 2:
                         self.target.remove(j)
-                        log.info("检测到交互点，已移除目标:" + str(j))
+                        CUS_LOGGER.info("检测到交互点，已移除目标:" + str(j))
                 return
             self.set_path_state("开始更新方向1")
             #纠正为标准坐标系然后上下反转的坐标系角度（取反估计是为了便于底层操作向左为负，向右为正）
-            if not hasattr(self, 'ang'):
-                self.ang=270
             self.get_real_loc()
             self.target_loc, self.target_type = self.get_recent_target()
             self.update_direction_data()
@@ -1072,7 +1071,7 @@ class UniverseUtils:
             has_not_found_red=False
             for i in range(3000):
                 self.set_path_state("开始定位寻路")
-                log.info("第{}次定位寻路".format(i))
+                CUS_LOGGER.info("第{}次定位寻路".format(i))
                 if self._stop == 1:
                     key_mouse_manager.keyUp("w")
                     return
@@ -1090,7 +1089,7 @@ class UniverseUtils:
                     now_distance = get_dis(self.real_loc, self.target_loc)
                     if now_distance<35:
                         self.set_path_state("距离敌人过近")
-                        log.info(f"距离小于35,开始清除{(self.target_loc, 1)}从{self.target}")
+                        CUS_LOGGER.info(f"距离小于35,开始清除{(self.target_loc, 1)}从{self.target}")
                         self.target.remove((self.target_loc, 1))
                         red = [47, 47, 232]
                         outside=mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True), center_radius=80)
@@ -1106,10 +1105,10 @@ class UniverseUtils:
                             if rd[0].shape[0] > 0:
                                 self.set_path_state("尝试找新的敌人点位")
                                 recent_loc = (self.real_loc[0] + rd[0][0] - 93, self.real_loc[1] + rd[1][0] - 93)
-                                log.info(f"当前目标集合{self.target}")
+                                CUS_LOGGER.info(f"当前目标集合{self.target}")
                                 self.target.add((recent_loc, 1))
                                 self.target_loc=recent_loc
-                                log.info(f"找到新的敌对目标点：{recent_loc}")
+                                CUS_LOGGER.info(f"找到新的敌对目标点：{recent_loc}")
                             else:
                                 self.set_path_state("未找到红色敌人！！！")
                                 self.save_screen(not_now= True)
@@ -1137,7 +1136,7 @@ class UniverseUtils:
                     self.set_path_state("尝试绕过障碍")
                     ts = " da"
                     if go_direct > 0:
-                        log.info(f"尝试绕过障碍向{ts[go_direct]}")
+                        CUS_LOGGER.info(f"尝试绕过障碍向{ts[go_direct]}")
                         key_mouse_manager.keyUp("w")
                         key_mouse_manager.press("s", 0.35)
                         if go_direct==2:
@@ -1160,7 +1159,7 @@ class UniverseUtils:
                         retry_time = 0
                         is_sprinting = 1
                     else:
-                        log.info("尝试次数过多，不再尝试绕过障碍")
+                        CUS_LOGGER.info("尝试次数过多，不再尝试绕过障碍")
                         key_mouse_manager.keyUp("w")
                         break
                 self.set_path_state("距离目标更近了")
@@ -1170,7 +1169,7 @@ class UniverseUtils:
                         distance_list = [100000]
                         dtm = [time.time()]
                         self.target.remove((self.target_loc, self.target_type))
-                        log.info("已到达路径点" + str((self.target_loc, self.target_type)))
+                        CUS_LOGGER.info("已到达路径点" + str((self.target_loc, self.target_type)))
                         self.lst_changed = time.time()
                         self.target_loc, self.target_type = self.get_recent_target()
                         if self.target_type == 3:
@@ -1188,7 +1187,7 @@ class UniverseUtils:
                         key_mouse_manager.press('f',force= True)
                         key_mouse_manager.keyUp("w")
                         if self.nof(must_be='tp'):
-                            log.info('大图识别到传送点!')
+                            CUS_LOGGER.info('大图识别到传送点!')
                             return
                     elif (self.target_type != 3 and self.good_f()[0]) or not self.is_run():
                         key_mouse_manager.keyUp("w")
@@ -1206,16 +1205,16 @@ class UniverseUtils:
                 retry_time += 1
                 self.set_path_state("重试寻路")
             self.set_path_state("跳出寻路")
-            log.info(f"进入新地图或者进入战斗 {now_distance}")
+            CUS_LOGGER.info(f"进入新地图或者进入战斗 {now_distance}")
             if self.target_type == 0:
                 self.lst_tm = time.time()
             if self.target_type == 1:
                 if has_not_found_red:
                     self.target.add((self.target_loc, 0))
                     self.target_type = 0
-                    log.info(f"寻路时未找到敌对目标点，强行攻击后把旧目标点视作路径")
+                    CUS_LOGGER.info(f"寻路时未找到敌对目标点，强行攻击后把旧目标点视作路径")
                 self.set_path_state("准备开战")
-                log.info("准备开战")
+                CUS_LOGGER.info("准备开战")
                 if not self.quan:
                     if self._stop == 0:
                         key_mouse_manager.click(0.5,0.5)
@@ -1255,7 +1254,7 @@ class UniverseUtils:
                     if self.quan and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                         return
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                        log.info("大图识别到类型三传送点")
+                        CUS_LOGGER.info("大图识别到类型三传送点")
                         key_mouse_manager.press('f',force= True)
                         if self.nof(must_be='tp'):
                             time.sleep(1.5)
@@ -1271,7 +1270,7 @@ class UniverseUtils:
                 self.set_path_state("距离目标非常近2")
                 try:
                     self.target.remove((self.target_loc, self.target_type))
-                    log.info("靠近目标点，移除:" + str((self.target_loc, self.target_type)))
+                    CUS_LOGGER.info("靠近目标点，移除:" + str((self.target_loc, self.target_type)))
                     self.lst_changed = time.time()
                 except:
                     pass
@@ -1279,14 +1278,14 @@ class UniverseUtils:
     def keep_move(self):
         op = 'ws'
         i = 0
-        log.info("开始持续移动")
+        CUS_LOGGER.info("开始持续移动")
         while self.move and not self._stop:
             key_mouse_manager.press(op[i], 0.05)
             time.sleep(0.08)
             i ^= 1
         if not self._stop:
             key_mouse_manager.keyDown("w")
-        log.info("结束持续移动")
+        CUS_LOGGER.info("结束持续移动")
 
 
     def write_map(self, bw_map):
@@ -1316,7 +1315,7 @@ class UniverseUtils:
         fbw=0表示当前人物是静止状态，因此缩放到移动状态与大地图匹配）
         ps：大地图是移动状态录制的
         """
-        log.info(f"获取新坐标,当前坐标{self.now_loc}范围{rg},是否移动{fbw},偏移{offset}")
+        CUS_LOGGER.info(f"获取新坐标,当前坐标{self.now_loc}范围{rg},是否移动{fbw},偏移{offset}")
         rge = 88 + rg
         #创建一个2rge大小的地图
         loc_big = np.zeros((rge * 2, rge * 2), dtype=self.big_map.dtype)
@@ -1337,7 +1336,7 @@ class UniverseUtils:
         tt = 4
         kernel = np.zeros((5, 5), np.uint8)
         kernel += 1
-        log.info(f"从大地图中截取对应部分")
+        CUS_LOGGER.info(f"从大地图中截取对应部分")
         if self.find and fbw == 0:
             #用150这个阈值二值化
             tbw = cv.resize(bw_map, (176 + tt * 2, 176 + tt * 2))
@@ -1354,7 +1353,7 @@ class UniverseUtils:
         #bo_4：原图中不存在但在膨胀后出现的区域
         bo_4 = (b_map != 0) & (bo_1 == 0)
         # 枚举匹配，找到匹配点最多的坐标（2rg范围内）
-        log.info("开始枚举匹配")
+        CUS_LOGGER.info("开始枚举匹配")
         for i in range(rge * 2 - 176):
             for j in range(rge * 2 - 176):
                 if (i - rge + 88) ** 2 + (j - rge + 88) ** 2 > rg**2:
@@ -1376,19 +1375,19 @@ class UniverseUtils:
                     if p > max_val:
                         max_val = p
                         max_loc = (i, j)
-        log.info(f"结束枚举匹配")
+        CUS_LOGGER.info(f"结束枚举匹配")
         if max_val != 0:
             self.now_loc = (
                 max_loc[0] + 88 - rge + self.now_loc[0],
                 max_loc[1] + 88 - rge + self.now_loc[1],
             )
-        log.info("新坐标：" + str(self.now_loc))
+        CUS_LOGGER.info("新坐标：" + str(self.now_loc))
         if self.debug:
             cv.imwrite('tp/'+str(time.time())+'.jpg',tmp)
             # log.debug("匹配结果已写入")
             # 保存tmp地图供show_map函数使用
             self.tmp_map = tmp.copy()
-            log.debug(f"tmp地图已保存，形状: {self.tmp_map.shape if self.tmp_map is not None else 'None'}")
+            CUS_LOGGER.debug(f"tmp地图已保存，形状: {self.tmp_map.shape if self.tmp_map is not None else 'None'}")
 
     def get_real_loc(self,delta=0):
         x, y = self.now_loc
@@ -1517,7 +1516,7 @@ class UniverseUtils:
         self.debug_map = deepcopy(get_minimap(self.get_screen(), radius=MINIMAP_RADIUS))
     def auto_update_map(self):
         while self.should_update_map and not self._stop:
-            log.debug("更新一次地图")
+            CUS_LOGGER.debug("更新一次地图")
             self.update_debug_map()
             time.sleep(2)
     def get_direc_only_minimap(self):
@@ -1534,16 +1533,16 @@ class UniverseUtils:
         self.check_bonus含义
         是否领取沉浸奖励
         """
-        log.info("开始无地图寻路")
+        CUS_LOGGER.info("开始无地图寻路")
         self.should_update_map=True
         threading.Thread(target=self.auto_update_map).start()
         if self.debug:
-            log.debug(f'当前状态{self.ang_off},{self.mini_state}')
+            CUS_LOGGER.debug(f'当前状态{self.ang_off},{self.mini_state}')
         self.ang_neg=self.ang_off<0
         if self.ang_off:
             #存在角度偏移值则使视线与角色朝向一致
             time.sleep(0.6)
-            log.debug(f'无地图视角补正{-self.ang_off*1.2}')
+            CUS_LOGGER.debug(f'无地图视角补正{-self.ang_off * 1.2}')
             key_mouse_manager.mouse_move(-self.ang_off*1.2)
             time.sleep(0.3)
             key_mouse_manager.press('w',0.3)
@@ -1619,7 +1618,7 @@ class UniverseUtils:
         need_confirm=0
         init_time = time.time()
         while True:
-            log.info("开始检测交互点循环")
+            CUS_LOGGER.info("开始检测交互点循环")
             self.get_screen()
             if self._stop == 1:
                 key_mouse_manager.keyUp("w")
@@ -1629,7 +1628,7 @@ class UniverseUtils:
                 if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
                     key_mouse_manager.keyUp("w")
                     key_mouse_manager.press('f')
-                    log.info('发现事件交互')
+                    CUS_LOGGER.info('发现事件交互')
                     self.stop_move=1
                     need_confirm = 1
                     if self.nof(must_be='event'):
@@ -1651,7 +1650,7 @@ class UniverseUtils:
                         self.stop_move=1
                         need_confirm = 1
                         key_mouse_manager.wait()
-                        log.info('等待验证交互文本 '+self.ts.text)
+                        CUS_LOGGER.info('等待验证交互文本 ' + self.ts.text)
                         if self.nof():
                             key_mouse_manager.keyUp("w")
                             self.should_update_map = False
@@ -1687,7 +1686,7 @@ class UniverseUtils:
                             key_mouse_manager.keyDown("w")
                     iters = 0
                     while self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95,fresh=True) and not self._stop:
-                        log.info("检测到怪物，准备攻击")
+                        CUS_LOGGER.info("检测到怪物，准备攻击")
                         key_mouse_manager.keyUp("w")
                         iters+=1
                         if iters>4:
@@ -1712,7 +1711,7 @@ class UniverseUtils:
                                 self.update_direction_data(mode=2,target=target)
                             ds = get_dis(self.real_loc, self.target_loc)
                             if ds>28:
-                                log.debug(f"距离目标{ds},太远，等待{(ds-20)//8}秒")
+                                CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 20) // 8}秒")
                                 time.sleep((ds-20)//8)
                         if self.quan:
                             key_mouse_manager.keyUp("w")
@@ -1757,14 +1756,14 @@ class UniverseUtils:
         self.stop_move=1
         key_mouse_manager.keyUp("w")
         if need_confirm or (first and self.mini_target!=2):
-            log.info("尝试乱转找到交互点")
+            CUS_LOGGER.info("尝试乱转找到交互点")
             for i in "sasddwwaa":
                 if self._stop:
                     self.should_update_map = False
                     return
                 self.get_screen()
                 if self.mini_target==1:
-                    log.info(f"必须找到交互点，尝试寻找")
+                    CUS_LOGGER.info(f"必须找到交互点，尝试寻找")
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
                         key_mouse_manager.press('f',force= True)
                         if self.nof(must_be='event'):
@@ -1772,7 +1771,7 @@ class UniverseUtils:
                             return
                 elif self.good_f()[0] and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
                     # cv.imshow("f",self.screen)
-                    log.info(f"找到最佳交互点")
+                    CUS_LOGGER.info(f"找到最佳交互点")
                     key_mouse_manager.press('f',force= True)
                     self.get_screen()
                     # cv.imshow("newf",self.screen)
@@ -1781,7 +1780,7 @@ class UniverseUtils:
                         self.should_update_map = False
                         return
                 key_mouse_manager.press(i, 0.25)
-                log.info(f"向{i}走0.25秒")
+                CUS_LOGGER.info(f"向{i}走0.25秒")
                 time.sleep(0.65)
             key_mouse_manager.click(0.5,0.5)
             self.should_update_map = False

@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import QApplication
 
 from config import GLOBAL
 from load_ui import QMainWindowLoadUI
-from utils.log import log
+from utils.log import CUS_LOGGER
 
 
 class QMainWindowLog(QMainWindowLoadUI):

@@ -10,24 +10,22 @@ import time
 
 import pyuac
 
-
+from utils.log import CUS_LOGGER, log_emitter
 from config import EXTRA
 from route import PATHS
+
 from utils.simul.config import config as config_simul
 from utils.diver.config import config as config_diver
-from simul import SimulatedUniverse
-from diver import DivergentUniverse
-from iron_blood import IronBloodUniverse
+
 from align_angle import main as align_angle_main
 from logger_printer import QMainWindowLog
 from PyQt5.QtWidgets import (
-    QApplication, QLineEdit, QMessageBox, QPushButton, QDialog, QVBoxLayout, QLabel, QTextEdit, QDialogButtonBox
-)
+    QApplication, QLineEdit, QMessageBox)
 from PyQt5.QtCore import pyqtSignal, Qt
 from pathlib import Path
-from utils.log import log
-
-ERROR_SIGNAL=None
+from simul import SimulatedUniverse
+from diver import DivergentUniverse
+from iron_blood import IronBloodUniverse
 
 
 
@@ -60,8 +58,8 @@ class TaskManager:
         except Exception as e:
             import traceback
             error_msg = f"{traceback.format_exc()}"
-            ERROR_SIGNAL.emit(f"任务执行过程中发生异常：{str(e)}",error_msg)
-            log.error(error_msg)
+            log_emitter.show_error_signal.emit(f"任务执行过程中发生异常：{str(e)}", error_msg)
+            CUS_LOGGER.error(error_msg)
 
         finally:
             self.current_task = None
@@ -140,7 +138,6 @@ class TaskThread(threading.Thread):
 
 class MainWindow(QMainWindowLog):
     calibration_finished = pyqtSignal(object)
-    error_signal = pyqtSignal(str,str)
     f5_pressed = pyqtSignal()
     f6_pressed = pyqtSignal()
     f7_pressed = pyqtSignal()
@@ -156,9 +153,7 @@ class MainWindow(QMainWindowLog):
         self.f5_pressed.connect(lambda: self.handle_key_pressed("f5"))
         self.f6_pressed.connect(lambda: self.handle_key_pressed("f6"))
         self.f7_pressed.connect(lambda: self.handle_key_pressed("f7"))
-        global ERROR_SIGNAL
-        ERROR_SIGNAL=self.error_signal
-        ERROR_SIGNAL.connect(self.show_error_message)
+        log_emitter.show_error_signal.connect(self.show_error_message)
     
     def show_error_message(self, title, error_msg):
         """显示错误消息弹窗，支持复制内容并强制置顶"""

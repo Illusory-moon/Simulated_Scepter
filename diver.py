@@ -7,7 +7,7 @@ import win32gui, win32api, win32con
 import json
 
 from utils.diver.ocr import sort_text
-from utils.log import log, set_debug
+from utils.log import CUS_LOGGER
 from utils.log import my_print as print
 from utils.log import print_exc
 from utils.diver.args import args
@@ -94,8 +94,8 @@ class DivergentUniverse(UniverseUtils):
         if debug != 2:
             pyautogui.FAILSAFE = False
         self.update_count()
-        log.info(f"开始运行:初始计数：{self.count}")
-        set_debug(debug > 0)
+        CUS_LOGGER.info(f"开始运行:初始计数：{self.count}")
+        # set_debug(debug > 0)
 
     def route(self):
         self.goto_diver_universe()
@@ -113,7 +113,7 @@ class DivergentUniverse(UniverseUtils):
                     raise KeyboardInterrupt
                 if not warn_game:
                     warn_game = True
-                    log.warning(f"等待游戏窗口，当前窗口：{Text}")
+                    CUS_LOGGER.warning(f"等待游戏窗口，当前窗口：{Text}")
                 time.sleep(0.5)
                 cnt += 1
                 if cnt == 1200:
@@ -124,13 +124,13 @@ class DivergentUniverse(UniverseUtils):
                 break
             # self.click_target('imgs/zz.jpg',0.9,True) # 如果需要输出某张图片在游戏窗口中的坐标，可以用这个
             self.loop()
-        log.info("停止运行")
+        CUS_LOGGER.info("停止运行")
 
     def loop(self):
         #截图并识别文本
-        log.info("开始ocr")
+        CUS_LOGGER.info("开始ocr")
         self.ts.forward(self.get_screen())
-        log.info("结束ocr")
+        CUS_LOGGER.info("结束ocr")
         # self.ts.find_with_box()
         # exit()
         res = self.run_static()
@@ -150,11 +150,11 @@ class DivergentUniverse(UniverseUtils):
                 text = merge_text(self.ts.find_with_box([400, 1920, 100, 600], redundancy=0))
                 #速通模式跳过转化
                 if self.speed and '转化' in text and '继续战斗' not in text and ('数据' in text or '过量' in text):
-                    log.info('ready to stop')
+                    CUS_LOGGER.info('ready to stop')
                     time.sleep(6)
                     tm = time.time()
                     while time.time() - tm < 15:
-                        log.info('trying to stop')
+                        CUS_LOGGER.info('trying to stop')
                         self.press('esc')
                         time.sleep(2)
                         self.ts.forward(self.get_screen())
@@ -186,11 +186,11 @@ class DivergentUniverse(UniverseUtils):
             text = self.ts.find_with_box(box, redundancy=action.get("redundancy", 30))
             for i in text:
                 if action["text"] in i["raw_text"]:
-                    log.info(f"点击 {action['text']}:{i['box']}")
+                    CUS_LOGGER.info(f"点击 {action['text']}:{i['box']}")
                     self.click_box(i["box"])
                     return 1
         elif "position" in action:
-            log.info(f"点击 {action['position']}")
+            CUS_LOGGER.info(f"点击 {action['position']}")
             self.click_position(action["position"])
             return 1
         elif "sleep" in action:
@@ -215,7 +215,7 @@ class DivergentUniverse(UniverseUtils):
                 text = self.ts.find_with_box(trigger["box"], redundancy=trigger.get("redundancy", 30))
                 #强制跳过或者检查是否存在子串
                 if skip_check or (len(text) and trigger["text"] in merge_text(text)):
-                    log.info(f"触发 {i['name']}:{trigger['text']}")
+                    CUS_LOGGER.info(f"触发 {i['name']}:{trigger['text']}")
                     for j in i["actions"]:
                         self.do_action(j)
                     self.action_history.append(i["name"])
@@ -540,7 +540,7 @@ class DivergentUniverse(UniverseUtils):
                         event_id = (i, e)
                 start = self.now_event == event_id[1]
                 self.now_event = event_id[1]
-                log.info(f"event:{event_id},start:{start}")
+                CUS_LOGGER.info(f"event:{event_id},start:{start}")
             if '事件' not in merge_text(self.ts.find_with_box([92, 195, 54, 88])):
                 return
             
@@ -696,7 +696,7 @@ class DivergentUniverse(UniverseUtils):
         if event_text and event_text < 910 and key == 'd':
             key = 'a'
 
-        log.info(f"align_event: {event_text}, key: {key}")
+        CUS_LOGGER.info(f"align_event: {event_text}, key: {key}")
 
         if event_text:
             if abs(950-event_text) >= 50:
@@ -708,7 +708,7 @@ class DivergentUniverse(UniverseUtils):
                 if key == 'a':
                     sub = -sub
                 print('sub:', sub)
-                log.info(f"event_text_after: {event_text_after}, sub: {sub}")
+                CUS_LOGGER.info(f"event_text_after: {event_text_after}, sub: {sub}")
             else:
                 sub = 100000
 
@@ -854,7 +854,7 @@ class DivergentUniverse(UniverseUtils):
             self.close_and_exit(click = False)
             return 1
         
-        log.info(f"floor:{self.floor}, state:{self.area_state}, area:{area_now}, text:{self.area_text}")
+        CUS_LOGGER.info(f"floor:{self.floor}, state:{self.area_state}, area:{area_now}, text:{self.area_text}")
 
         if area_now in ['事件', '奖励', '遭遇']:
             # 如果存在大黑塔,还是切过来,毕竟这些事件都可能入战
@@ -896,7 +896,7 @@ class DivergentUniverse(UniverseUtils):
                 if total_events is None:
                     self.close_and_exit()
                     return 1
-                log.info(f"total_events step: {total_events}")
+                CUS_LOGGER.info(f"total_events step: {total_events}")
                 
                 if not total_events or not (933 <= total_events[0][0] <= 972):
                     win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, 0, int(-100 * self.multi * self.scale))
@@ -916,16 +916,16 @@ class DivergentUniverse(UniverseUtils):
                     total_events = [(950, 0)]
 
                 portal = self.find_portal()
-                log.info(f"portal_detail: {portal['nums']}")
-                log.info(f"area_state_update: {self.area_state}")
+                CUS_LOGGER.info(f"portal_detail: {portal['nums']}")
+                CUS_LOGGER.info(f"area_state_update: {self.area_state}")
 
                 if portal['nums'] > 0:
                     self.area_state = 2
                 else:
-                    log.info('对齐中...')
+                    CUS_LOGGER.info('对齐中...')
                     self.align_event('d', event_text=total_events[-1][0], click=1)
                     self.area_state += 1 + (len(total_events) == 1)
-                    log.info(f"对齐完成, area_state: {self.area_state}")
+                    CUS_LOGGER.info(f"对齐完成, area_state: {self.area_state}")
 
             elif self.area_state==1:
                 self.keys.fff = 1
@@ -1122,12 +1122,12 @@ class DivergentUniverse(UniverseUtils):
         else:
             remain = 0
             remain_round = -1
-        log.info(
+        CUS_LOGGER.info(
             f"已完成,计数:{self.count} 剩余:{remain_round} 已使用：{tm//60}小时{tm%60}分钟  平均{tm//self.my_cnt}分钟一次  预计剩余{remain//60}小时{remain%60}分钟",
             cnt=str(self.count),
         )
         if self.nums <= self.my_cnt and self.nums >= 0:
-            log.info('已完成上限，准备停止运行')
+            CUS_LOGGER.info('已完成上限，准备停止运行')
             self.end = 1
         self.floor = 0
         self.init_floor()
@@ -1188,7 +1188,7 @@ class DivergentUniverse(UniverseUtils):
         self.count_tm = time.time()
 
     def stop(self, *_, **__):
-        log.info("尝试停止运行")
+        CUS_LOGGER.info("尝试停止运行")
         try:
             self.init_floor()
         except:
@@ -1206,7 +1206,7 @@ class DivergentUniverse(UniverseUtils):
         except KeyboardInterrupt:
             print("KeyboardInterrupt")
             try:
-                log.info('用户终止进程')
+                CUS_LOGGER.info('用户终止进程')
             except:
                 pass
             if not self._stop:
@@ -1214,8 +1214,8 @@ class DivergentUniverse(UniverseUtils):
         except Exception as e:
             print_exc()
             traceback.print_exc()
-            log.info(str(e))
-            log.info("发生错误，尝试停止运行")
+            CUS_LOGGER.info(str(e))
+            CUS_LOGGER.info("发生错误，尝试停止运行")
             self.stop()
 
     def screen_test(self):
@@ -1226,7 +1226,7 @@ class DivergentUniverse(UniverseUtils):
             pass
 
     def goto_diver_universe(self):
-        log.info("前往差分宇宙")
+        CUS_LOGGER.info("前往差分宇宙")
         if self.check("smartphone", 0.9833,0.9380, threshold=0.95,fresh=True):
             key_mouse_manager.press('f4')
             self.click_target('resource/imgs/universe.jpg',threshold=0.9,click=True)
@@ -1235,7 +1235,7 @@ class DivergentUniverse(UniverseUtils):
 
 
 def main():
-    log.info(f"debug: {args.debug}")
+    CUS_LOGGER.info(f"debug: {args.debug}")
     su = DivergentUniverse(args.debug, args.nums, args.speed)
     try:
         su.start()

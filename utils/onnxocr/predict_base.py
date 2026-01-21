@@ -1,4 +1,4 @@
-import onnxruntime
+from onnxruntime import get_available_providers,SessionOptions,InferenceSession
 
 class PredictBase(object):
     def __init__(self, cpu=False):
@@ -8,9 +8,9 @@ class PredictBase(object):
         if self.cpu:
             providers = ['CPUExecutionProvider']
         else:
-            providers = onnxruntime.get_available_providers()
-        sess_options = onnxruntime.SessionOptions()
-        onnx_session = onnxruntime.InferenceSession(model_dir, providers=providers, sess_options=sess_options)
+            providers = get_available_providers()
+        sess_options = SessionOptions()
+        onnx_session = InferenceSession(model_dir, providers=providers, sess_options=sess_options)
 
         return onnx_session
 

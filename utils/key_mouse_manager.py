@@ -6,7 +6,10 @@ import win32api
 import win32con
 from collections import deque
 
-from utils.log import log
+# 延迟导入，避免循环导入
+def get_CUS_LOGGER():
+    from utils.log import CUS_LOGGER
+    return CUS_LOGGER
 
 
 class KeyMouseManager:
@@ -70,7 +73,8 @@ class KeyMouseManager:
         """
         启动键鼠管理器线程
         """
-        log.info("启动键鼠管理器线程")
+        CUS_LOGGER = get_CUS_LOGGER()
+        CUS_LOGGER.info("启动键鼠管理器线程")
         if not self.running:
             self.running = True
             self.operation_queue.clear()
@@ -81,7 +85,8 @@ class KeyMouseManager:
         """
         停止键鼠管理器线程
         """
-        log.info("停止键鼠管理器线程")
+        CUS_LOGGER = get_CUS_LOGGER()
+        CUS_LOGGER.info("停止键鼠管理器线程")
         self.running = False
         if self.worker_thread and self.worker_thread.is_alive():
             # 发送停止信号
@@ -93,7 +98,8 @@ class KeyMouseManager:
         """
         停止键鼠管理器线程
         """
-        log.info("清除当前所有操作")
+        CUS_LOGGER = get_CUS_LOGGER()
+        CUS_LOGGER.info("清除当前所有操作")
         if self.worker_thread and self.worker_thread.is_alive():
             with self.queue_lock:
                 self.operation_queue.clear()  # 清空队列中的所有操作
@@ -101,6 +107,7 @@ class KeyMouseManager:
         """
         工作线程，处理队列中的操作
         """
+        CUS_LOGGER = get_CUS_LOGGER()
         while self.running:
             operation = None
             with self.queue_lock:
@@ -118,7 +125,7 @@ class KeyMouseManager:
             else:
                 # 队列为空，短暂休眠
                 time.sleep(0.01)
-        log.info("键鼠管理器线程已停止")
+        CUS_LOGGER.info("键鼠管理器线程已停止")
 
     def _get_mapping(self, key):
         """
@@ -167,7 +174,8 @@ class KeyMouseManager:
         """
         op_type = operation['type']
         force = operation.get('force', False)
-        log.info(f"执行操作{operation}")
+        CUS_LOGGER = get_CUS_LOGGER()
+        CUS_LOGGER.info(f"执行操作{operation}")
         if op_type == 'keyDown':
             key = self._get_mapping(operation['key'])
             pyautogui.keyDown(key)

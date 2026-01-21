@@ -4,7 +4,7 @@ import numpy as np
 import pyuac
 
 from config.GLOBAL import key_mouse_manager
-from utils.log import log
+from utils.log import CUS_LOGGER
 from utils.utils.mminimap import update_minimap_data
 
 
@@ -31,7 +31,7 @@ def main(safe=0, ang=[1,1,3], su=None):
         from utils.diver.config import config
     else:
         from utils.simul.config import config
-    log.info("开始校准")
+    CUS_LOGGER.info("开始校准")
     key_mouse_manager.multi = 1
     init_ang = get_angle(su)
     lst_ang = init_ang
@@ -68,11 +68,11 @@ def main(safe=0, ang=[1,1,3], su=None):
         key_mouse_manager.multi = 1
     
     # 打印基本校准后的角度校准值
-    log.info(f"基本角度校准值: {key_mouse_manager.multi}")
+    CUS_LOGGER.info(f"基本角度校准值: {key_mouse_manager.multi}")
     print(f"基本角度校准值: {key_mouse_manager.multi}")
 
     
-    log.info("所有校准完成")
+    CUS_LOGGER.info("所有校准完成")
     config.angle = str(key_mouse_manager.multi)
     config.save()
     return 1
