@@ -211,7 +211,7 @@
              </sizepolicy>
             </property>
             <property name="text">
-             <string>本软件免费且开源  鼠标悬停在控件上可查看提示信息</string>
+             <string>本软件免费且开源  </string>
             </property>
             <property name="alignment">
              <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -437,7 +437,7 @@ border:none</string>
               </layout>
              </item>
              <item>
-              <layout class="QVBoxLayout" name="Lay_Tab1_Right" stretch="0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
+              <layout class="QVBoxLayout" name="Lay_Tab1_Right" stretch="0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0">
                <property name="spacing">
                 <number>6</number>
                </property>
@@ -564,7 +564,7 @@ border:none</string>
                 </layout>
                </item>
                <item>
-                <layout class="QHBoxLayout" name="Lay_BaseConfig2" stretch="1">
+                <layout class="QHBoxLayout" name="Lay_BaseConfig2" stretch="">
                  <property name="leftMargin">
                   <number>0</number>
                  </property>
@@ -577,90 +577,6 @@ border:none</string>
                  <property name="bottomMargin">
                   <number>0</number>
                  </property>
-                 <item>
-                  <layout class="QHBoxLayout" name="LayBaseConfig1_Right">
-                   <property name="spacing">
-                    <number>5</number>
-                   </property>
-                   <property name="sizeConstraint">
-                    <enum>QLayout::SetDefaultConstraint</enum>
-                   </property>
-                   <property name="leftMargin">
-                    <number>5</number>
-                   </property>
-                   <property name="topMargin">
-                    <number>5</number>
-                   </property>
-                   <property name="rightMargin">
-                    <number>5</number>
-                   </property>
-                   <property name="bottomMargin">
-                    <number>5</number>
-                   </property>
-                   <item>
-                    <widget class="QLabel" name="Name2P_Text">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                       <horstretch>0</horstretch>
-                       <verstretch>0</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="minimumSize">
-                      <size>
-                       <width>60</width>
-                       <height>0</height>
-                      </size>
-                     </property>
-                     <property name="maximumSize">
-                      <size>
-                       <width>16777215</width>
-                       <height>16777215</height>
-                      </size>
-                     </property>
-                     <property name="text">
-                      <string>2P窗口名</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QLineEdit" name="Name2P_Input">
-                     <property name="enabled">
-                      <bool>false</bool>
-                     </property>
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                       <horstretch>0</horstretch>
-                       <verstretch>0</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="minimumSize">
-                      <size>
-                       <width>0</width>
-                       <height>0</height>
-                      </size>
-                     </property>
-                     <property name="maximumSize">
-                      <size>
-                       <width>200</width>
-                       <height>16777215</height>
-                      </size>
-                     </property>
-                     <property name="tabletTracking">
-                      <bool>false</bool>
-                     </property>
-                     <property name="toolTip">
-                      <string>请使用下方拖动功能, 获取该参数</string>
-                     </property>
-                     <property name="autoFillBackground">
-                      <bool>false</bool>
-                     </property>
-                     <property name="text">
-                      <string/>
-                     </property>
-                    </widget>
-                   </item>
-                  </layout>
-                 </item>
                 </layout>
                </item>
                <item>
@@ -682,7 +598,7 @@ border:none</string>
                 </layout>
                </item>
                <item>
-                <layout class="QHBoxLayout" name="Lay_BaseConfig3" stretch="1">
+                <layout class="QHBoxLayout" name="Lay_BaseConfig3" stretch="">
                  <property name="leftMargin">
                   <number>0</number>
                  </property>
@@ -695,87 +611,6 @@ border:none</string>
                  <property name="bottomMargin">
                   <number>0</number>
                  </property>
-                 <item>
-                  <layout class="QHBoxLayout" name="horizontalLayout_16">
-                   <property name="spacing">
-                    <number>5</number>
-                   </property>
-                   <property name="sizeConstraint">
-                    <enum>QLayout::SetDefaultConstraint</enum>
-                   </property>
-                   <property name="leftMargin">
-                    <number>5</number>
-                   </property>
-                   <property name="topMargin">
-                    <number>5</number>
-                   </property>
-                   <property name="rightMargin">
-                    <number>5</number>
-                   </property>
-                   <property name="bottomMargin">
-                    <number>5</number>
-                   </property>
-                   <item>
-                    <widget class="QLabel" name="Level2P_Text">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                       <horstretch>0</horstretch>
-                       <verstretch>0</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="minimumSize">
-                      <size>
-                       <width>60</width>
-                       <height>0</height>
-                      </size>
-                     </property>
-                     <property name="maximumSize">
-                      <size>
-                       <width>16777215</width>
-                       <height>16777215</height>
-                      </size>
-                     </property>
-                     <property name="text">
-                      <string>2P等级</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QSpinBox" name="Level2P_Input">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                       <horstretch>0</horstretch>
-                       <verstretch>0</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="minimumSize">
-                      <size>
-                       <width>0</width>
-                       <height>0</height>
-                      </size>
-                     </property>
-                     <property name="maximumSize">
-                      <size>
-                       <width>200</width>
-                       <height>16777215</height>
-                      </size>
-                     </property>
-                     <property name="toolTip">
-                      <string>您游戏角色的等级</string>
-                     </property>
-                     <property name="minimum">
-                      <number>1</number>
-                     </property>
-                     <property name="maximum">
-                      <number>80</number>
-                     </property>
-                     <property name="value">
-                      <number>80</number>
-                     </property>
-                    </widget>
-                   </item>
-                  </layout>
-                 </item>
                 </layout>
                </item>
                <item>
@@ -814,32 +649,6 @@ border:none</string>
                 <widget class="Line" name="line_99">
                  <property name="orientation">
                   <enum>Qt::Horizontal</enum>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <spacer name="verticalSpacer_4">
-                 <property name="orientation">
-                  <enum>Qt::Vertical</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>20</width>
-                   <height>40</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-               <item>
-                <widget class="QLabel" name="Label_Timer">
-                 <property name="toolTip">
-                  <string/>
-                 </property>
-                 <property name="text">
-                  <string>定时启动</string>
-                 </property>
-                 <property name="alignment">
-                  <set>Qt::AlignCenter</set>
                  </property>
                 </widget>
                </item>
@@ -1425,7 +1234,7 @@ Link Start</string>
             <widget class="QWidget" name="SkinWidget" native="true">
              <property name="styleSheet">
               <string notr="true">#frame{
-	 border-image: url(:/images/qss_images/firefly.png);
+	 border-image: url(:/images/qss_images/background.png);
 }</string>
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_10">
@@ -1546,9 +1355,7 @@ Link Start</string>
                     <string notr="true">font: 30pt &quot;ShouShuti&quot;;</string>
                    </property>
                    <property name="text">
-                    <string>更多超绝皮肤锐意制作中...
-未完待续...
-皮肤特效系统-执念制作</string>
+                    <string>未完待续...</string>
                    </property>
                    <property name="alignment">
                     <set>Qt::AlignCenter</set>
@@ -1636,7 +1443,7 @@ Link Start</string>
                </property>
                <property name="text">
                 <string>假装出现了一个仪表盘
-未完待续</string>
+</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignCenter</set>
@@ -1720,7 +1527,7 @@ Link Start</string>
               <widget class="QLabel" name="Memory_panel">
                <property name="text">
                 <string>假装出现了一个仪表盘
-未完待续</string>
+</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignCenter</set>
@@ -1793,7 +1600,7 @@ Link Start</string>
               <widget class="QLabel" name="cpu_panel">
                <property name="text">
                 <string>假装出现了一个仪表盘
-未完待续</string>
+</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignCenter</set>

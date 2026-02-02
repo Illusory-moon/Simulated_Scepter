@@ -140,7 +140,7 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
         self.Title_Logo.setFixedSize(40, 40)
         self.Title_Logo.setScaledContents(True)
 
-        cus_path = PATHS["root"] + "\\ui\\firefly.png"
+        cus_path = PATHS["root"] + "\\ui\\background.png"
         cus_path = cus_path.replace("\\", "/")
         style_sheet = f"""
             #SkinWidget{{
