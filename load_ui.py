@@ -147,7 +147,6 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
             background-image: url({cus_path});
             background-repeat: no-repeat;
             background-position: center;
-            background-size: contain;  
             border: none;  
             }}
         """

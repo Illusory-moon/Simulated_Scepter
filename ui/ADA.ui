@@ -564,7 +564,7 @@ border:none</string>
                 </layout>
                </item>
                <item>
-                <layout class="QHBoxLayout" name="Lay_BaseConfig2" stretch="">
+                <layout class="QHBoxLayout" name="Lay_BaseConfig2">
                  <property name="leftMargin">
                   <number>0</number>
                  </property>
@@ -598,7 +598,7 @@ border:none</string>
                 </layout>
                </item>
                <item>
-                <layout class="QHBoxLayout" name="Lay_BaseConfig3" stretch="">
+                <layout class="QHBoxLayout" name="Lay_BaseConfig3">
                  <property name="leftMargin">
                   <number>0</number>
                  </property>
@@ -1273,7 +1273,7 @@ Link Start</string>
                       <string>这辈子有了</string>
                      </property>
                      <property name="text">
-                      <string extracomment="这辈子有了！">原皮</string>
+                      <string extracomment="这辈子有了！">原生原皮</string>
                      </property>
                     </widget>
                    </item>
@@ -1294,56 +1294,56 @@ Link Start</string>
                    <item>
                     <widget class="QRadioButton" name="skin4">
                      <property name="text">
-                      <string>闪耀科技</string>
+                      <string>科技主题</string>
                      </property>
                     </widget>
                    </item>
                    <item>
                     <widget class="QRadioButton" name="skin5">
                      <property name="text">
-                      <string>坤子黑脚</string>
+                      <string>i坤主题</string>
                      </property>
                     </widget>
                    </item>
                    <item>
                     <widget class="QRadioButton" name="skin6">
                      <property name="text">
-                      <string>朴素黝黑</string>
+                      <string>黝黑主题</string>
                      </property>
                     </widget>
                    </item>
                    <item>
                     <widget class="QRadioButton" name="skin7">
                      <property name="text">
-                      <string>太极配色</string>
+                      <string>太极主题</string>
                      </property>
                     </widget>
                    </item>
                    <item>
                     <widget class="QRadioButton" name="skin8">
                      <property name="text">
-                      <string>Aqua</string>
+                      <string>Aqua风格</string>
                      </property>
                     </widget>
                    </item>
                    <item>
                     <widget class="QRadioButton" name="skin9">
                      <property name="text">
-                      <string>ManjaroMix</string>
+                      <string>ManjaroMix风格</string>
                      </property>
                     </widget>
                    </item>
                    <item>
                     <widget class="QRadioButton" name="skin10">
                      <property name="text">
-                      <string>MacOS</string>
+                      <string>MacOS风格</string>
                      </property>
                     </widget>
                    </item>
                    <item>
                     <widget class="QRadioButton" name="skin11">
                      <property name="text">
-                      <string>Ubuntu</string>
+                      <string>Ubuntu风格</string>
                      </property>
                     </widget>
                    </item>
