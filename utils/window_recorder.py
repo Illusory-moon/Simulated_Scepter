@@ -10,6 +10,12 @@ import win32gui
 import win32ui
 from PIL import ImageGrab
 
+# 导入必要的 Windows API 函数
+from ctypes import windll, wintypes, byref
+
+# 导入日志模块
+from utils.log import CUS_LOGGER
+
 
 class WindowRecorder:
     def __init__(self, output_file="window_recording.mp4", handle=None, fps=30.0, window_title=None, window_class_name=None, see_time=False,
@@ -37,40 +43,96 @@ class WindowRecorder:
         self.bottom_offset = offsets[3]
         # 是否叠加地图窗口
         self.overlay_map = overlay_map
+        
+    def capture_window_background(self, hwnd):
+        """使用 PrintWindow API 后台截图指定窗口"""
+        if not hwnd or not win32gui.IsWindow(hwnd):
+            return None
+            
+        # 获取窗口尺寸
+        try:
+            rect = win32gui.GetWindowRect(hwnd)
+            width = rect[2] - rect[0]
+            height = rect[3] - rect[1]
+            
+            # 创建设备上下文和位图
+            hwnd_dc = win32gui.GetWindowDC(hwnd)
+            mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
+            save_dc = mfc_dc.CreateCompatibleDC()
+            
+            save_bit_map = win32ui.CreateBitmap()
+            save_bit_map.CreateCompatibleBitmap(mfc_dc, width, height)
+            save_dc.SelectObject(save_bit_map)
+            
+            # 使用 PrintWindow API 后台截图
+            # 参数3表示同时绘制客户区和非客户区
+            result = windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), 3)
+            
+            if result == 1:  # 成功
+                # 转换为 numpy 数组
+                bmp_info = save_bit_map.GetInfo()
+                bmp_str = save_bit_map.GetBitmapBits(True)
+                img = np.frombuffer(bmp_str, dtype=np.uint8)
+                img.shape = (bmp_info['bmHeight'], bmp_info['bmWidth'], 4)  # BGRA
+                
+                # 转换为 BGR 格式
+                img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+                
+                # 释放资源
+                win32gui.DeleteObject(save_bit_map.GetHandle())
+                save_dc.DeleteDC()
+                mfc_dc.DeleteDC()
+                win32gui.ReleaseDC(hwnd, hwnd_dc)
+                
+                return img
+            else:
+                # 释放资源
+                win32gui.DeleteObject(save_bit_map.GetHandle())
+                save_dc.DeleteDC()
+                mfc_dc.DeleteDC()
+                win32gui.ReleaseDC(hwnd, hwnd_dc)
+                
+                return None
+        except Exception as e:
+            CUS_LOGGER.warning(f"后台截图窗口失败: {e}")
+            return None
 
     def start_recording(self):
         """开始录制指定窗口"""
         if self.recording:
-            print("Already recording")
+            CUS_LOGGER.info("Already recording")
             return
             
         # 查找目标窗口
         if not self.hwnd:
             self.hwnd = win32gui.FindWindow(self.window_class_name, self.window_title)
-            print(f"找到窗口句柄: {self.hwnd}")
+            CUS_LOGGER.info(f"找到窗口句柄: {self.hwnd}")
             
         if not self.hwnd:
             if self.window_class_name:
+                CUS_LOGGER.error(f"未找到类名为 '{self.window_class_name}' 且标题包含 '{self.window_title}' 的窗口")
                 raise ValueError(f"未找到类名为 '{self.window_class_name}' 且标题包含 '{self.window_title}' 的窗口")
             else:
+                CUS_LOGGER.error(f"未找到标题包含 '{self.window_title}' 的窗口")
                 raise ValueError(f"未找到标题包含 '{self.window_title}' 的窗口")
         
         # 确保窗口可见且有效
         if not win32gui.IsWindowVisible(self.hwnd):
-            print("警告: 窗口不可见")
+            CUS_LOGGER.warning("警告: 窗口不可见")
             
         if not win32gui.IsWindow(self.hwnd):
+            CUS_LOGGER.error("窗口句柄无效")
             raise ValueError("窗口句柄无效")
 
         # 设置DPI感知
         try:
             ctypes.windll.shcore.SetProcessDpiAwareness(2)  # 2 = Per-monitor v2 DPI awareness
         except Exception as e:
-            print(f"无法设置DPI感知级别: {e}")
+            CUS_LOGGER.warning(f"无法设置DPI感知级别: {e}")
             try:
                 ctypes.windll.user32.SetProcessDPIAware()
             except Exception as e:
-                print(f"无法设置DPI感知级别(备用方法): {e}")
+                CUS_LOGGER.warning(f"无法设置DPI感知级别(备用方法): {e}")
         
         # 获取窗口位置和尺寸
         try:
@@ -80,9 +142,9 @@ class WindowRecorder:
             self.width = self.right - self.left
             self.height = self.bottom - self.top
             
-            print(f"窗口位置: ({self.left}, {self.top}, {self.right}, {self.bottom}), 尺寸: {self.width}x{self.height}")
+            CUS_LOGGER.info(f"窗口位置: ({self.left}, {self.top}, {self.right}, {self.bottom}), 尺寸: {self.width}x{self.height}")
         except Exception as e:
-            print(f"获取窗口位置失败: {e}")
+            CUS_LOGGER.error(f"获取窗口位置失败: {e}")
             raise
 
         # 确保输出目录存在
@@ -96,7 +158,7 @@ class WindowRecorder:
         actual_height = self.height - self.offsets[1] - self.offsets[3]  # 减去上下偏移
         
         # 设置视频写入器
-        print(f"初始化视频写入器，尺寸: {actual_width}x{actual_height}")
+        CUS_LOGGER.info(f"初始化视频写入器，尺寸: {actual_width}x{actual_height}")
         self.out = cv2.VideoWriter(
             self.output_file,
             cv2.VideoWriter_fourcc(*'mp4v'),
@@ -105,6 +167,7 @@ class WindowRecorder:
         )
         
         if not self.out.isOpened():
+            CUS_LOGGER.error("无法初始化视频写入器")
             raise RuntimeError("无法初始化视频写入器")
 
         # 启动录制线程
@@ -134,28 +197,12 @@ class WindowRecorder:
                     if self.overlay_map:
                         # 尝试查找地图窗口（"Map"窗口）
                         map_hwnd = win32gui.FindWindow(None, "Map")
-                        if map_hwnd and win32gui.IsWindowVisible(map_hwnd):
+                        if map_hwnd:
                             try:
-                                # 获取地图窗口的位置和大小
-                                map_rect = win32gui.GetWindowRect(map_hwnd)
-                                map_left, map_top, map_right, map_bottom = map_rect
-                                map_width = map_right - map_left
-                                map_height = map_bottom - map_top
+                                # 使用后台截图方式获取地图窗口图像
+                                map_img_cv = self.capture_window_background(map_hwnd)
                                 
-                                # 应用相同的偏移来裁剪地图窗口
-                                map_adjusted_left = map_left + self.offsets[0]
-                                map_adjusted_top = map_top + self.offsets[1]
-                                map_adjusted_right = map_right - self.offsets[2]
-                                map_adjusted_bottom = map_bottom - self.offsets[3]
-                                
-                                # 确保地图裁剪后的尺寸有效
-                                if (map_adjusted_right > map_adjusted_left and 
-                                    map_adjusted_bottom > map_adjusted_top):
-                                    # 捕获裁剪后的地图窗口
-                                    map_bbox = (map_adjusted_left, map_adjusted_top, map_adjusted_right, map_adjusted_bottom)
-                                    map_img = ImageGrab.grab(bbox=map_bbox)
-                                    map_img_cv = cv2.cvtColor(np.array(map_img), cv2.COLOR_RGB2BGR)
-                                    
+                                if map_img_cv is not None:
                                     # 进一步缩小地图图像尺寸
                                     map_scale = 0.1  # 缩放到原图的10%，更小一些
                                     map_resized_width = int(img_cv.shape[1] * map_scale)  # 基于主窗口宽度计算
@@ -208,9 +255,9 @@ class WindowRecorder:
                                         img_cv[img_cv.shape[0]-map_resized_height-margin:img_cv.shape[0]-margin, 
                                                margin:margin+map_resized_width] = map_img_resized
                                 else:
-                                    print("地图窗口裁剪后尺寸无效，跳过叠加")
+                                    CUS_LOGGER.warning("后台获取地图窗口失败，跳过叠加")
                             except Exception as e:
-                                print(f"叠加地图窗口失败: {e}")
+                                CUS_LOGGER.warning(f"叠加地图窗口失败: {e}")
                                 # 如果叠加地图失败，继续录制主窗口
                                 pass
 
@@ -275,7 +322,7 @@ class WindowRecorder:
                         # 实时显示当前帧
                         cv2.imshow('Window Recorder', img_cv)
                         if cv2.waitKey(1) & 0xFF == ord('q'):
-                            print("用户按 q 键，停止录制")
+                            CUS_LOGGER.info("用户按 q 键，停止录制")
                             self.stop_recording()
                             break
 
@@ -283,7 +330,7 @@ class WindowRecorder:
                     time.sleep(1 / self.fps)
                     
                 except Exception as e:
-                    print(f"录制单帧时发生错误: {e}")
+                    CUS_LOGGER.warning(f"录制单帧时发生错误: {e}")
                     continue
 
         except Exception as e:
@@ -294,8 +341,7 @@ class WindowRecorder:
             if self.out:
                 self.out.release()
                 self.out = None
-            cv2.destroyAllWindows()
-            print("视频写入器已释放")
+            CUS_LOGGER.info("视频写入器已释放")
 
     def stop_recording(self):
         if not self.recording:
@@ -304,7 +350,7 @@ class WindowRecorder:
         if self.out:
             self.out.release()
             self.out = None
-        print("视频写入器已释放")
+        CUS_LOGGER.info("视频写入器已释放")
 
 
 if __name__ == "__main__":
@@ -313,20 +359,20 @@ if __name__ == "__main__":
         output_file = "../logs/video/"
         fps = 10
 
-        print("准备开始录制（5秒后自动停止）...")
-        print(f"请在5秒内打开窗口：{window_title}")
+        CUS_LOGGER.info("准备开始录制（5秒后自动停止）...")
+        CUS_LOGGER.info(f"请在5秒内打开窗口：{window_title}")
         time.sleep(2)
 
         recorder = WindowRecorder(output_file, fps=fps, window_title=window_title,window_class_name="UnityWndClass", offsets=[10, 50, 10, 10])
         recorder.start_recording()
-        print(f"正在录制窗口：{window_title}")
-        print("录制将持续5秒，请在目标窗口中进行一些操作")
+        CUS_LOGGER.info(f"正在录制窗口：{window_title}")
+        CUS_LOGGER.info("录制将持续5秒，请在目标窗口中进行一些操作")
 
         time.sleep(5)
 
         recorder.stop_recording()
-        print("录制已完成！")
-        print(f"视频已保存为：{output_file}")
+        CUS_LOGGER.info("录制已完成！")
+        CUS_LOGGER.info(f"视频已保存为：{output_file}")
 
     except Exception as e:
-        print(f"发生错误: {str(e)}")
+        CUS_LOGGER.error(f"发生错误: {str(e)}")

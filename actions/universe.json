@@ -198,21 +198,6 @@
         ]
     },
     {
-        "name": "设置界面",
-        "trigger":{
-            "text": "暂离",
-            "box": [1328, 1389, 792, 829],
-            "redundancy": 30
-        },
-        "actions":
-        [
-            {
-                "position": [1400, 829]
-            },
-            "re_enter"
-        ]
-    },
-    {
         "name": "强化祝福",
         "trigger":{
             "text": "祝福强化",
@@ -269,6 +254,21 @@
         "actions":
         [
             "confirm_yes"
+        ]
+    },
+    {
+        "name": "设置界面",
+        "trigger":{
+            "text": "暂离",
+            "box": [1328, 1389, 792, 829],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "position": [1400, 829]
+            },
+            "re_enter"
         ]
     },
     {

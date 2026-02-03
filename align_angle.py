@@ -34,6 +34,9 @@ def main(safe=0, ang=[1,1,3], su=None):
     CUS_LOGGER.info("开始校准")
     key_mouse_manager.multi = 1
     init_ang = get_angle(su)
+    if init_ang is None:
+        CUS_LOGGER.info("未成功修正")
+        return False
     lst_ang = init_ang
     for i in ang:
         if lst_ang != init_ang and i==1:
@@ -75,7 +78,7 @@ def main(safe=0, ang=[1,1,3], su=None):
     CUS_LOGGER.info("所有校准完成")
     config.angle = str(key_mouse_manager.multi)
     config.save()
-    return 1
+    return True
 
 
 if __name__ == "__main__":

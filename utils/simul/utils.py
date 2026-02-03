@@ -978,7 +978,8 @@ class UniverseUtils:
                 # cv.imshow("now", self.screen)
                 self.save_screen(not_now=True)
                 CUS_LOGGER.error(f"角度误差过大视角{self.rotation}朝向{d}模式{mode}")
-                raise BigAngError(f"角度误差过大视角{self.rotation}朝向{d}")
+                # raise BigAngError(f"角度误差过大视角{self.rotation}朝向{d}")
+                d = self.rotation
             elif 20<abs(self.rotation-d)<340:
                 CUS_LOGGER.debug(f"角度误差过大视角{self.rotation}朝向{d}模式1")
                 d=self.rotation

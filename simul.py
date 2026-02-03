@@ -364,6 +364,7 @@ class SimulatedUniverse(UniverseUtils):
                 if self.floor == 12 or self.must_end:
                     self.end_of_university()
                     key_mouse_manager.click(0.2708, 0.1324)
+                    time.sleep(1)
                     CUS_LOGGER.info(f"通关！当前层数:{self.floor + 1}")
                 elif self.debug == 2:
                     CUS_LOGGER.error(f"地图{self.now_map}出现问题,退出程序")
@@ -936,8 +937,9 @@ class SimulatedUniverse(UniverseUtils):
                 time.sleep(0.5)
             while not self.click_text(text="传送",box=[1623, 1687, 951, 990],after_delay=0.5):
                 time.sleep(0.5)
-            while not self.click_text(text="黑塔的办公室",box=[55, 187, 11, 42],click=False):
+            while not self.click_text(text="黑塔的办公室",box=[55, 187, 11, 42],click=False,allow_fail= True):
                 time.sleep(0.5)
+            time.sleep(2)
             key_mouse_manager.mouse_move(15)
             key_mouse_manager.keyDown("w")
             sprint()
@@ -1063,6 +1065,7 @@ class SimulatedUniverse(UniverseUtils):
             cv.namedWindow("Map", cv.WINDOW_FREERATIO | cv.WINDOW_NORMAL)
             # 设置窗口初始大小
             cv.resizeWindow("Map", 200, 600)
+            cv.startWindowThread()
             angle_history = []
             last_angle_change_time = 0
         
@@ -1074,7 +1077,11 @@ class SimulatedUniverse(UniverseUtils):
 
             while not self._stop:
                 if self.debug_map.shape[0] == 8192:
-                    cv.waitKey(100)
+                    # 使用cv.pollKey()替代cv.waitKey()以避免阻塞
+                    key = cv.pollKey()
+                    if key == ord('q'):
+                        break
+                    time.sleep(0.1)  # 短暂休眠避免CPU占用过高
                     continue
 
                 # 检查是否有变化，如果没有变化则跳过更新
@@ -1088,7 +1095,11 @@ class SimulatedUniverse(UniverseUtils):
                     last_target_loc == current_target_loc and
                     last_target_type == current_target_type and
                     last_ang == current_ang):
-                    cv.waitKey(100)
+                    # 使用cv.pollKey()替代cv.waitKey()以避免阻塞
+                    key = cv.pollKey()
+                    if key == ord('q'):
+                        break
+                    time.sleep(0.1)  # 短暂休眠避免CPU占用过高
                     continue
 
                 # 更新缓存值
@@ -1261,17 +1272,29 @@ class SimulatedUniverse(UniverseUtils):
                 )
 
                 cv.imshow("Map", updated_image)
-                # 更合理的等待时间，平衡性能和响应性
-                if cv.waitKey(100) & 0xFF == ord('q'):
+                # 使用cv.pollKey()替代cv.waitKey()以避免阻塞
+                key = cv.pollKey()
+                if key == ord('q'):
+                    break
+                # 检查停止标志
+                if self._stop:
                     break
         except SystemExit:
             # 捕获强制退出异常，确保窗口被关闭
             pass
+        except:
+            # 捕获其他异常
+            pass
         finally:
             # 无论如何都要确保窗口被关闭
             try:
+                CUS_LOGGER.info(f'开始销毁窗口')
                 cv.destroyAllWindows()
-            except:
+                CUS_LOGGER.info(f'正在销毁中')
+                cv.waitKey(1)
+                CUS_LOGGER.info(f'完成窗口关闭')
+            except Exception as e:
+                CUS_LOGGER.info(f'异常关闭窗口{e}')
                 pass
     def start(self):
         """
@@ -1324,20 +1347,29 @@ class SimulatedUniverse(UniverseUtils):
             except Exception as e:
                 CUS_LOGGER.error(f"停止录制时发生错误: {e}")
         # 等待地图线程结束
-        if self.map_thread and self.map_thread.is_alive():
-            # 等待最多2秒让线程自行结束
-            timeout = 2
-            start_time = time.time()
-            while self.map_thread.is_alive() and (time.time() - start_time) < timeout:
-                time.sleep(0.1)
-
-            # 如果线程仍未结束，强制终止
-            if self.map_thread.is_alive():
-                import ctypes
-                res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
-                    ctypes.c_long(self.map_thread.ident),
-                    ctypes.py_object(SystemExit)
-                )
-                time.sleep(0.5)  # 短暂等待
+        # if self.map_thread and self.map_thread.is_alive():
+        #     # 等待最多2秒让线程自行结束
+        #     timeout = 2
+        #     start_time = time.time()
+        #     while self.map_thread.is_alive() and (time.time() - start_time) < timeout:
+        #         time.sleep(0.1)
+        #
+        #     # 如果线程仍未结束，强制终止
+        #     if self.map_thread.is_alive():
+        #         import ctypes
+        #         res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+        #             ctypes.c_long(self.map_thread.ident),
+        #             ctypes.py_object(SystemExit)
+        #         )
+        #         time.sleep(0.5)  # 短暂等待
 
         self.map_thread = None
+        
+        # 确保关闭地图窗口（如果存在）
+        # try:
+        #     # 先尝试发送q按键来关闭窗口
+        #     cv.waitKey(1)  # 允许窗口消息处理
+        #     cv.destroyAllWindows()  # 关闭所有OpenCV窗口
+        # except:
+        #     # 如果窗口不存在，可能会抛出异常，忽略即可
+        #     pass
