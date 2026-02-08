@@ -7,7 +7,7 @@ import win32gui, win32api, win32con
 import json
 
 from utils.diver.ocr import sort_text
-from utils.log import CUS_LOGGER
+from utils.log import CUS_LOGGER, set_debug
 from utils.log import my_print as print
 from utils.log import print_exc
 from utils.diver.args import args
@@ -57,6 +57,8 @@ class DivergentUniverse(UniverseUtils):
 
         self.count = self.my_cnt = 0
         self.debug = debug
+        if self.debug:
+            set_debug(CUS_LOGGER,True)
         self.nums = nums
         self.speed = speed
         self.init_tm = time.time()

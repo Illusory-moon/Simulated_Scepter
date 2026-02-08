@@ -6,6 +6,10 @@ import win32api
 import win32con
 from collections import deque
 
+from utils.log import CUS_LOGGER
+from utils.thread import ThreadWithException
+
+
 # 延迟导入，避免循环导入
 def get_CUS_LOGGER():
     from utils.log import CUS_LOGGER
@@ -78,7 +82,7 @@ class KeyMouseManager:
         if not self.running:
             self.running = True
             self.operation_queue.clear()
-            self.worker_thread = threading.Thread(target=self._worker, daemon=True)
+            self.worker_thread = ThreadWithException(target=self._worker, daemon=True,name="键鼠管理")
             self.worker_thread.start()
 
     def stop(self):
@@ -307,6 +311,7 @@ class KeyMouseManager:
             
             # 如果还有剩余时间，将其作为sleep操作插入队首
             if remaining > 0.01:
+                CUS_LOGGER.debug(f"强制操作{operation}，剩余睡眠时间{remaining}秒")
                 sleep_operation = {
                     'type': 'sleep',
                     'duration': remaining

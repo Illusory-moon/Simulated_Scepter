@@ -11,6 +11,7 @@ import time
 import pyuac
 
 from utils.log import CUS_LOGGER, log_emitter
+from utils.thread import ThreadWithException
 from config import EXTRA
 from route import PATHS
 
@@ -30,40 +31,37 @@ from iron_blood import IronBloodUniverse
 
 
 
-class TaskManager:
-    """
-    任务管理器，负责运行和控制各种任务
-    """
+
+
+class MainWindow(QMainWindowLog):
+    calibration_finished = pyqtSignal(object)
+    f5_pressed = pyqtSignal()
+    f6_pressed = pyqtSignal()
+    f7_pressed = pyqtSignal()
+    
     def __init__(self):
+        super().__init__()
+        # 任务管理相关属性
         self.current_task = None
         self.task_thread = None
+        self._last_key_time = {}  # 合并f5,f6,f7时间记录
 
-    def start_task(self, task_func, *args, **kwargs):
+        self.init_ui()
+        self.setup_keyboard_listener()
+        # 连接F5/F6/F7按键信号到处理函数
+        self.f5_pressed.connect(lambda: self.handle_key_pressed("f5"))
+        self.f6_pressed.connect(lambda: self.handle_key_pressed("f6"))
+        self.f7_pressed.connect(lambda: self.handle_key_pressed("f7"))
+        log_emitter.show_error_signal.connect(self.show_error_message)
+    
+    def start_task(self, task_func):
         """
         启动一个新任务
         """
         if self.is_task_running():
             raise RuntimeError("已有任务正在运行")
-
-        self.task_thread = TaskThread(target=self._task_wrapper, args=(task_func, args, kwargs))
+        self.task_thread = ThreadWithException(target=task_func,name="主任务线程")
         self.task_thread.start()
-
-    def _task_wrapper(self, task_func, args, kwargs):
-        """
-        包装任务函数，用于设置和清理current_task
-        """
-        try:
-            self.current_task = object()
-            task_func(*args, **kwargs)
-        except Exception as e:
-            import traceback
-            error_msg = f"{traceback.format_exc()}"
-            log_emitter.show_error_signal.emit(f"任务执行过程中发生异常：{str(e)}", error_msg)
-            CUS_LOGGER.error(error_msg)
-
-        finally:
-            self.current_task = None
-            self.task_thread = None
 
     def is_task_running(self):
         """
@@ -77,84 +75,12 @@ class TaskManager:
         """
         if self.current_task and hasattr(self.current_task, 'stop'):
             self.current_task.stop()
-            self.task_thread=None
-            return True
-        return False
-
-    def kill_task(self):
-        """
-        直接终止当前任务线程，包括其创建的所有子线程
-        """
-        if self.task_thread and self.task_thread.is_alive():
-            import ctypes
-            import time
-            
-            # 首先尝试正常方式通知任务停止
-            if self.current_task and hasattr(self.current_task, 'stop'):
-                try:
-                    self.current_task.stop()
-                    time.sleep(0.2)
-                except:
-                    pass
-            if self.task_thread.is_alive():
-                thread_id = self.task_thread.ident
-                res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
-                    ctypes.c_long(thread_id),
-                    ctypes.py_object(SystemExit)
-                )
-
-                timeout = 3
-                start_time = time.time()
-                while self.task_thread.is_alive() and (time.time() - start_time) < timeout:
-                    time.sleep(0.1)
-
-                if self.task_thread.is_alive():
-                    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
-                        ctypes.c_long(thread_id),
-                        ctypes.py_object(SystemExit)
-                    )
-                    time.sleep(0.5)
-                    
             self.task_thread = None
             self.current_task = None
             return True
         return False
 
 
-class TaskThread(threading.Thread):
-    def __init__(self, target, args=None, kwargs=None):
-        super().__init__()
-        self.target = target
-        self.args = args if args is not None else ()
-        self.kwargs = kwargs if kwargs is not None else {}
-        self.daemon = True
-
-    def run(self):
-        self.target(*self.args, **self.kwargs)
-            
-    def join(self, timeout=None):
-        super().join(timeout)
-
-
-class MainWindow(QMainWindowLog):
-    calibration_finished = pyqtSignal(object)
-    f5_pressed = pyqtSignal()
-    f6_pressed = pyqtSignal()
-    f7_pressed = pyqtSignal()
-    
-    def __init__(self):
-        super().__init__()
-        self.task_manager = TaskManager()
-        self._last_key_time = {}  # 合并f5,f6,f7时间记录
-
-        self.init_ui()
-        self.setup_keyboard_listener()
-        # 连接F5/F6/F7按键信号到处理函数
-        self.f5_pressed.connect(lambda: self.handle_key_pressed("f5"))
-        self.f6_pressed.connect(lambda: self.handle_key_pressed("f6"))
-        self.f7_pressed.connect(lambda: self.handle_key_pressed("f7"))
-        log_emitter.show_error_signal.connect(self.show_error_message)
-    
     def show_error_message(self, title, error_msg):
         """显示错误消息弹窗，支持复制内容并强制置顶"""
         msg = QMessageBox(self)
@@ -278,15 +204,15 @@ class MainWindow(QMainWindowLog):
         统一处理F5/F6/F7按键事件
         """
         if key == "f5":
-            if self.task_manager.is_task_running():
+            if self.is_task_running():
                 self.stop_btn.click()
         elif key == "f6":
-            if self.task_manager.is_task_running():
+            if self.is_task_running():
                 QMessageBox.warning(self, "警告", "已有任务正在运行")
             else:
                 self.test_btn.click()
         elif key == "f7":
-            if self.task_manager.is_task_running():
+            if self.is_task_running():
                 QMessageBox.warning(self, "警告", "已有任务正在运行")
             else:
                 self.print_btn.click()
@@ -345,11 +271,11 @@ class MainWindow(QMainWindowLog):
                 int(config_diver.max_run),
                 int(config_diver.speed_mode)
             )
-            self.task_manager.current_task = su
+            self.current_task = su
             su.screen_test()
             
         try:
-            self.task_manager.start_task(task)
+            self.start_task(task)
         except RuntimeError as e:
             QMessageBox.warning(self, "警告", str(e))
 
@@ -363,7 +289,7 @@ class MainWindow(QMainWindowLog):
                 int(config_diver.max_run),
                 int(config_diver.speed_mode)
             )
-            self.task_manager.current_task = su
+            self.current_task = su
             print_text = self.PrintEdit.text()
             if self.PrintPhoto.isChecked():
                 su.click_target(f'test/{print_text}', 0.9, True, use_binary=False)
@@ -373,16 +299,9 @@ class MainWindow(QMainWindowLog):
                 su.click_text(print_text,click=1)
 
         try:
-            self.task_manager.start_task(task)
+            self.start_task(task)
         except RuntimeError as e:
             QMessageBox.warning(self, "警告", str(e))
-    def stop_task(self):
-        try:
-            if self.task_manager.kill_task():
-                QMessageBox.information(self, "提示", "任务线程已终止")
-        except Exception as e:
-            pass
-        
     def run_simul(self):
         def task():
             su = SimulatedUniverse(
@@ -395,17 +314,15 @@ class MainWindow(QMainWindowLog):
                 bonus=config_simul.bonus,
                 gui=self
             )
-            self.task_manager.current_task = su
+            self.current_task = su
             su.start()
 
             
         try:
-            self.task_manager.start_task(task)
+            self.start_task(task)
         except RuntimeError as r:
-            from PyQt5.QtWidgets import QMessageBox
             QMessageBox.warning(self, "警告", str(r))
         except Exception as e:
-            from PyQt5.QtWidgets import QMessageBox
             QMessageBox.critical(self, "错误", str(e))
 
     def run_diver(self):
@@ -418,11 +335,11 @@ class MainWindow(QMainWindowLog):
                 int(config_diver.max_run),
                 int(config_diver.speed_mode)
             )
-            self.task_manager.current_task = su
+            self.current_task = su
             su.start()
             
         try:
-            self.task_manager.start_task(task)
+            self.start_task(task)
         except RuntimeError as r:
             QMessageBox.warning(self, "警告", str(r))
         except Exception as e:
@@ -440,11 +357,11 @@ class MainWindow(QMainWindowLog):
                 bonus=config_simul.bonus,
                 gui=self
             )
-            self.task_manager.current_task = su
+            self.current_task = su
             su.start()
 
         try:
-            self.task_manager.start_task(task)
+            self.start_task(task)
         except RuntimeError as r:
             QMessageBox.warning(self, "警告", str(r))
         except Exception as e:
@@ -459,7 +376,7 @@ class MainWindow(QMainWindowLog):
                 self.calibration_finished.emit(e)
             
         try:
-            self.task_manager.start_task(task)
+            self.start_task(task)
         except RuntimeError as e:
             QMessageBox.warning(self, "警告", str(e))
 

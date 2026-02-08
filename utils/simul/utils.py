@@ -29,6 +29,7 @@ from utils.screenshot import Screen
 import threading
 
 from utils.simul.text_key import text_keys
+from utils.thread import ThreadWithException
 from utils.utils.Error import BigAngError
 from utils.utils.get_win_rect import get_window_rect
 from utils.utils.minimap_util import get_minimap, MINIMAP_RADIUS, mask_minimap_outside
@@ -104,6 +105,7 @@ class UniverseUtils:
         self.init_ang = 0
         self.allow_e = 1
         self.quan = 0
+        self.bai_e=0
         self.img_map = dict()
         self.gui=gui
         self.should_update_map=True
@@ -112,6 +114,7 @@ class UniverseUtils:
         self.img_set = []
         #是否拥有黄泉
         self.quan = 0
+        self.bai_e = 0
         #上次交互时间
         self.quit = 0
         #调试显示用地图
@@ -594,56 +597,66 @@ class UniverseUtils:
             进一步得到小地图的黑白格式
             re_screen：是否重新截图
         """
-        self.mag = "self._stop = os.system('pi"
-        yellow = np.array([145, 192, 220])
-        black = np.array([0, 0, 0])
-        white = np.array([210, 210, 210])
-        gray = np.array([55, 55, 55])
-        shape = (int(self.scx * 190), int(self.scx * 190))
-        if re_screen and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
+        try:
+            self.mag = "self._stop = os.system('pi"
+            yellow = np.array([145, 192, 220])
+            black = np.array([0, 0, 0])
+            white = np.array([210, 210, 210])
+            gray = np.array([55, 55, 55])
+            shape = (int(self.scx * 190), int(self.scx * 190))
+            if re_screen and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
+                return None
+            if local_screen is None:
+                local_screen = self.get_local(0.9333, 0.8657, shape)
+                
+            # 验证local_screen是否有效
+            if local_screen is None or len(local_screen.shape) < 3:
+                CUS_LOGGER.error(f"get_bw_map: local_screen无效，形状: {local_screen.shape if local_screen is not None else 'None'}")
+                return None
+                
+            bw_map = np.zeros(local_screen.shape[:2], dtype=np.uint8)
+            # 灰块、白线：小地图中的可移动区域、可移动区域的边缘
+            # b_map：当前像素点是否是灰块。只允许灰块附近（2像素）的像素被识别为白线
+            b_map = deepcopy(bw_map)
+            b_map[
+                np.sum((local_screen - gray) ** 2, axis=-1) <= 3200 + self.find * 1600
+            ] = 255
+            blk_map = deepcopy(bw_map)
+            blk_map[
+                np.sum((local_screen - black) ** 2, axis=-1) <= 800 + self.find * 800
+            ] = 255
+            kernel = np.zeros((9, 9), np.uint8)  # 设置kenenel大小
+            kernel += 1
+            dilate = cv.dilate(blk_map, kernel, iterations=1)  # 膨胀还原图形
+            kernel = np.zeros((5, 5), np.uint8)  # 设置kenenel大小
+            kernel += 1
+            b_map = cv.dilate(b_map, kernel, iterations=1)
+            bw_map[
+                (np.sum((local_screen - white) ** 2, axis=-1) <= 3200 + self.find * 1600)
+                & (b_map > 200)
+            ] = 255
+            # 再次精确裁剪，这里区别模式只是防止bug，find=1时的裁剪是最精确的（中心点即为人物坐标）
+            if self.find == 0:
+                bw_map = bw_map[
+                    int(shape[0] * 0.5) - 68 : int(shape[0] * 0.5) + 108,
+                    int(shape[1] * 0.5) - 48 : int(shape[1] * 0.5) + 128,
+                ]
+            else:
+                bw_map = bw_map[
+                    int(shape[0] * 0.5) - 68 - 2 : int(shape[0] * 0.5) + 108 - 2,
+                    int(shape[1] * 0.5) - 48 - 8 : int(shape[1] * 0.5) + 128 - 8,
+                ]
+            # 排除半径85以外的像素点
+            for i in range(bw_map.shape[0]):
+                for j in range(bw_map.shape[1]):
+                    if ((i - 88) ** 2 + (j - 88) ** 2) > 85**2:
+                        bw_map[i, j] = 0
+            if self.find == 0:
+                cv.imwrite(self.map_file + "bwmap.jpg", bw_map)
+            return bw_map
+        except Exception as e:
+            CUS_LOGGER.error(f"get_bw_map函数执行出错: {str(e)}")
             return None
-        if local_screen is None:
-            local_screen = self.get_local(0.9333, 0.8657, shape)
-        bw_map = np.zeros(local_screen.shape[:2], dtype=np.uint8)
-        # 灰块、白线：小地图中的可移动区域、可移动区域的边缘
-        # b_map：当前像素点是否是灰块。只允许灰块附近（2像素）的像素被识别为白线
-        b_map = deepcopy(bw_map)
-        b_map[
-            np.sum((local_screen - gray) ** 2, axis=-1) <= 3200 + self.find * 1600
-        ] = 255
-        blk_map = deepcopy(bw_map)
-        blk_map[
-            np.sum((local_screen - black) ** 2, axis=-1) <= 800 + self.find * 800
-        ] = 255
-        kernel = np.zeros((9, 9), np.uint8)  # 设置kenenel大小
-        kernel += 1
-        dilate = cv.dilate(blk_map, kernel, iterations=1)  # 膨胀还原图形
-        kernel = np.zeros((5, 5), np.uint8)  # 设置kenenel大小
-        kernel += 1
-        b_map = cv.dilate(b_map, kernel, iterations=1)
-        bw_map[
-            (np.sum((local_screen - white) ** 2, axis=-1) <= 3200 + self.find * 1600)
-            & (b_map > 200)
-        ] = 255
-        # 再次精确裁剪，这里区别模式只是防止bug，find=1时的裁剪是最精确的（中心点即为人物坐标）
-        if self.find == 0:
-            bw_map = bw_map[
-                int(shape[0] * 0.5) - 68 : int(shape[0] * 0.5) + 108,
-                int(shape[1] * 0.5) - 48 : int(shape[1] * 0.5) + 128,
-            ]
-        else:
-            bw_map = bw_map[
-                int(shape[0] * 0.5) - 68 - 2 : int(shape[0] * 0.5) + 108 - 2,
-                int(shape[1] * 0.5) - 48 - 8 : int(shape[1] * 0.5) + 128 - 8,
-            ]
-        # 排除半径85以外的像素点
-        for i in range(bw_map.shape[0]):
-            for j in range(bw_map.shape[1]):
-                if ((i - 88) ** 2 + (j - 88) ** 2) > 85**2:
-                    bw_map[i, j] = 0
-        if self.find == 0:
-            cv.imwrite(self.map_file + "bwmap.jpg", bw_map)
-        return bw_map
 
 
     def get_now_direct(self, loc_scr):
@@ -763,9 +776,23 @@ class UniverseUtils:
                 CUS_LOGGER.info(f"移除目标{recent_loc},当前状态{self.target},距离{mn_dis}")
                 has_removed = True
             if rd[0].shape[0] > 0:
-                recent_loc = (self.real_loc[0]+rd[0][0]-93, self.real_loc[1]+rd[1][0]-93)
+                # 创建所有检测到的敌人坐标的列表
+                enemy_coords = []
+                for i in range(len(rd[0])):
+                    enemy_x, enemy_y = rd[0][i], rd[1][i]
+                    world_x = self.real_loc[0] + enemy_x - 93
+                    world_y = self.real_loc[1] + enemy_y - 93
+                    enemy_coords.append(((world_x, world_y), (enemy_x, enemy_y)))
+                
+                # 按距离self.real_loc排序，最近的在前面
+                enemy_coords.sort(key=lambda coord: get_dis(coord[0], self.real_loc))
+                
+                # 选择最近的敌人作为目标
+                nearest_world_coord, nearest_local_coord = enemy_coords[0]
+                recent_loc = nearest_world_coord
+                
                 self.target.add((recent_loc, 1))
-                CUS_LOGGER.info(f"找到新的敌对目标点：{recent_loc}")
+                CUS_LOGGER.info(f"找到新的敌对目标点：{recent_loc}，共检测到{len(enemy_coords)}个敌人，按距离排序")
             else:
                 self.target.add((recent_loc, 0))
                 CUS_LOGGER.info(f"未找到敌对目标点，使用当前作为路径点位：{recent_loc}")
@@ -817,6 +844,7 @@ class UniverseUtils:
             red = [47, 47, 232]
             rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 4500)
             if rd[0].shape[0] > 0:
+                # 仅检测存在性，不需要排序，使用第一个检测到的点
                 nearest = (rd[0][0], rd[1][0])
                 target = (nearest, 3)
                 if self.floor == 11:
@@ -994,6 +1022,7 @@ class UniverseUtils:
                 / math.pi
                 * 180
         )
+        ang%=360
         # 视角需要旋转的角度，规范到[-180,180]
         sub = ang - self.ang
         sub = (sub + 180) % 360 - 180
@@ -1011,6 +1040,9 @@ class UniverseUtils:
         CUS_LOGGER.info("开始有地图寻路")
         self.set_path_state("开始有地图寻路")
         bw_map = self.get_bw_map(re_screen=0)
+        if bw_map is None:
+            CUS_LOGGER.warning("获取初始bw_map失败，无法进行寻路")
+            return
         self.loc_off = 0
         self.get_loc(bw_map, rg = 40 - self.find * 10)
         self.set_path_state("获取完路径1")
@@ -1047,17 +1079,18 @@ class UniverseUtils:
             self.get_real_loc()
             self.target_loc, self.target_type = self.get_recent_target()
             self.update_direction_data()
-            threshold_distance = [13,9 + self.quan*7,11,7]
+            threshold_distance = [13,9 + (self.quan|self.bai_e)*7,11,7]
             if self._stop == 0:
                 key_mouse_manager.keyDown("w")
             time.sleep(0.25)
-            is_sprinting=0
+            self.is_sprinting=0
             if self.target_type != 3:
                 sprint()
-                is_sprinting = 1
+                self.is_sprinting = 1
             time.sleep(0.25)
             bw_map = self.get_bw_map()
             if bw_map is None:
+                CUS_LOGGER.warning("获取bw_map失败，无法继续寻路")
                 return
             self.set_path_state("开始获取真实路径")
             self.get_loc(bw_map, rg=30, offset=self.get_offset(4))
@@ -1079,46 +1112,67 @@ class UniverseUtils:
                 self.get_screen()
                 bw_map = self.get_bw_map()
                 if bw_map is None:
-                    self.set_path_state("获取地图失败")
-                    return
+                    self.set_path_state("获取地图失败，跳过本轮循环")
+                    time.sleep(0.1)  # 短暂等待后重试
+                    continue
                 #预判实际点位
                 self.get_loc(bw_map, fbw=1, offset=self.get_offset(2 + (retry_time <= 2)),
                              rg=10 + 6 * (retry_time <= 2))
-                self.get_real_loc(2 + is_sprinting * 5)
+                self.get_real_loc(2 + self.is_sprinting * 5)
                 if self.target_type==1:
+                    red = [47, 47, 232]
                     self.set_path_state("先验遇敌")
+                    outside = mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True),
+                                                   center_radius=80)
+                    rd = np.where(
+                        np.sum((outside - red) ** 2, axis=-1) <= 512)
+                    if rd[0].shape[0] > 50:
+                        # 就在旁边
+                        self.set_path_state("检测到遇敌红环")
+                        now_distance=0
+                        break
                     now_distance = get_dis(self.real_loc, self.target_loc)
                     if now_distance<35:
                         self.set_path_state("距离敌人过近")
                         CUS_LOGGER.info(f"距离小于35,开始清除{(self.target_loc, 1)}从{self.target}")
                         self.target.remove((self.target_loc, 1))
-                        red = [47, 47, 232]
-                        outside=mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True), center_radius=80)
+
                         rd = np.where(
-                            np.sum((outside - red) ** 2, axis=-1) <= 512)
-                        if rd[0].shape[0]>50:
-                            #就在旁边
-                            break
+                            np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True,
+                                                rotation=True) - red) ** 2, axis=-1) <= 4500)
+                        if rd[0].shape[0] > 0:
+                            self.set_path_state("尝试找新的敌人点位")
+                            
+                            # 创建所有检测到的敌人坐标的列表
+                            enemy_coords = []
+                            for i in range(len(rd[0])):
+                                enemy_x, enemy_y = rd[0][i], rd[1][i]
+                                world_x = self.real_loc[0] + enemy_x - 93
+                                world_y = self.real_loc[1] + enemy_y - 93
+                                enemy_coords.append(((world_x, world_y), (enemy_x, enemy_y)))
+                            
+                            # 按距离self.real_loc排序，最近的在前面
+                            enemy_coords.sort(key=lambda coord: get_dis(coord[0], self.real_loc))
+                            
+                            # 选择最近的敌人作为目标
+                            nearest_world_coord, nearest_local_coord = enemy_coords[0]
+                            recent_loc = nearest_world_coord
+                            
+                            CUS_LOGGER.info(f"当前目标集合{self.target}")
+                            self.target.add((recent_loc, 1))
+                            self.target_loc=recent_loc
+                            CUS_LOGGER.info(f"找到新的敌对目标点：{recent_loc}，共检测到{len(enemy_coords)}个敌人，按距离排序")
+                            distance_list = [100000]
+                            dtm = [time.time()]
                         else:
-                            rd = np.where(
-                                np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True,
-                                                    rotation=True) - red) ** 2, axis=-1) <= 4500)
-                            if rd[0].shape[0] > 0:
-                                self.set_path_state("尝试找新的敌人点位")
-                                recent_loc = (self.real_loc[0] + rd[0][0] - 93, self.real_loc[1] + rd[1][0] - 93)
-                                CUS_LOGGER.info(f"当前目标集合{self.target}")
-                                self.target.add((recent_loc, 1))
-                                self.target_loc=recent_loc
-                                CUS_LOGGER.info(f"找到新的敌对目标点：{recent_loc}")
-                            else:
-                                self.set_path_state("未找到红色敌人！！！")
-                                self.save_screen(not_now= True)
-                                # self.save_screen(not_now=True)
-                                has_not_found_red= True
-                                # self.target_loc, type = self.get_recent_target()
-                            if has_not_found_red:
-                                self.set_path_state("未找到敌人！！！")
-                                break
+                            self.set_path_state("未找到红色敌人！！！")
+                            self.save_screen(not_now= True)
+                            # self.save_screen(not_now=True)
+                            has_not_found_red= True
+                            # self.target_loc, type = self.get_recent_target()
+                        if has_not_found_red:
+                            self.set_path_state("未找到敌人！！！")
+                            break
                 ds = get_dis(self.real_loc, self.target_loc)
                 if ds>threshold_distance[self.target_type]:
                     self.set_path_state("距离较远，开始更新方向2")
@@ -1134,6 +1188,8 @@ class UniverseUtils:
                 now_distance = get_dis(self.real_loc, self.target_loc)
                 # 1秒内没有离目标点更近：开始尝试绕过障碍
                 if distance_list[0] <= now_distance:
+                    CUS_LOGGER.debug(f"自身坐标{self.real_loc}，目标坐标{self.target_loc}")
+                    CUS_LOGGER.debug(f"距离没有更近，距离列表{distance_list}，当前距离{now_distance}")
                     self.set_path_state("尝试绕过障碍")
                     ts = " da"
                     if go_direct > 0:
@@ -1147,8 +1203,11 @@ class UniverseUtils:
                         key_mouse_manager.press("w", 0.3)
                         self.move = 1
                         self.get_screen()
-                        threading.Thread(target=self.keep_move).start()
+                        ThreadWithException(target=self.keep_move,name="保持移动").start()
                         bw_map = self.get_bw_map(re_screen=0)
+                        if bw_map is None:
+                            CUS_LOGGER.warning("获取绕障bw_map失败，跳过坐标更新")
+                            continue
                         self.get_loc(bw_map, rg=28, fbw=1)
                         self.get_real_loc()
                         self.move = 0
@@ -1158,7 +1217,7 @@ class UniverseUtils:
                         dtm = [time.time()]
                         sprint()
                         retry_time = 0
-                        is_sprinting = 1
+                        self.is_sprinting = 1
                     else:
                         CUS_LOGGER.info("尝试次数过多，不再尝试绕过障碍")
                         key_mouse_manager.keyUp("w")
@@ -1175,7 +1234,7 @@ class UniverseUtils:
                         self.target_loc, self.target_type = self.get_recent_target()
                         if self.target_type == 3:
                             sprint()
-                            is_sprinting = 0
+                            self.is_sprinting = 0
                         ds = get_dis(self.real_loc, self.target_loc)
                         go_direct = 2
                     else:
@@ -1185,8 +1244,9 @@ class UniverseUtils:
                     self.set_path_state("正常逼近目标")
                     self.get_screen()
                     if self.target_type == 3 and self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                        key_mouse_manager.press('f',force= True)
+                        key_mouse_manager.clean()
                         key_mouse_manager.keyUp("w")
+                        key_mouse_manager.press('f')
                         if self.nof(must_be='tp'):
                             CUS_LOGGER.info('大图识别到传送点!')
                             return
@@ -1197,10 +1257,10 @@ class UniverseUtils:
                 distance_list.append(ds)
                 dtm.append(time.time())
                 # 正常情况：1.7s
-                # 快速移动时：2.7s
-                # 慢速移动时：1.3s
-                # 既快速又慢速时?：2.3s
-                while dtm[0] < time.time() - 1.7 + is_sprinting * 1 - self.slow * 0.4:
+                # 快速移动时：0.7s
+                # 慢速移动时：2.1s
+                # 既快速又慢速时?：1.1s
+                while dtm[0] < time.time() - 1.7 + self.is_sprinting * 1 - self.slow * 0.4:
                     dtm = dtm[1:]
                     distance_list = distance_list[1:]
                 retry_time += 1
@@ -1216,25 +1276,7 @@ class UniverseUtils:
                     CUS_LOGGER.info(f"寻路时未找到敌对目标点，强行攻击后把旧目标点视作路径")
                 self.set_path_state("准备开战")
                 CUS_LOGGER.info("准备开战")
-                if not self.quan:
-                    if self._stop == 0:
-                        key_mouse_manager.click(0.5,0.5)
-                    time.sleep(1.1)
-                    key_mouse_manager.press("s")
-                    if self._stop == 0:
-                        key_mouse_manager.click(0.5,0.5)
-                    time.sleep(0.8)
-                    if len(self.target) <= 2:
-                        time.sleep(0.3)
-                        key_mouse_manager.press("s")
-                        key_mouse_manager.click(0.5,0.5)
-                        time.sleep(0.6)
-                        key_mouse_manager.press("s", 0.5)
-                        key_mouse_manager.click(0.5,0.5)
-                        time.sleep(0.5)
-                        key_mouse_manager.press("w", 1.6)
-                        key_mouse_manager.click(0.5,0.5)
-                else:
+                if self.quan:
                     key_mouse_manager.keyUp("w")
                     for ii in range(1):
                         self.use_e()
@@ -1248,11 +1290,40 @@ class UniverseUtils:
                         self.get_real_loc(1)
                         key_mouse_manager.press('w')
                         self.bless()
+                elif self.bai_e:
+                    self.use_e()
+                    bw_map = self.get_bw_map()
+                    if bw_map is None:
+                        CUS_LOGGER.warning("获取bw_map失败，跳过本次坐标更新")
+                        time.sleep(0.1)  # 短暂等待后继续
+                    else:
+                        self.get_loc(bw_map, fbw=1, offset=self.get_offset(2), rg=24)
+                        self.get_real_loc(1)
+                    key_mouse_manager.press('w')
+                    self.bless()
+            # else:
+            #         if self._stop == 0:
+            #             key_mouse_manager.click(0.5,0.5)
+            #         time.sleep(1.1)
+            #         key_mouse_manager.press("s")
+            #         if self._stop == 0:
+            #             key_mouse_manager.click(0.5,0.5)
+            #         time.sleep(0.8)
+            #         if len(self.target) <= 2:
+            #             time.sleep(0.3)
+            #             key_mouse_manager.press("s")
+            #             key_mouse_manager.click(0.5,0.5)
+            #             time.sleep(0.6)
+            #             key_mouse_manager.press("s", 0.5)
+            #             key_mouse_manager.click(0.5,0.5)
+            #             time.sleep(0.5)
+            #             key_mouse_manager.press("w", 1.6)
+            #             key_mouse_manager.click(0.5,0.5)
             if self.target_type == 3:
                 self.set_path_state("当前寻找终点")
                 for i in range(9):
                     self.get_screen()
-                    if self.quan and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
+                    if (self.quan or self.bai_e) and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                         return
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
                         CUS_LOGGER.info("大图识别到类型三传送点")
@@ -1316,7 +1387,16 @@ class UniverseUtils:
         fbw=0表示当前人物是静止状态，因此缩放到移动状态与大地图匹配）
         ps：大地图是移动状态录制的
         """
-        CUS_LOGGER.info(f"获取新坐标,当前坐标{self.now_loc}范围{rg},是否移动{fbw},偏移{offset}")
+        # 输入验证：检查bw_map是否有效
+        if bw_map is None:
+            CUS_LOGGER.error("get_loc函数接收到空的bw_map参数")
+            return
+        
+        if len(bw_map.shape) < 2 or bw_map.size == 0:
+            CUS_LOGGER.error(f"get_loc函数接收到无效的bw_map，形状: {bw_map.shape if hasattr(bw_map, 'shape') else 'Unknown'}")
+            return
+        
+        CUS_LOGGER.info(f"获取新坐标,当前坐标{self.now_loc}范围{rg},是否移动{fbw},偏移{offset}是否精确模式{self.find}")
         rge = 88 + rg
         #创建一个2rge大小的地图
         loc_big = np.zeros((rge * 2, rge * 2), dtype=self.big_map.dtype)
@@ -1377,11 +1457,19 @@ class UniverseUtils:
                         max_val = p
                         max_loc = (i, j)
         CUS_LOGGER.info(f"结束枚举匹配")
-        if max_val != 0:
+        if max_val<=10 and offset is not None:
+            CUS_LOGGER.warning("匹配结果过少，可能匹配错误")
+            self.now_loc = (
+                int(offset[0])+ self.now_loc[0],
+                int(offset[1])+ self.now_loc[1],
+            )
+        elif max_val>10:
             self.now_loc = (
                 max_loc[0] + 88 - rge + self.now_loc[0],
                 max_loc[1] + 88 - rge + self.now_loc[1],
             )
+        else:
+            CUS_LOGGER.warning("匹配结果过少，且不存在偏移")
         CUS_LOGGER.info("新坐标：" + str(self.now_loc))
         if self.debug:
             cv.imwrite('tp/'+str(time.time())+'.jpg',tmp)
@@ -1399,6 +1487,7 @@ class UniverseUtils:
         if self.slow:
             delta /= 2
         pi = 3.141592653589
+        CUS_LOGGER.debug(f"当前使用偏移角度{self.ang}倍率{delta}")
         dx, dy = sin(self.ang/180*pi), cos(self.ang/180*pi)
         return delta * dx * 3, delta * dy * 3
 
@@ -1536,7 +1625,7 @@ class UniverseUtils:
         """
         CUS_LOGGER.info("开始无地图寻路")
         self.should_update_map=True
-        threading.Thread(target=self.auto_update_map).start()
+        ThreadWithException(target=self.auto_update_map,name="更新地图").start()
         if self.debug:
             CUS_LOGGER.debug(f'当前状态{self.ang_off},{self.mini_state}')
         self.ang_neg=self.ang_off<0
@@ -1598,7 +1687,7 @@ class UniverseUtils:
         self.get_screen()
         self.is_target=0
         first = self.first_mini
-        threading.Thread(target=self.move_thread).start()
+        ThreadWithException(target=self.move_thread,name="移动").start()
         while not self.ready:
             time.sleep(0.1)
         if not self.ang_off and self.mini_state == 1:
@@ -1608,12 +1697,12 @@ class UniverseUtils:
         key_mouse_manager.keyDown("w")
         wt = 3
         self.first_mini = 0
-        is_sprinting = 0
+        self.is_sprinting = 0
         if self.mini_state==1:
             wt += 1
             if self.mini_target!=2:
                 sprint()
-                is_sprinting = 1
+                self.is_sprinting = 1
             if self.mini_target==1:
                 wt += 0.8
         need_confirm=0
@@ -1641,7 +1730,7 @@ class UniverseUtils:
                 if judge and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
                     if self.speed <= 0 or not self.ts.similar("黑塔"):
                         key_mouse_manager.clean()
-                        if is_sprinting:
+                        if self.is_sprinting:
                             key_mouse_manager.press("shift")
                         key_mouse_manager.keyUp("w",force=True)
                         key_mouse_manager.press('f',force=True)
@@ -1684,36 +1773,38 @@ class UniverseUtils:
                                     break
                                 if self._stop:
                                     break
-                            key_mouse_manager.keyDown("w")
+                        key_mouse_manager.keyDown("w")
+                        key_mouse_manager.wait()
                     iters = 0
                     while self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95,fresh=True) and not self._stop:
                         CUS_LOGGER.info("检测到怪物，准备攻击")
-                        key_mouse_manager.keyUp("w")
                         iters+=1
                         if iters>4:
                             break
-                        curloc = (120, 127)
-                        shape = (int(self.scx * 190), int(self.scx * 190))
                         red = [47, 47, 232]
                         outside=mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True), center_radius=80)
                         rd = np.where(
                             np.sum((outside - red) ** 2, axis=-1) <= 512)
                         if rd[0].shape[0]>50:
                             #就在旁边
-                            pass
+                            key_mouse_manager.keyUp("w")
                         else:
                             local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True)
-
                             rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 4500)
                             if rd[0].shape[0] > 0:
+                                # 仅检测存在性，不需要排序，使用第一个检测到的点
                                 target = ((rd[0][0], rd[1][0]), 3)
                                 self.get_screen()
                                 # local_screen = self.get_local(0.9333, 0.8657, shape)
                                 self.update_direction_data(mode=2,target=target)
                             ds = get_dis(self.real_loc, self.target_loc)
                             if ds>28:
-                                CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 20) // 8}秒")
-                                time.sleep((ds-20)//8)
+                                if self.is_sprinting:
+                                    CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 20) // 12}秒")
+                                    time.sleep((ds-22)//12)
+                                else:
+                                    CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 20) // 8}秒")
+                                    time.sleep((ds - 22) // 8)
                         if self.quan:
                             key_mouse_manager.keyUp("w")
                             self.use_e()
@@ -1722,6 +1813,24 @@ class UniverseUtils:
                                     self.use_e()
                                 self.stop_move=1
                                 self.mini_state+=2
+                                time.sleep(0.4)
+                                key_mouse_manager.press('w')
+                                time.sleep(1.4)
+                                self.should_update_map = False
+                                return
+                            else:
+                                time.sleep(0.8)
+                                key_mouse_manager.keyDown("w")
+                        elif self.bai_e:
+                            key_mouse_manager.keyUp("w")
+                            # self.use_e()
+                            # time.sleep(0.6)
+                            key_mouse_manager.press('s')
+                            # key_mouse_manager.wait()
+                            self.use_e()
+                            if self.floor not in [3, 7, 12]:
+                                self.stop_move = 1
+                                self.mini_state += 2
                                 time.sleep(0.4)
                                 key_mouse_manager.press('w')
                                 time.sleep(1.4)
@@ -1752,6 +1861,7 @@ class UniverseUtils:
                 key_mouse_manager.press('a',0.7)
                 key_mouse_manager.press('d',0.45)
                 key_mouse_manager.press('w',0.5)
+                key_mouse_manager.wait()
                 break
             time.sleep(0.1)
         self.stop_move=1
@@ -1801,9 +1911,19 @@ class UniverseUtils:
             key_mouse_manager.press('e')
     
     def use_e(self):
-        key_mouse_manager.press('e',force= bool(self.quan))
-        time.sleep(0.4)
-        if not self.quan:
+        if self.quan:
+            key_mouse_manager.press('e',force= True)
+            time.sleep(0.4)
+        elif self.bai_e:
+            key_mouse_manager.press('s')
+            key_mouse_manager.press('e')
+            time.sleep(0.6)
+            key_mouse_manager.press('w')
+            key_mouse_manager.press('e')
+        else:
+            key_mouse_manager.press('e')
+
+        if not self.quan or self.bai_e:
             time.sleep(0.8)
         if self.click_text(text="快速恢复",box=[864, 1058, 224, 318],click=False,ocr_line=False,warning=False):
             self.solve_snack()
@@ -1823,15 +1943,19 @@ class UniverseUtils:
             img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
             res_down = self.ts.split_and_find([self.fate], img_down, mode="bless")
             if res_up[1] == 2:
+                CUS_LOGGER.info("上半名称优先通过")
                 key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
                 chose = 1
             elif res_down[1] == 2:
+                CUS_LOGGER.info("下半命途优先通过")
                 key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
                 chose = 1
             if not chose:
+                CUS_LOGGER.info("未知行为")
                 key_mouse_manager.click(0.2990, 0.1046)
                 time.sleep(1.2)
         if not chose:
+            CUS_LOGGER.info("未优选，寻找次优解（非主命途）")
             for _ in range(8):
                 img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
                 if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:

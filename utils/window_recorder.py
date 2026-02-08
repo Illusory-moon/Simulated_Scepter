@@ -1,7 +1,6 @@
 import ctypes
 import datetime
 import time
-from threading import Thread
 
 import cv2
 import numpy as np
@@ -15,6 +14,7 @@ from ctypes import windll, wintypes, byref
 
 # 导入日志模块
 from utils.log import CUS_LOGGER
+from utils.thread import ThreadWithException
 
 
 class WindowRecorder:
@@ -172,7 +172,7 @@ class WindowRecorder:
 
         # 启动录制线程
         self.recording = True
-        self.recording_thread = Thread(target=self._record_window, daemon=True)
+        self.recording_thread = ThreadWithException(target=self._record_window, daemon=True,name="视频录制")
         self.recording_thread.start()
 
     def _record_window(self):

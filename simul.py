@@ -1,5 +1,4 @@
 import json
-import threading
 import pyautogui
 import cv2 as cv
 import numpy as np
@@ -16,6 +15,7 @@ from utils.simul.utils import UniverseUtils, set_forground, sprint, get_dis, ext
 import os
 from align_angle import main as align_angle_main
 from utils.simul.config import config
+from utils.thread import ThreadWithException
 from utils.utils.mminimap import update_minimap_data
 from utils.utils.tool import get_hwnd_and_text, find_latest_modified_file, get_center
 from utils.window_recorder import WindowRecorder
@@ -60,6 +60,8 @@ class SimulatedUniverse(UniverseUtils):
         self.find = find
         #调试级别
         self.debug = debug
+        if self.debug:
+            set_debug(CUS_LOGGER,True)
         #是否使用消耗品
         self.consumable = consumable
         #是否慢速模式
@@ -235,6 +237,8 @@ class SimulatedUniverse(UniverseUtils):
             #检查黄泉
             if not self.quan and self.check("huangquan", 0.0578,0.7083):
                 self.quan = 1
+            if not self.bai_e and self.check("bai_e", 0.0625,0.7092):
+                self.bai_e = 1
             #长时间离开或者未初始化层数？则重新初始化
             if self.floor_init == 0:
                 CUS_LOGGER.info("开始重新初始化层数")
@@ -395,8 +399,8 @@ class SimulatedUniverse(UniverseUtils):
                         self.re_enter()
                 self.lst_changed = time.time()
                 return 1
-            if self.multi == 1.01:
-                align_angle_main(0, [1], self)
+            # if self.multi == 1.01:
+            #     align_angle_main(0, [1], self)
             self.get_screen()
             if self.floor > 0 and self.check("ruan",0.0625,0.7065,threshold=0.95) and not self.check("U", 0.0240,0.7759) and not (self.floor==12 and self.mini_state>1):
                 key_mouse_manager.press('e')
@@ -405,6 +409,8 @@ class SimulatedUniverse(UniverseUtils):
                     self.solve_snack()
             # 寻路
             CUS_LOGGER.info("开始寻路")
+            if self._stop:
+                return 1
             if self.mini_state:
                 #无先验寻路
                 self.get_direc_only_minimap()
@@ -718,7 +724,7 @@ class SimulatedUniverse(UniverseUtils):
         if self.floor >= 12:
             self.floor = 11
     def confirm_yes(self):
-        key_mouse_manager.click(self.tx, self.ty)
+        # key_mouse_manager.click(self.tx, self.ty)
         self.click_text(text="确认")
         time.sleep(1)
         return 0
@@ -1313,7 +1319,7 @@ class SimulatedUniverse(UniverseUtils):
         if self.record:
             self.recorder.start_recording()
         if self._show_map:
-            self.map_thread = threading.Thread(target=self.show_map)
+            self.map_thread = ThreadWithException(target=self.show_map,name="地图")
             self.map_thread.start()
         try:
             self.route()
