@@ -478,6 +478,10 @@ def main(show):
         app = QApplication(sys.argv)
         window = MainWindow()
         window.show()
-        app.exec_()
+        try:
+            sys.exit(app.exec())
+        except SystemExit as e:
+            print(f"异常退出，进程已结束,退出代码:{e.code}")
+            input("按Enter键退出...")
 if __name__ == "__main__":
     main(1)

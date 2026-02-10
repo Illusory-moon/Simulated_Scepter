@@ -724,8 +724,8 @@ class SimulatedUniverse(UniverseUtils):
         if self.floor >= 12:
             self.floor = 11
     def confirm_yes(self):
-        # key_mouse_manager.click(self.tx, self.ty)
-        self.click_text(text="确认")
+        if self.click_text(text="确认",click=False):
+            key_mouse_manager.click(self.tx, self.ty)
         time.sleep(1)
         return 0
 

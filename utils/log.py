@@ -42,8 +42,10 @@ class LogEmitter(QObject):
 
 
 log_emitter = LogEmitter()
+
 def set_debug(my_logger, debug: bool = False):
     my_logger.setLevel(DEBUG if debug else INFO)
+
 class UILogHandler(StreamHandler):
     def __init__(self):
         super().__init__()
@@ -160,9 +162,7 @@ class CusLogger(logging.Logger):
     def __init__(self, name):
         super().__init__(name)
 
-
-        set_debug(self,False)
-
+        set_debug(self, False)
 
         # 其他原有处理器配置...
         # keywords = ["property", "widget", "push", "layout"]
@@ -250,7 +250,6 @@ class CusLogger(logging.Logger):
 app = QApplication.instance() or QApplication(sys.argv)
 logging.setLoggerClass(CusLogger)
 CUS_LOGGER = logging.getLogger('my customize logger')
-
 
 
 
