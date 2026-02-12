@@ -407,7 +407,7 @@ def mask_minimap_outside(minimap, center_radius=80):
     cv2.circle(mask, center, center_radius, (0), -1)
     masked_minimap = cv2.bitwise_and(minimap, minimap, mask=mask)
     return masked_minimap
-def get_minimap(image, radius,copy=False,rotation=False):
+def get_minimap(image, radius,copy=False,rotation=False,center_radius=80):
     """
     Crop the minimap area on image.
     """
@@ -425,7 +425,7 @@ def get_minimap(image, radius,copy=False,rotation=False):
         # 将输入图片的小地图与旋转后的视角纹理相减
         image = cv2.subtract(image, rotated_texture)
         #掩膜掩盖非中心区域避免遇敌红色圈干扰敌人追踪
-        image = mask_minimap_center(image, center_radius=80)
+        image = mask_minimap_center(image, center_radius=center_radius)
     return image
 def convolve(arr, kernel=3):
     """
