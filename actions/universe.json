@@ -233,30 +233,6 @@
         ]
     },
     {
-        "name": "确认图片",
-        "trigger":{
-            "photo": "yes1",
-            "pos": {"x":0.5,"y":0.5},
-            "mask":"mask_end"
-        },
-        "actions":
-        [
-            "confirm_yes"
-        ]
-    },
-    {
-        "name": "确认纯文本",
-        "trigger":{
-            "text": "确认",
-            "box": [232, 1690, 154, 928],
-            "redundancy": 30
-        },
-        "actions":
-        [
-            "confirm_yes"
-        ]
-    },
-    {
         "name": "设置界面",
         "trigger":{
             "text": "暂离",
@@ -323,6 +299,154 @@
             {
                 "position": [900, 1000]
             }
+        ]
+    },
+    {
+        "name": "打开模拟宇宙",
+        "trigger":{
+            "text": "黑塔的办公室",
+            "box": [55, 187, 11, 42],
+            "redundancy": 30,
+            "condition": "init2"
+        },
+        "actions":
+        [
+        "goto_survival_room"
+        ]
+    },
+    {
+        "name": "打开地图6",
+        "trigger":{
+            "text": "传送",
+            "box": [1623, 1687, 951, 990],
+            "redundancy": 30,
+            "condition": "init"
+        },
+        "actions":
+        [
+           {
+                "position": [1655, 970]
+            },
+            {
+                "set_state": "init2"
+            }
+        ]
+    },
+    {
+        "name": "确认图片",
+        "trigger":{
+            "photo": "yes1",
+            "pos": {"x":0.5,"y":0.5},
+            "mask":"mask_end"
+        },
+        "actions":
+        [
+            "confirm_yes"
+        ]
+    },
+    {
+        "name": "确认纯文本",
+        "trigger":{
+            "text": "确认",
+            "box": [232, 1690, 154, 928],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "confirm_yes"
+        ]
+    },
+    {
+        "name": "打开地图5",
+        "trigger":{
+            "text": "黑塔的办公室",
+            "box": [844, 998, 739, 768],
+            "redundancy": 30,
+            "condition": "init"
+        },
+        "actions":
+        [
+           {
+                "position": [921, 754]
+            }
+        ]
+    },
+    {
+        "name": "打开地图4",
+        "trigger":{
+            "photo": "herta_office",
+            "threshold":0.95
+        },
+        "actions":
+        [
+           {
+                "photo": "herta_office"
+            }
+        ]
+    },
+    {
+        "name": "打开地图3",
+        "trigger":{
+            "text": "主控舱段",
+            "box": [1456, 1600, 338, 367],
+            "redundancy": 30,
+            "condition": "init"
+        },
+        "actions":
+        [
+           {
+                "position": [1528, 353]
+            },
+            {
+                "scroll": -10
+            },
+           {
+                "drag": [0.5,0.1520,0.5,0.8620]
+            }
+        ]
+    },
+    {
+        "name": "打开地图2",
+        "trigger":{
+            "text": "空间站",
+            "box": [0, 1920, 540, 1080],
+            "redundancy": 30,
+            "condition": "init"
+        },
+        "actions":
+        [
+           {
+                "text": "空间站"
+            }
+        ]
+    },
+    {
+        "name": "打开地图",
+        "trigger":{
+            "text": "星轨航图",
+            "box": [1625, 1732, 143, 176],
+            "redundancy": 30,
+            "condition": "init"
+        },
+        "actions":
+        [   {
+                "position": [1678, 160]
+            },
+           {
+                "drag": [0.8521,0.5620,0.1521,0.5620]
+            }
+        ]
+    },
+    {
+        "name": "大世界",
+        "trigger":{
+            "photo": "smartphone",
+            "pos": {"x":0.9833,"y":0.9380},
+            "threshold":0.96
+        },
+        "actions":
+        [
+            "goto_herta_office"
         ]
     }
 ]

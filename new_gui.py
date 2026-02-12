@@ -354,8 +354,7 @@ class MainWindow(QMainWindowLog):
                 int(config_simul.use_consumable),
                 int(config_simul.slow_mode),
                 int(config_simul.max_run),
-                bonus=config_simul.bonus,
-                gui=self
+                bonus=config_simul.bonus
             )
             self.current_task = su
             su.start()

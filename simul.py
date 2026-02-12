@@ -104,6 +104,8 @@ class SimulatedUniverse(UniverseUtils):
         self.map_init=False
         # 是否首次获取层数
         self.first_get_floor=False
+        #当前运行状态
+        self.state=None
         #事件与行为存储路径
         self.default_json_path = "actions/universe.json"
         self.default_json = load_actions(self.default_json_path)
@@ -143,7 +145,6 @@ class SimulatedUniverse(UniverseUtils):
         fail_time = 0
         fp = 1
         set_forground()
-        self.goto_herta_office()
         while not self._stop:
             hwnd,Text = get_hwnd_and_text()
             warn_game = False
@@ -912,54 +913,47 @@ class SimulatedUniverse(UniverseUtils):
         函数会利用一系列图像识别和文本识别来确定当前位置，
         并执行相应的点击、拖拽和键盘操作来完成导航。
         """
-
+        self.state="init"
         if self.click_text(text="模拟宇宙",box=[1231, 1360, 595, 631],click=False,allow_fail= True):
             CUS_LOGGER.info("已在办公室，打开模拟宇宙")
             key_mouse_manager.press('f')
             return
         CUS_LOGGER.info("前往黑塔办公室")
-        # if self.check("smartphone", 0.9833, 0.9380, threshold=0.95, fresh=True):
-        #     key_mouse_manager.press('f4')
-        #     self.click_target('resource/imgs/universe.jpg', threshold=0.9, click=True)
-        #     self.click_text(text="模拟宇宙",box=[292, 419, 448, 481])
-        #     key_mouse_manager.drag(0.4521,0.2,0.4521,0.9)
-        #     key_mouse_manager.drag(0.4521,0.2,0.4521,0.9)
-        #     key_mouse_manager.drag(0.4521,0.2,0.4521,0.9)
-        #     key_mouse_manager.wait()
-        #     self.click_text(text="传送",box=[1513, 1567, 814, 844])#寰宇蝗灾[1515, 1567, 351, 382]
-        if self.check("smartphone", 0.9833,0.9380, threshold=0.95,fresh=True):
-            CUS_LOGGER.info("打开地图")
-            key_mouse_manager.press('m')
-            while not self.click_text(text="星轨航图",delay=1,after_delay=0.5,box=[1625, 1732, 143, 176]):
-                time.sleep(0.5)
-            #拖拽地图到最左
-            key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
-            key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
-            while not self.click_text(text="空间站",delay=3,ocr_line=False,box=[419, 583, 600, 800]):
-                time.sleep(0.5)
-            while not self.click_text(text="主控舱段",delay=1,after_delay=1,box=[1456, 1600, 338, 367]):
-                time.sleep(0.5)
-            key_mouse_manager.scroll(-10)#放大地图
-            key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
-            key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
-            key_mouse_manager.sleep(0.5)
-            while not self.check("herta_office", 0.7740,0.2824, threshold=0.95,fresh=True):
-                time.sleep(0.5)
-            key_mouse_manager.click(0.7740,0.2824)
-            while not self.click_text(text="黑塔的办公室",delay=0.5,after_delay=0.5,box=[844, 998, 739, 768]):
-                time.sleep(0.5)
-            while not self.click_text(text="传送",box=[1623, 1687, 951, 990],after_delay=0.5):
-                time.sleep(0.5)
-            while not self.click_text(text="黑塔的办公室",box=[55, 187, 11, 42],click=False,allow_fail= True):
-                time.sleep(0.5)
-            time.sleep(2)
-            key_mouse_manager.mouse_move(15)
-            key_mouse_manager.keyDown("w")
-            sprint()
-            key_mouse_manager.sleep(4)
-            key_mouse_manager.keyUp("w")
+        CUS_LOGGER.info("打开地图")
+        key_mouse_manager.press('m')
+        # while not self.click_text(text="星轨航图",delay=1,after_delay=0.5,box=[1625, 1732, 143, 176]):
+        #     time.sleep(0.5)
+        # #拖拽地图到最左
+        # key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
+        # key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
+        # while not self.click_text(text="空间站",delay=3,ocr_line=False,box=[419, 583, 600, 800]):
+        #     time.sleep(0.5)
+        # while not self.click_text(text="主控舱段",delay=1,after_delay=1,box=[1456, 1600, 338, 367]):
+        #     time.sleep(0.5)
+        # key_mouse_manager.scroll(-10)#放大地图
+        # key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
+        # key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
+        # key_mouse_manager.sleep(0.5)
+        # while not self.check("herta_office", 0.7740,0.2824, threshold=0.95,fresh=True):
+        #     time.sleep(0.5)
+        # key_mouse_manager.click(0.7740,0.2824)
+        # while not self.click_text(text="黑塔的办公室",delay=0.5,after_delay=0.5,box=[844, 998, 739, 768]):
+        #     time.sleep(0.5)
+        # while not self.click_text(text="传送",box=[1623, 1687, 951, 990],after_delay=0.5):
+        #     time.sleep(0.5)
+        # while not self.click_text(text="黑塔的办公室",box=[55, 187, 11, 42],click=False,allow_fail= True):
+        #     time.sleep(0.5)
+        # time.sleep(2)
+    def goto_survival_room(self):
+        key_mouse_manager.mouse_move(15)
+        key_mouse_manager.keyDown("w")
+        sprint()
+        key_mouse_manager.sleep(4)
+        key_mouse_manager.keyUp("w")
+        key_mouse_manager.wait()
+        self.set_state("survival_room")
 
-    def run_static(self, json_path=None, json_file=None, action_list=[], skip_check=0) -> (str,int):
+    def run_static(self, json_path=None, json_file=None, action_list=[]) -> (str,int):
         """
         执行静态动作配置文件中的动作
         
@@ -970,7 +964,6 @@ class SimulatedUniverse(UniverseUtils):
             json_path: JSON配置文件路径，如果提供则加载该文件
             json_file: 已加载的JSON配置对象，优先级高于json_path
             action_list: 指定要执行的动作列表，为空则执行所有动作
-            skip_check: 是否跳过触发条件检查，1表示跳过，0表示不跳过
             
         返回值:
             tuple: (触发的动作名称, 执行结果)
@@ -986,11 +979,12 @@ class SimulatedUniverse(UniverseUtils):
         for j in action_list if len(action_list) else json_file:
             for i in json_file[j]:
                 trigger = i["trigger"]
+                condition = trigger.get("condition", None)
                 #获取指定范围的文字
                 if trigger.get("text", None):
                     text = self.ts.find_with_box(trigger["box"], redundancy=trigger.get("redundancy", 30))
                     #强制跳过或者检查是否存在子串
-                    if skip_check or (len(text) and trigger["text"] in merge_text(text)):
+                    if (condition==self.state if condition is not None else True) and (len(text) and trigger["text"] in merge_text(text)):
                         CUS_LOGGER.info(f"触发文本 {i['name']}:{trigger['text']}")
                         for j in i["actions"]:
                             self.do_action(j)
@@ -1000,18 +994,31 @@ class SimulatedUniverse(UniverseUtils):
                         #返回触发的名字
                         return i['name'],1
                 elif trigger.get("photo", None):
-                    if self.check(trigger["photo"], trigger["pos"]["x"], trigger["pos"]["y"], mask=trigger.get("mask", None), threshold=trigger.get("threshold", None)):
-                        CUS_LOGGER.info(f"触发图像 {i['name']}:{trigger['photo']}")
-                        for j in i["actions"]:
-                            resu=self.do_action(j)
-                        if resu is None:
-                            resu=0
-                        self.action_history.append(i["name"])
-                        #记录最近10个动作
-                        self.action_history = self.action_history[-10:]
-                        #返回触发的名字
-                        return i['name'],resu
-
+                    if condition==self.state if condition is not None else True:
+                        if "pos" in trigger:
+                            if self.check(trigger["photo"], trigger["pos"]["x"], trigger["pos"]["y"], mask=trigger.get("mask", None), threshold=trigger.get("threshold", None)):
+                                CUS_LOGGER.info(f"触发图像 {i['name']}:{trigger['photo']}")
+                                for j in i["actions"]:
+                                    resu=self.do_action(j)
+                                if resu is None:
+                                    resu=0
+                                self.action_history.append(i["name"])
+                                #记录最近10个动作
+                                self.action_history = self.action_history[-10:]
+                                #返回触发的名字
+                                return i['name'],resu
+                        else:
+                            if self.click_target(f'resource/imgs//{trigger["photo"]}.jpg', threshold=trigger.get("threshold", 0.9), flag=False,click=False):
+                                CUS_LOGGER.info(f"触发全局图像 {i['name']}:{trigger['photo']}")
+                                for j in i["actions"]:
+                                    resu=self.do_action(j)
+                                if resu is None:
+                                    resu=0
+                                self.action_history.append(i["name"])
+                                #记录最近10个动作
+                                self.action_history = self.action_history[-10:]
+                                #返回触发的名字
+                                return i['name'],resu
         return '',0
     def do_action(self, action) -> int:
         """
@@ -1045,6 +1052,9 @@ class SimulatedUniverse(UniverseUtils):
                     CUS_LOGGER.info(f"点击 {action['text']}:{i['box']}")
                     self.click_box(i["box"])
                     return 1
+        if "photo" in action:
+            self.click_target(f'resource/imgs//{action["photo"]}.jpg', action.get("threshold", 0.9), flag=False,click=True)
+            return 1
         elif "position" in action:
             CUS_LOGGER.info(f"点击 {action['position']}")
             self.click_position(action["position"])
@@ -1057,6 +1067,15 @@ class SimulatedUniverse(UniverseUtils):
             return 1
         elif "press" in action:
             key_mouse_manager.press(action["press"], action["time"] if "time" in action else 0)
+            return 1
+        elif "drag" in action:
+            key_mouse_manager.drag(action["drag"][0], action["drag"][1],action["drag"][2],action["drag"][3])
+            return 1
+        elif "scroll" in action:
+            key_mouse_manager.scroll(action["scroll"])
+            return 1
+        elif "set_state" in action:
+            self.set_state(action["set_state"])
             return 1
         return 0
     def show_map(self):
@@ -1363,4 +1382,7 @@ class SimulatedUniverse(UniverseUtils):
                 CUS_LOGGER.error(f"停止录制时发生错误: {e}")
 
         self.map_thread = None
+
+    def set_state(self, state):
+        self.state= state
 

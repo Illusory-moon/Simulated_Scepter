@@ -350,18 +350,17 @@ class UniverseUtils:
     # 点击与模板匹配的点，flag=True表示必须匹配，不匹配就会一直寻找直到出现匹配
     def click_target(self, target_path, threshold, flag=True, sub=True, click=False):
         target = cv.imread(target_path)
-        while True:
+        while not self._stop:
             result = self.scan_screenshot(target)
             if result["max_val"] > threshold:
-                CUS_LOGGER.info(f"匹配度{result['max_val']}")
+                CUS_LOGGER.debug(f"全局图像匹配度{result['max_val']}")
                 points = self.calculated(result, target.shape)
                 self.get_point(*points)
-                CUS_LOGGER.info(f"target shape: {target.shape}")
                 if click:
-                    key_mouse_manager.click(points)
-                return
+                    key_mouse_manager.click(*points)
+                return True
             if not flag:
-                return
+                return False
             elif sub:  # 降低阈值直到匹配到为止
                 threshold -= 0.01
 

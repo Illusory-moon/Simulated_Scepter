@@ -53,6 +53,7 @@ class ThreadWithException(threading.Thread):
             _, log_emitter = get_logger()
             err_msg = traceback.format_exc()
             log_emitter.show_error_signal.emit(f"任务执行器的子线程中发生错误 - {self.name}", err_msg)
+            CUS_LOGGER.error(err_msg)
         finally:
             CUS_LOGGER, _ = get_logger()
             if self.is_print:
