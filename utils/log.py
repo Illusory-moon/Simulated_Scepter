@@ -39,6 +39,8 @@ current_time_str = datetime.now().strftime("%Y-%m-%d-%H-%M")
 class LogEmitter(QObject):
     """用于跨线程发送日志信号的Qt对象"""
     show_error_signal = pyqtSignal(str, str)  # (标题, 内容)
+    find_path_state_signal = pyqtSignal(str)  # (路径状态文本)
+    fps_update_signal = pyqtSignal(float)  # (FPS值)
 
 
 log_emitter = LogEmitter()

@@ -16,6 +16,7 @@ import os
 from align_angle import main as align_angle_main
 from utils.simul.config import config
 from utils.thread import ThreadWithException
+from utils.timer import timer
 from utils.utils.mminimap import update_minimap_data
 from utils.utils.tool import get_hwnd_and_text, find_latest_modified_file, get_center
 from utils.window_recorder import WindowRecorder
@@ -23,7 +24,7 @@ from route import PATHS
 
 
 class SimulatedUniverse(UniverseUtils):
-    def __init__(self, find, debug, speed, consumable, slow, nums=-1, bonus=False, update=0, gui=None):
+    def __init__(self, find, debug, speed, consumable, slow, nums=-1, bonus=False, update=0):
         """
         初始化模拟宇宙类实例
         
@@ -47,7 +48,7 @@ class SimulatedUniverse(UniverseUtils):
         返回值:
             无返回值
         """
-        super().__init__(speed,gui)
+        super().__init__(speed)
         CUS_LOGGER.info("当前命途：" + self.fate)
         key_mouse_manager.set_config(config)
         # 设置屏幕参数以支持坐标转换
@@ -359,7 +360,7 @@ class SimulatedUniverse(UniverseUtils):
             
             self.must_end |= self.floor >= 4 and self.debug == 2
             # 长时间未交互/战斗，暂离或重开
-            if ((time.time() - self.lst_changed >= 37 - 4 * self.debug + 8 * self.slow) and self.find == 1)or (self.floor == 12 and self.mini_state > 4)or self.must_end:
+            if ((time.time() - self.lst_changed >= 37 - 2 * self.debug + 8 * self.slow) and self.find == 1)or (self.floor == 12 and self.mini_state > 4)or self.must_end:
                 time.sleep(2.5)
                 key_mouse_manager.press("esc")
                 time.sleep(2)
@@ -441,12 +442,10 @@ class SimulatedUniverse(UniverseUtils):
         chose = 0
         self.in_battle = 0
         if self.click_text(text="重置祝福",box=[1268, 1444, 929, 1025],click=False,warning=False):
-            for _ in range(14):
+            for _ in range(4):
                 img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
-                if (
-                        self.ts.split_and_find(self.tk.fates, img_down, mode="bless")[1]
-                        or self._stop
-                ):
+                if (self.ts.split_and_find(self.tk.fates, img_down, mode="bless")[1]
+                        or self._stop):
                     time.sleep(0.2)
                     break
                 if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
@@ -458,20 +457,24 @@ class SimulatedUniverse(UniverseUtils):
             res_down = self.ts.split_and_find([self.fate], img_down, mode="bless")
             if res_up[1] == 2:
                 key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+                key_mouse_manager.wait()
                 chose = 1
             elif res_down[1] == 2:
                 key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
+                key_mouse_manager.wait()
                 chose = 1
             if not chose:
                 key_mouse_manager.click(0.2990, 0.1046)
+                key_mouse_manager.wait()
                 time.sleep(1.2)
         # 未匹配到优先祝福，刷新祝福并再次匹配
         if not chose:
-            for _ in range(8):
+            for _ in range(4):
                 img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
                 if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
                     time.sleep(0.2)
                     break
+                CUS_LOGGER.debug("未识别到命途")
                 if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                     return 1
                 time.sleep(0.2)
@@ -483,12 +486,16 @@ class SimulatedUniverse(UniverseUtils):
             )
             if res_up[1] == 2:
                 key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+                key_mouse_manager.wait()
             elif res_down[1] >= 2:
                 key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
+                key_mouse_manager.wait()
             else:
                 key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+                key_mouse_manager.wait()
             time.sleep(0.4)
         key_mouse_manager.click(0.1203, 0.1093)
+        key_mouse_manager.wait()
         tm = time.time()
         while time.time() - tm < 1.6 and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
             time.sleep(0.1)
@@ -1204,12 +1211,14 @@ class SimulatedUniverse(UniverseUtils):
                         3: [140, 140, 49]   # 青色
                     }
                     target_color = color_map.get(current_target_type, [49, 140, 140])
+                else:
+                    target_color = [49, 49, 140]
 
-                    for dx in range(-2, 3):
-                        for dy in range(-2, 3):
-                            if (0 <= adjusted_target_x + dx < updated_image.shape[0] and
-                                0 <= adjusted_target_y + dy < updated_image.shape[1]):
-                                updated_image[adjusted_target_x + dx, adjusted_target_y + dy] = target_color
+                for dx in range(-2, 3):
+                    for dy in range(-2, 3):
+                        if (0 <= adjusted_target_x + dx < updated_image.shape[0] and
+                            0 <= adjusted_target_y + dy < updated_image.shape[1]):
+                            updated_image[adjusted_target_x + dx, adjusted_target_y + dy] = target_color
 
                 # 绘制朝向箭头
                 if current_ang is not None:
@@ -1352,30 +1361,6 @@ class SimulatedUniverse(UniverseUtils):
                 self.recorder.stop_recording()
             except Exception as e:
                 CUS_LOGGER.error(f"停止录制时发生错误: {e}")
-        # 等待地图线程结束
-        # if self.map_thread and self.map_thread.is_alive():
-        #     # 等待最多2秒让线程自行结束
-        #     timeout = 2
-        #     start_time = time.time()
-        #     while self.map_thread.is_alive() and (time.time() - start_time) < timeout:
-        #         time.sleep(0.1)
-        #
-        #     # 如果线程仍未结束，强制终止
-        #     if self.map_thread.is_alive():
-        #         import ctypes
-        #         res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
-        #             ctypes.c_long(self.map_thread.ident),
-        #             ctypes.py_object(SystemExit)
-        #         )
-        #         time.sleep(0.5)  # 短暂等待
 
         self.map_thread = None
-        
-        # 确保关闭地图窗口（如果存在）
-        # try:
-        #     # 先尝试发送q按键来关闭窗口
-        #     cv.waitKey(1)  # 允许窗口消息处理
-        #     cv.destroyAllWindows()  # 关闭所有OpenCV窗口
-        # except:
-        #     # 如果窗口不存在，可能会抛出异常，忽略即可
-        #     pass
+

@@ -28,8 +28,7 @@ from simul import SimulatedUniverse
 from diver import DivergentUniverse
 from iron_blood import IronBloodUniverse
 
-
-
+import faulthandler
 
 
 
@@ -53,6 +52,8 @@ class MainWindow(QMainWindowLog):
         self.f6_pressed.connect(lambda: self.handle_key_pressed("f6"))
         self.f7_pressed.connect(lambda: self.handle_key_pressed("f7"))
         log_emitter.show_error_signal.connect(self.show_error_message)
+        log_emitter.find_path_state_signal.connect(self.set_find_path_state)
+        log_emitter.fps_update_signal.connect(self.set_FPS)
     
     def start_task(self, task_func):
         """
@@ -311,8 +312,7 @@ class MainWindow(QMainWindowLog):
                 int(config_simul.use_consumable),
                 int(config_simul.slow_mode),
                 int(config_simul.max_run),
-                bonus=config_simul.bonus,
-                gui=self
+                bonus=config_simul.bonus
             )
             self.current_task = su
             su.start()
@@ -443,19 +443,14 @@ def main(show):
 
     # 以管理员权限重新运行程序，使用pythonw避免命令行窗口
     def run_as_admin():
-        script = Path(sys.argv[0]).resolve()
-        if show:
-            ex="python.exe"
-        else:
-            ex="pythonw.exe"
         try:
             ctypes.windll.shell32.ShellExecuteW(
                 None,
                 "runas",
-                ex,
-                f'"{script}"',
+                sys.executable,
+                __file__,
                 None,
-                1
+                show
             )
             return True
         except:
@@ -484,4 +479,6 @@ def main(show):
             print(f"异常退出，进程已结束,退出代码:{e.code}")
             input("按Enter键退出...")
 if __name__ == "__main__":
+    fault_log_file = open("logs/crash_dump.txt", "w", encoding="utf-8")
+    faulthandler.enable(file=fault_log_file)
     main(1)
