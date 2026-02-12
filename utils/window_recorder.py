@@ -55,46 +55,84 @@ class WindowRecorder:
             width = rect[2] - rect[0]
             height = rect[3] - rect[1]
             
-            # 创建设备上下文和位图
-            hwnd_dc = win32gui.GetWindowDC(hwnd)
-            mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
-            save_dc = mfc_dc.CreateCompatibleDC()
-            
-            save_bit_map = win32ui.CreateBitmap()
-            save_bit_map.CreateCompatibleBitmap(mfc_dc, width, height)
-            save_dc.SelectObject(save_bit_map)
-            
-            # 使用 PrintWindow API 后台截图
-            # 参数3表示同时绘制客户区和非客户区
-            result = windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), 3)
-            
-            if result == 1:  # 成功
-                # 转换为 numpy 数组
-                bmp_info = save_bit_map.GetInfo()
-                bmp_str = save_bit_map.GetBitmapBits(True)
-                img = np.frombuffer(bmp_str, dtype=np.uint8)
-                img.shape = (bmp_info['bmHeight'], bmp_info['bmWidth'], 4)  # BGRA
-                
-                # 转换为 BGR 格式
-                img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
-                
-                # 释放资源
-                win32gui.DeleteObject(save_bit_map.GetHandle())
-                save_dc.DeleteDC()
-                mfc_dc.DeleteDC()
-                win32gui.ReleaseDC(hwnd, hwnd_dc)
-                
-                return img
-            else:
-                # 释放资源
-                win32gui.DeleteObject(save_bit_map.GetHandle())
-                save_dc.DeleteDC()
-                mfc_dc.DeleteDC()
-                win32gui.ReleaseDC(hwnd, hwnd_dc)
-                
+            if width <= 0 or height <= 0:
                 return None
+                
+            # 创建设备上下文和位图
+            hwnd_dc = None
+            mfc_dc = None
+            save_dc = None
+            save_bit_map = None
+            old_bitmap = None
+            
+            try:
+                # 获取窗口DC
+                hwnd_dc = win32gui.GetWindowDC(hwnd)
+                if not hwnd_dc:
+                    return None
+                    
+                # 创建DC对象
+                mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
+                save_dc = mfc_dc.CreateCompatibleDC()
+                
+                # 创建位图
+                save_bit_map = win32ui.CreateBitmap()
+                save_bit_map.CreateCompatibleBitmap(mfc_dc, width, height)
+                old_bitmap = save_dc.SelectObject(save_bit_map)
+                
+                # 使用 PrintWindow API 后台截图
+                result = windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), 3)
+                
+                if result == 1:  # 成功
+                    # 转换为 numpy 数组
+                    bmp_info = save_bit_map.GetInfo()
+                    bmp_str = save_bit_map.GetBitmapBits(True)
+                    img = np.frombuffer(bmp_str, dtype=np.uint8)
+                    img.shape = (bmp_info['bmHeight'], bmp_info['bmWidth'], 4)  # BGRA
+                    
+                    # 转换为 BGR 格式
+                    img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+                    return img
+                else:
+                    return None
+                    
+            finally:
+                # 确保所有资源都被正确释放 - 关键修复点
+                try:
+                    if old_bitmap and save_dc:
+                        save_dc.SelectObject(old_bitmap)
+                except Exception as e:
+                    CUS_LOGGER.warning(f"恢复位图选择失败: {e}")
+                    
+                try:
+                    if save_bit_map:
+                        win32gui.DeleteObject(save_bit_map.GetHandle())
+                except Exception as e:
+                    CUS_LOGGER.warning(f"删除位图对象失败: {e}")
+                    
+                try:
+                    if save_dc:
+                        save_dc.DeleteDC()
+                except Exception as e:
+                    CUS_LOGGER.warning(f"删除保存DC失败: {e}")
+                    
+                try:
+                    if mfc_dc:
+                        mfc_dc.DeleteDC()
+                except Exception as e:
+                    CUS_LOGGER.warning(f"删除MFC DC失败: {e}")
+                    
+                try:
+                    if hwnd_dc:
+                        win32gui.ReleaseDC(hwnd, hwnd_dc)
+                except Exception as e:
+                    CUS_LOGGER.warning(f"释放窗口DC失败: {e}")
+                    
         except Exception as e:
             CUS_LOGGER.warning(f"后台截图窗口失败: {e}")
+            # 发生异常时也要确保资源清理
+            import gc
+            gc.collect()
             return None
 
     def start_recording(self):
