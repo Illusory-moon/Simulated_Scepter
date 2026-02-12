@@ -83,7 +83,6 @@ class UniverseUtils:
         #当前计算坐标
         self.now_loc = [0,0]
         self.mini_state = 0
-        self.ang_off = 0
         self.target = set()
         self.fps_list = []
         set_forground()
@@ -268,11 +267,6 @@ class UniverseUtils:
                 if self.wait_flag(lambda:not self.is_run(), 3):
                     return
 
-    def get_point(self, x, y):
-        # 得到一个点的浮点表示
-        x = self.x1 - x
-        y = self.y1 - y
-        print("获取到点：{:.4f},{:.4f}".format(x / self.xx, y / self.yy))
 
     def calc_point(self, point, offset):
         return point[0] - offset[0] / self.xx, point[1] - offset[1] / self.yy
@@ -355,7 +349,6 @@ class UniverseUtils:
             if result["max_val"] > threshold:
                 CUS_LOGGER.debug(f"全局图像匹配度{result['max_val']}")
                 points = self.calculated(result, target.shape)
-                self.get_point(*points)
                 if click:
                     key_mouse_manager.click(*points)
                 return True
@@ -515,12 +508,8 @@ class UniverseUtils:
             if dx is None:
                 CUS_LOGGER.debug(f'旋转查找终点')
                 for k in [60,120,60,60,30,30,-60,-60,-60,-60,-60,-60]:
-                    if self.ang_neg:
-                        key_mouse_manager.mouse_move(k)
-                        off -= k
-                    else:
-                        key_mouse_manager.mouse_move(-k)
-                        off += k
+                    key_mouse_manager.mouse_move(-k)
+                    off += k
                     time.sleep(0.3)
                     dx = self.get_end_point()
                     if dx is not None:
@@ -583,71 +572,6 @@ class UniverseUtils:
         log_emitter.find_path_state_signal.emit(text)
 
 
-    # def get_bw_map(self, re_screen=1, local_screen=None):
-    #     """
-    #         进一步得到小地图的黑白格式
-    #         re_screen：是否重新截图
-    #     """
-    #     try:
-    #         yellow = np.array([145, 192, 220])
-    #         black = np.array([0, 0, 0])
-    #         white = np.array([210, 210, 210])
-    #         gray = np.array([55, 55, 55])
-    #         shape = (int(self.scx * 190), int(self.scx * 190))
-    #         CUS_LOGGER.debug(f"形状={shape}")
-    #         if re_screen and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
-    #             return None
-    #         if local_screen is None:
-    #             local_screen = self.get_local(0.9333, 0.8657, shape)
-    #
-    #         # 验证local_screen是否有效
-    #         if local_screen is None or len(local_screen.shape) < 3:
-    #             CUS_LOGGER.error(f"get_bw_map: local_screen无效，形状: {local_screen.shape if local_screen is not None else 'None'}")
-    #             return None
-    #
-    #         bw_map = np.zeros(local_screen.shape[:2], dtype=np.uint8)
-    #         # 灰块、白线：小地图中的可移动区域、可移动区域的边缘
-    #         # b_map：当前像素点是否是灰块。只允许灰块附近（2像素）的像素被识别为白线
-    #         b_map = deepcopy(bw_map)
-    #         b_map[
-    #             np.sum((local_screen - gray) ** 2, axis=-1) <= 3200 + self.find * 1600
-    #         ] = 255
-    #         blk_map = deepcopy(bw_map)
-    #         blk_map[
-    #             np.sum((local_screen - black) ** 2, axis=-1) <= 800 + self.find * 800
-    #         ] = 255
-    #         kernel = np.zeros((9, 9), np.uint8)  # 设置kenenel大小
-    #         kernel += 1
-    #         dilate = cv.dilate(blk_map, kernel, iterations=1)  # 膨胀还原图形
-    #         kernel = np.zeros((5, 5), np.uint8)  # 设置kenenel大小
-    #         kernel += 1
-    #         b_map = cv.dilate(b_map, kernel, iterations=1)
-    #         bw_map[
-    #             (np.sum((local_screen - white) ** 2, axis=-1) <= 3200 + self.find * 1600)
-    #             & (b_map > 200)
-    #         ] = 255
-    #         # 再次精确裁剪，这里区别模式只是防止bug，find=1时的裁剪是最精确的（中心点即为人物坐标）
-    #         if self.find == 0:
-    #             bw_map = bw_map[
-    #                 int(shape[0] * 0.5) - 68 : int(shape[0] * 0.5) + 108,
-    #                 int(shape[1] * 0.5) - 48 : int(shape[1] * 0.5) + 128,
-    #             ]
-    #         else:
-    #             bw_map = bw_map[
-    #                 int(shape[0] * 0.5) - 68 - 2 : int(shape[0] * 0.5) + 108 - 2,
-    #                 int(shape[1] * 0.5) - 48 - 8 : int(shape[1] * 0.5) + 128 - 8,
-    #             ]
-    #         # 排除半径85以外的像素点
-    #         for i in range(bw_map.shape[0]):
-    #             for j in range(bw_map.shape[1]):
-    #                 if ((i - 88) ** 2 + (j - 88) ** 2) > 85**2:
-    #                     bw_map[i, j] = 0
-    #         if self.find == 0:
-    #             cv.imwrite(self.map_file + "bwmap.jpg", bw_map)
-    #         return bw_map
-    #     except Exception as e:
-    #         CUS_LOGGER.error(f"get_bw_map函数执行出错: {str(e)}")
-    #         return None
 
     def get_bw_map(self, local_screen=None,re_screen=1):
         """
@@ -903,18 +827,14 @@ class UniverseUtils:
         me = 0
         if self.mini_state > 2:
             me = self.move_to_end()
-            # self.is_target+=me
         else:
-            # self.ang_off += self.move_to_interact(2)
             self.move_to_interact(2)
-            # self.is_target+=self.ang_off
         self.ready = 1
         now_time = time.time()
         if me == 0:
             me = 0.5
         while not self.stop_move and time.time() - now_time < 3:
             if self.mini_state <= 2:
-                # self.ang_off += self.move_to_interact()
                 self.move_to_interact()
             else:
                 me = max(self.move_to_end(me), me)
@@ -956,8 +876,6 @@ class UniverseUtils:
                 'lst_tm': self.lst_tm,
                 'now_loc': self.now_loc,
                 'mini_state': self.mini_state,
-                'ang_off': self.ang_off,
-                'ang_neg': self.ang_neg,
                 'first_mini': self.first_mini
             }
             with open(os.path.join(backup_dir, "map_attrs_backup.json"), 'w') as f:
@@ -972,8 +890,6 @@ class UniverseUtils:
         self.lst_tm = 0
         self.now_loc = (4096, 4096)
         self.mini_state = 1
-        self.ang_off = 0
-        self.ang_neg = 0
         self.first_mini = 1
         self.in_battle = time.time()
         self.map_file = "resource/imgs/maps/my_" + str(random.randint(0, 99999)) + "/"
@@ -1671,10 +1587,6 @@ class UniverseUtils:
             time.sleep(2)
     def get_direc_only_minimap(self):
         """
-        self.ang_off 含义
-        角度偏移值,表示视角需要旋转的角度偏移量
-        用于记录当前视角相对于目标方向的角度偏差,当检测到需要调整视角时，会累积角度偏移值，
-        后续通过 key_mouse_manager.mouse_move(-self.ang_off*1.2) 进行视角校正
         self.mini_state 含义
         0: 初始状态
         1: 寻路中状态
@@ -1687,15 +1599,7 @@ class UniverseUtils:
         self.should_update_map=True
         ThreadWithException(target=self.auto_update_map,name="更新地图").start()
         if self.debug:
-            CUS_LOGGER.debug(f'当前状态{self.ang_off},{self.mini_state}')
-        self.ang_neg=self.ang_off<0
-        if self.ang_off:
-            #存在角度偏移值则使视线与角色朝向一致
-            time.sleep(0.6)
-            CUS_LOGGER.debug(f'无地图视角补正{-self.ang_off * 1.2}')
-            key_mouse_manager.mouse_move(-self.ang_off*1.2)
-            time.sleep(0.3)
-            key_mouse_manager.press('w',0.3)
+            CUS_LOGGER.debug(f'当前状态{self.mini_state}')
         if self.mini_state==1 and self.floor in [4,8,11]:
             time.sleep(0.5)
             key_mouse_manager.press('w',0.55)
@@ -1740,7 +1644,6 @@ class UniverseUtils:
                 self.should_update_map = False
                 return
             key_mouse_manager.press('s',0.4)
-        self.ang_off=0
         self.stop_move=0
         self.ready=0
         self.mini_target=0
@@ -1753,7 +1656,7 @@ class UniverseUtils:
             self.ready = 1
         while not self.ready:
             time.sleep(0.1)
-        if not self.ang_off and self.mini_state == 1:
+        if self.mini_state == 1:
             if self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
                 if self.floor == 11:
                     self.floor = 12

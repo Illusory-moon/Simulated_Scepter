@@ -872,8 +872,6 @@ class SimulatedUniverse(UniverseUtils):
                 self.lst_tm = backup_data.get('lst_tm', self.lst_tm)
                 self.now_loc = tuple(backup_data.get('now_loc', self.now_loc))
                 self.mini_state = backup_data.get('mini_state', self.mini_state)
-                self.ang_off = backup_data.get('ang_off', self.ang_off)
-                self.ang_neg = backup_data.get('ang_neg', self.ang_neg)
                 self.first_mini = backup_data.get('first_mini', self.first_mini)
         except:
             pass
@@ -921,29 +919,6 @@ class SimulatedUniverse(UniverseUtils):
         CUS_LOGGER.info("前往黑塔办公室")
         CUS_LOGGER.info("打开地图")
         key_mouse_manager.press('m')
-        # while not self.click_text(text="星轨航图",delay=1,after_delay=0.5,box=[1625, 1732, 143, 176]):
-        #     time.sleep(0.5)
-        # #拖拽地图到最左
-        # key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
-        # key_mouse_manager.drag(0.8521,0.5620,0.1521,0.5620)
-        # while not self.click_text(text="空间站",delay=3,ocr_line=False,box=[419, 583, 600, 800]):
-        #     time.sleep(0.5)
-        # while not self.click_text(text="主控舱段",delay=1,after_delay=1,box=[1456, 1600, 338, 367]):
-        #     time.sleep(0.5)
-        # key_mouse_manager.scroll(-10)#放大地图
-        # key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
-        # key_mouse_manager.drag(0.5,0.1520,0.5,0.8620)
-        # key_mouse_manager.sleep(0.5)
-        # while not self.check("herta_office", 0.7740,0.2824, threshold=0.95,fresh=True):
-        #     time.sleep(0.5)
-        # key_mouse_manager.click(0.7740,0.2824)
-        # while not self.click_text(text="黑塔的办公室",delay=0.5,after_delay=0.5,box=[844, 998, 739, 768]):
-        #     time.sleep(0.5)
-        # while not self.click_text(text="传送",box=[1623, 1687, 951, 990],after_delay=0.5):
-        #     time.sleep(0.5)
-        # while not self.click_text(text="黑塔的办公室",box=[55, 187, 11, 42],click=False,allow_fail= True):
-        #     time.sleep(0.5)
-        # time.sleep(2)
     def goto_survival_room(self):
         key_mouse_manager.mouse_move(15)
         key_mouse_manager.keyDown("w")
