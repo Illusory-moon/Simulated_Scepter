@@ -29,6 +29,32 @@
         ]
     },
     {
+        "name": "战斗状态检测",
+        "trigger":{
+            "photo": "battle",
+            "pos": {"x":0.9594,"y":0.9778},
+            "threshold":0.97
+        },
+        "actions":
+        [
+            {
+                "set_state": "battle"
+            }
+        ]
+    },
+    {
+        "name": "地图",
+        "trigger":{
+            "text": "地图",
+            "box": [94, 147, 53, 88],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            "get_floor"
+        ]
+    },
+    {
         "name": "自动战斗检测II",
         "trigger":{
             "photo": "auto_2",
@@ -49,7 +75,10 @@
         },
         "actions":
         [
-            "choose_bless"
+            "choose_bless",
+            {
+                "set_state": "bless"
+            }
         ]
     },
     {
@@ -153,12 +182,15 @@
         "name": "选择事件",
         "trigger":{
             "text": "事件",
-            "box": [99, 156, 61, 96],
+            "box": [93, 156, 55, 96],
             "redundancy": 30
         },
         "actions":
         [
-            "select_event"
+            "select_event",
+            {
+                "set_state": "event"
+            }
         ]
     },
     {
@@ -170,7 +202,10 @@
         },
         "actions":
         [
-            "select_strange"
+            "select_strange",
+            {
+                "set_state": "strange"
+            }
         ]
     },
     {
@@ -421,19 +456,31 @@
         ]
     },
     {
+        "name": "拖拽地图",
+        "trigger":{
+            "text": "星轨航图",
+            "box": [93, 196, 55, 88],
+            "redundancy": 30,
+            "condition": "init"
+        },
+        "actions":
+        [   
+           {
+                "drag": [0.8521,0.5620,0.1521,0.5620]
+            }
+        ]
+    },
+    {
         "name": "打开地图",
         "trigger":{
             "text": "星轨航图",
-            "box": [1625, 1732, 143, 176],
+            "box": [1585, 1692, 135, 167],
             "redundancy": 30,
             "condition": "init"
         },
         "actions":
         [   {
                 "position": [1678, 160]
-            },
-           {
-                "drag": [0.8521,0.5620,0.1521,0.5620]
             }
         ]
     },
@@ -447,6 +494,18 @@
         "actions":
         [
             "goto_herta_office"
+        ]
+    },{
+        "name": "可能处于模拟宇宙中",
+        "trigger":{
+            "photo": "run",
+            "pos": {"x":0.8755,"y":0.7769},
+            "mask":"run",
+            "threshold":0.68
+        },
+        "actions":
+        [
+            "is_run"
         ]
     }
 ]

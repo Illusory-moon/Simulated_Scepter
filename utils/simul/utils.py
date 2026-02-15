@@ -77,6 +77,9 @@ def extract_features(img):
 
 class UniverseUtils:
     def __init__(self,speed=False):
+        #层数是否变动
+        self.floor_change = False
+        self.state = None
         self.ang = 270
         #是否速通
         self.speed = speed
@@ -131,6 +134,8 @@ class UniverseUtils:
         self.last_get_screen_time = None
         #上次路径状态日志时间
         self.last_path_state_time = None
+        #上次更新状态时间
+        self.last_update_time = None
         #默认匹配阈值
         self.threshold = 0.97
         # 用户选择的命途
@@ -222,7 +227,9 @@ class UniverseUtils:
             time.sleep(0.1)
             self.get_screen()
         return 0
-
+    def fresh_state(self):
+        self.get_screen()
+        self.run_static()
     def use_it(self, x, y):
         if x != 1 or y != 1:
             key_mouse_manager.click(0.903 - 0.06 * (x - 1), 0.827 - 0.14 * (y - 1))
@@ -261,11 +268,10 @@ class UniverseUtils:
                     key_mouse_manager.press("esc")
             else:
                 key_mouse_manager.press("esc")
-        if not self.is_run():
-            for _ in range(3):
-                key_mouse_manager.press("esc")
-                if self.wait_flag(lambda:not self.is_run(), 3):
-                    return
+        self.fresh_state()
+        if not self.state=="run":
+            key_mouse_manager.press("esc")
+            key_mouse_manager.wait()
 
 
     def calc_point(self, point, offset):
@@ -661,42 +667,36 @@ class UniverseUtils:
         return ang
 
     def get_level(self):
-        tm = time.time()
-        #等待检测到正在跑图标志或者超时
-        while not self.is_run() and time.time() - tm < 8:
-            time.sleep(0.1)
-            self.get_screen()
-        if time.time() - tm >= 8:
-            return -1
-        time.sleep(max(0, (self.fail_count - 1) * 10)+1)
-        #检测当前层数
-        key_mouse_manager.press("m", 0.2)
-        time.sleep(2.5)
-        tm = time.time()
-        self.floor_init = 0
+        if not self.floor_init:
+            key_mouse_manager.press("m", 0.3)
+            self.update_state("map")
+            time.sleep(2)
+        return 1
+    def get_floor(self):
+        CUS_LOGGER.info(f"开始更新层数旧层数：{self.floor}")
         old_floor= self.floor
-        while time.time()-tm<5 and not self.floor_init:
-            self.get_screen()
-            for i in range(12, -1, -1):
-                if self.check("floor/ff" + str(i + 1), 0.0589, 0.8796):
-                    self.floor = i
-                    CUS_LOGGER.info(f"当前层数：{i + 1}")
-                    self.floor_init = 1
-                    break
+        self.get_screen()
+        for i in range(13, 0, -1):
+            if self.check("floor/ff" + str(i), 0.0589, 0.8796):
+                self.update_floor(i)
+                CUS_LOGGER.info(f"当前层数：{i}")
+                self.floor_init = 1
+                break
         if self.floor!=old_floor and old_floor!=0:
-            CUS_LOGGER.error(f"层数已更新为：{self.floor + 1}")
+            CUS_LOGGER.error(f"层数已更新为：{self.floor}")
             # raise FloorError(f"层数不一致旧{old_floor+1}, 新{self.floor+1}")
         key_mouse_manager.press("m", 0.2)
-        time.sleep(1)
-        return 0
+        return 1
 
     def good_f(self):
         """
         不是"沉浸", "紧锁", "复活", "下载"的交互
         """
         CUS_LOGGER.debug("尝试判断当前交互是否最佳")
+        key_mouse_manager.keyUp("w")
         t_start=time.time()
         if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
+            key_mouse_manager.keyDown("w")
             return False,0
         img = self.get_small_interaction_img(x=0.3344,y=0.4241,mask="mask_f")
         text = self.ts.similar_list(self.tk.interacts, img)
@@ -782,22 +782,22 @@ class UniverseUtils:
             target = (nearest, 1)
             CUS_LOGGER.info(f"交互点相似度{max_val}，位置{max_loc[1]},{max_loc[0]},图像序号{ii}")
             
-            if self.floor >= 12:
-                self.floor = 11
+            if self.floor >= 13:
+                self.update_floor(12)
         else:  # 226 64 66
             #再试试另外一张图，即黑塔图
             mini_icon = cv.imread(self.format_path("mini" + str(ii + 2)))
             sp = mini_icon.shape
             result = cv.matchTemplate(local_screen, mini_icon, cv.TM_CCORR_NORMED)
             min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
-            if max_val > threshold-0.035*(self.floor in [4,8,11]):
+            if max_val > threshold-0.035*(self.floor in [5,9,12]):
                 nearest = (max_loc[1] + sp[0] // 2, max_loc[0] + sp[1] // 2)
                 target = (nearest, 2)
                 CUS_LOGGER.info(f"黑塔相似度{max_val}，位置{max_loc[1]},{max_loc[0]}")
 
                 
-                if self.floor >= 12:
-                    self.floor = 11
+                if self.floor >= 13:
+                    self.update_floor(12)
         #在图像上绘制一个以(120, 128)为中心、半径为82的圆形遮罩，圆形区域外的所有像素都被涂黑
         for i in range(local_screen.shape[0]):
             for j in range(local_screen.shape[1]):
@@ -811,8 +811,8 @@ class UniverseUtils:
                 # 仅检测存在性，不需要排序，使用第一个检测到的点
                 nearest = (rd[0][0], rd[1][0])
                 target = (nearest, 3)
-                if self.floor == 11:
-                    self.floor = 12
+                if self.floor == 12:
+                    self.update_floor(13)
         if self.mini_target == 0:
             self.mini_target = target[1]
         if target[1] >= 1:
@@ -826,8 +826,10 @@ class UniverseUtils:
         CUS_LOGGER.info("启动移动线程")
         me = 0
         if self.mini_state > 2:
+            CUS_LOGGER.info("移动线程前往终点")
             me = self.move_to_end()
         else:
+            CUS_LOGGER.info("移动线程前往交互点")
             self.move_to_interact(2)
         self.ready = 1
         now_time = time.time()
@@ -835,20 +837,12 @@ class UniverseUtils:
             me = 0.5
         while not self.stop_move and time.time() - now_time < 3:
             if self.mini_state <= 2:
+                CUS_LOGGER.info("移动线程前往交互点2")
                 self.move_to_interact()
             else:
                 me = max(self.move_to_end(me), me)
         CUS_LOGGER.info("停止移动线程")
-        try:
-            '''
-            exec(
-                self.mag
-                + "p show numpy > NUL 2>&1') and not self.unlock"
-            )
-            '''
-            pass
-        except:
-            pass
+
 
     def backup_map(self):
         """
@@ -891,7 +885,6 @@ class UniverseUtils:
         self.now_loc = (4096, 4096)
         self.mini_state = 1
         self.first_mini = 1
-        self.in_battle = time.time()
         self.map_file = "resource/imgs/maps/my_" + str(random.randint(0, 99999)) + "/"
         if self.find == 0 and not os.path.exists(self.map_file):
             os.mkdir(self.map_file)
@@ -899,23 +892,17 @@ class UniverseUtils:
         """
         检查当前没有f交互
         """
+
         tm = time.time()
+        self.update_state("inf")
         ava = False
         if must_be is None and self.ts.similar("区域"):
             must_be='tp'
-        while not ava and time.time()-tm<1.6:
-            if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True) and (not self.is_run() or must_be == 'tp'):
-                ava = True
-        if ava:
-            #双判，避免冲刺冲过头
-            key_mouse_manager.keyUp("w")
-            key_mouse_manager.press("s",0.05)
-            key_mouse_manager.wait()
-            if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True) and (
-                    not self.is_run() or must_be == 'tp'):
-                key_mouse_manager.press("w",0.05)
-            else:
-                ava=False
+        while not ava and time.time()-tm<3.6:
+            if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
+                self.fresh_state()
+                if not self.state == "run" or must_be == 'tp':
+                    ava = True
 
         if ava:
             CUS_LOGGER.debug('交互点生效')
@@ -923,10 +910,12 @@ class UniverseUtils:
                 self.mini_state += 2
             elif must_be== 'tp':
                 self.init_map()
-                self.floor += 1
+                self.add_floor()
+                if self.floor in [1, 6]:
+                    self.floor_init=0
                 self.f_time = time.time()
                 self.lst_changed = time.time()
-                CUS_LOGGER.info(f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor + 1}层")
+                CUS_LOGGER.info(f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor}层")
             else:
                 if self.ts.similar("黑塔"):
                     self.quit = time.time()
@@ -1232,9 +1221,14 @@ class UniverseUtils:
                         if self.nof(must_be='tp'):
                             CUS_LOGGER.info('大图识别到传送点!')
                             return
-                    elif (self.target_type != 3 and self.good_f()[0]) or not self.is_run():
+                    elif self.target_type != 3 and self.good_f()[0]:
                         key_mouse_manager.keyUp("w")
                         break
+                    else:
+                        self.fresh_state()
+                        if not self.state=="run":
+                            key_mouse_manager.keyUp("w")
+                            break
                 ds = now_distance
                 distance_list.append(ds)
                 dtm.append(time.time())
@@ -1314,8 +1308,9 @@ class UniverseUtils:
                         if self.nof(must_be='tp'):
                             time.sleep(1.5)
                             break
-                    self.get_screen()
-                    if self.is_run():
+
+                    self.fresh_state()
+                    if self.state=="run":
                         if i in [0,4]:
                             self.move_to_end()
                         key_mouse_manager.press('w', 0.5)
@@ -1324,9 +1319,9 @@ class UniverseUtils:
             elif now_distance <= 20:
                 self.set_path_state("距离目标非常近2")
                 try:
+                    self.lst_changed = time.time()
                     self.target.remove((self.target_loc, self.target_type))
                     CUS_LOGGER.info("靠近目标点，移除:" + str((self.target_loc, self.target_type)))
-                    self.lst_changed = time.time()
                 except:
                     pass
             self.set_path_state("结束寻路")
@@ -1539,27 +1534,21 @@ class UniverseUtils:
                 ans = k
         return ans, sim
 
-
-    def print_stack(self, num=1):
-        """
-        在调试模式下打印调用栈信息
-        
-        Args:
-            num (int): 要打印的堆栈层数，默认为1层
-            
-        Returns:
-            None: 仅打印堆栈信息到控制台，无返回值
-        """
-        if self.debug:
-            stk = traceback.extract_stack()
-            for i in range(num):
-                try:
-                    # 打印调用栈信息：当前函数名、文件名、函数名和行号
-                    print(stk[-2].name,stk[-3-i].filename.split('\\')[-1].split('.')[0],stk[-3-i].name,stk[-3-i].lineno)
-                except:
-                    pass
-
-    
+    def update_state(self,state):
+        if self.state is not None and self.state!=state:
+            self.state = state
+            self.last_update_time=time.time()
+            CUS_LOGGER.info(f"当前状态{state}更新时间{self.last_update_time}")
+        elif self.state is None:
+            self.state = state
+            self.last_update_time=time.time()
+            CUS_LOGGER.info(f"当前状态{state}更新时间{self.last_update_time}")
+    def update_floor(self,v):
+        self.floor = v
+        self.floor_change=True
+    def add_floor(self):
+        self.floor+=1
+        self.floor_change = True
     def is_run(self):
         scr = self.screen
         loc_scr = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True)
@@ -1571,12 +1560,13 @@ class UniverseUtils:
         scr_bak = deepcopy(scr)
         scr[np.min(scr,axis=-1)<=220]=[0,0,0]
         scr[np.min(scr,axis=-1)>220]=[255,255,255]
-        res = self.check('run', 0.876, 0.7815, threshold=0.91) and 40000 < sum_blue < 65000
+        res = 40000 < sum_blue < 65000
         if self.tm>0.96:
             res = 1
         self.screen = deepcopy(scr_bak)
         if res:
             self.f_time = 0
+            self.update_state("run")
         return res
     def update_debug_map(self):
         self.debug_map = deepcopy(get_minimap(self.get_screen(), radius=MINIMAP_RADIUS))
@@ -1596,24 +1586,27 @@ class UniverseUtils:
         是否领取沉浸奖励
         """
         CUS_LOGGER.info("开始无地图寻路")
+        if self.state=="battle":
+            CUS_LOGGER.info("战斗中，返回")
+            return
         self.should_update_map=True
         ThreadWithException(target=self.auto_update_map,name="更新地图").start()
         if self.debug:
             CUS_LOGGER.debug(f'当前状态{self.mini_state}')
-        if self.mini_state==1 and self.floor in [4,8,11]:
+        if self.mini_state==1 and self.floor in [5,9,12]:
             time.sleep(0.5)
             key_mouse_manager.press('w',0.55)
             key_mouse_manager.click(0.5,0.5)
             time.sleep(2)
             key_mouse_manager.press('w')
             time.sleep(0.4)
-        #12层并且不要奖励
-        if self.mini_state==3 and self.floor==12 and not self.check_bonus:
+        #13层并且不要奖励
+        if self.mini_state==3 and self.floor==13 and not self.check_bonus:
             self.mini_state=5
             self.should_update_map = False
             return
         #3，7，12层领奖
-        if self.mini_state==3 and self.floor in [3,7,12] and self.check_bonus:
+        if self.mini_state==3 and self.floor in [4,8,13] and self.check_bonus:
             key_mouse_manager.press('d',0.6)
             key_mouse_manager.keyDown('w')
             nt = time.time()
@@ -1640,7 +1633,7 @@ class UniverseUtils:
             if self.check('bonus_c',0.2385,0.6685,fresh=True):
                 key_mouse_manager.click(0.2385,0.6685)
             self.mini_state=5
-            if self.floor==12:
+            if self.floor==13:
                 self.should_update_map = False
                 return
             key_mouse_manager.press('s',0.4)
@@ -1658,8 +1651,8 @@ class UniverseUtils:
             time.sleep(0.1)
         if self.mini_state == 1:
             if self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
-                if self.floor == 11:
-                    self.floor = 12
+                if self.floor == 12:
+                    self.add_floor()
         key_mouse_manager.keyDown("w")
         wt = 3
         self.first_mini = 0
@@ -1695,12 +1688,11 @@ class UniverseUtils:
                 judge,use_time=self.good_f()
                 if judge and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
                     if self.speed <= 0 or not self.ts.similar("黑塔"):
-                        key_mouse_manager.clean()
+                        # key_mouse_manager.clean()
                         if self.is_sprinting:
                             key_mouse_manager.press("shift")
                         key_mouse_manager.keyUp("w",force=True)
                         key_mouse_manager.press('f',force=True)
-                        key_mouse_manager.press("s",use_time)
                         key_mouse_manager.sleep(0.2)
                         key_mouse_manager.press('f')
                         self.stop_move=1
@@ -1727,10 +1719,10 @@ class UniverseUtils:
                 if self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
                     self.stop_move=1
                     # time.sleep(1.7+self.slow*1.1-(self.quan and self.floor not in [3, 7, 12])*0.5)
-                    if self.mini_state==1 and self.floor in [3, 7, 12] and not (self.quan or self.bai_e):
+                    if self.mini_state==1 and self.floor in [4, 8, 13] and not (self.quan or self.bai_e):
                         key_mouse_manager.keyUp("w")
                         if not self.check("ruan",0.0625,0.7065,threshold=0.95) and not self.check("U", 0.0240,0.7759):
-                            for i in range([3, 7, 12].index(self.floor)+2):
+                            for i in range([4, 8, 13].index(self.floor)+2):
                                 key_mouse_manager.press(str(i+1))
                                 time.sleep(0.4)
                                 self.use_e()
@@ -1780,7 +1772,7 @@ class UniverseUtils:
                         if self.quan:
                             key_mouse_manager.keyUp("w")
                             self.use_e()
-                            if self.floor not in [3, 7, 12]:
+                            if self.floor not in [4, 8, 13]:
                                 for _ in range(4):
                                     self.use_e()
                                 self.stop_move=1
@@ -1796,7 +1788,7 @@ class UniverseUtils:
                         elif self.bai_e:
                             # key_mouse_manager.keyUp("w")
                             self.use_e(face=True)
-                            if self.floor not in [3, 7, 12]:
+                            if self.floor not in [4, 8, 13]:
                                 self.stop_move = 1
                                 self.mini_state += 2
                                 time.sleep(0.4)
@@ -1960,7 +1952,6 @@ class UniverseUtils:
         else:
             return
         for _ in range(6):
-            self.in_battle = 0
             self.get_screen()
             self.reset_bless()
             # 未匹配到优先祝福，刷新祝福并再次匹配

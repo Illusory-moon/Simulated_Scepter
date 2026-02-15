@@ -40,6 +40,7 @@ class KeyMouseManager:
         # 用于支持强制操作中断睡眠
         self.sleep_start_time = None
         self.sleep_duration = 0
+        self.ending = False
 
     def set_config(self, config):
         """
@@ -179,7 +180,7 @@ class KeyMouseManager:
         op_type = operation['type']
         force = operation.get('force', False)
         CUS_LOGGER = get_CUS_LOGGER()
-        CUS_LOGGER.info(f"执行操作{operation}")
+        CUS_LOGGER.info(f"执行操作{operation}，当前队列长度{len(self.operation_queue)}")
         if op_type == 'keyDown':
             key = self._get_mapping(operation['key'])
             pyautogui.keyDown(key)

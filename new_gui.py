@@ -293,7 +293,7 @@ class MainWindow(QMainWindowLog):
             self.current_task = su
             print_text = self.PrintEdit.text()
             if self.PrintPhoto.isChecked():
-                su.click_target(f'test/{print_text}', 0.9, True, use_binary=False)
+                su.click_target(f'resource/imgs/{print_text}', 0.9, True, use_binary=False)
             elif self.PrintText.isChecked():
                 su.click_text(print_text,click=0)
             else:

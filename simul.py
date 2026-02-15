@@ -89,8 +89,6 @@ class SimulatedUniverse(UniverseUtils):
         self.fail_count = 0
         #是否已完成
         self.end = 0
-        #上次战斗时间
-        self.in_battle = 0
         #是否初始化层数
         self.floor_init = 0
         #上次点击确认时间
@@ -100,10 +98,6 @@ class SimulatedUniverse(UniverseUtils):
         self.fps_list = []
         # 添加地图线程引用
         self.map_thread = None
-        #地图的初始化状态
-        self.map_init=False
-        # 是否首次获取层数
-        self.first_get_floor=False
         #当前运行状态
         self.state=None
         #事件与行为存储路径
@@ -139,11 +133,9 @@ class SimulatedUniverse(UniverseUtils):
 
 
     def route(self):
-        self.in_battle = 0
         self.init_map()
         fail_cnt = 0
         fail_time = 0
-        fp = 1
         set_forground()
         while not self._stop:
             hwnd,Text = get_hwnd_and_text()
@@ -165,22 +157,15 @@ class SimulatedUniverse(UniverseUtils):
                 break
             
             self.get_screen()# 从全屏截屏中裁剪得到游戏窗口截屏
-            # self.click_target('imgs/fail.jpg',0.9,True) # 如果需要输出某张图片在游戏窗口中的坐标，可以用这个
             res = self.normal()
             # 未匹配到图片，降低匹配阈值，若一直无法匹配则乱点
             if res == 0:
-                if time.time()-self.in_battle>7:
-                    if time.time()-self.in_battle>90 and self.in_battle>0:
-                        key_mouse_manager.press('esc')
-                        time.sleep(1)
-                        self.in_battle = time.time() - 84 * fp
-                        fp = not fp
-                        continue
-                    if self.click_text(['点击空白','开始游戏'],click=False,warning=False):
-                        key_mouse_manager.click(0.2062, 0.1554)
-                        time.sleep(0.5)
+                if self.last_update_time is not None and time.time()-self.last_update_time>7 and self.state=="battle":
+                    # if self.click_text(['点击空白','开始游戏'],click=False,warning=False):
+                    #     key_mouse_manager.click(0.2062, 0.1554)
+                    #     time.sleep(0.5)
                     if self.ts.nothing:
-                        self.in_battle = time.time()
+                        self.update_state("battle")
                     if time.time()-self.confirm_time>4:
                         if self.threshold == 0.97 and fail_cnt==0:
                             CUS_LOGGER.info("匹配不到任何图标")
@@ -224,7 +209,7 @@ class SimulatedUniverse(UniverseUtils):
         if self.debug == 0 and self.check_bonus == 0 and self.my_cnt >= self.nums >= 0:
             CUS_LOGGER.info('已完成上限，准备停止运行')
             self.end = 1
-        self.floor = 0
+        self.update_floor(1)
 
     def normal(self):
         # self.lst_changed：最后一次交互时间，长时间无交互则暂离
@@ -232,9 +217,7 @@ class SimulatedUniverse(UniverseUtils):
         self.lst_changed = time.time()
         self.ts.forward(self.get_screen())
         res,state = self.run_static()
-        if res!='':
-            return state
-        if self.is_run():
+        if self.state=="run":
             CUS_LOGGER.info("开始匹配地图")
             #检查黄泉
             if not self.quan and self.check("huangquan", 0.0578,0.7083):
@@ -244,17 +227,10 @@ class SimulatedUniverse(UniverseUtils):
             #长时间离开或者未初始化层数？则重新初始化
             if self.floor_init == 0:
                 CUS_LOGGER.info("开始重新初始化层数")
-                old_floor = self.floor
-                if self.get_level() == -1:
-                    if old_floor != self.floor:
-                        self.map_init = True
-                    self.first_get_floor=True
-                    return 1
-                self.floor_init = 1
+                self.get_level()
+                return 1
             #上次交互时间
             self.lst_changed = bk_lst_changed
-            # self.battle：最后一次处于战斗状态的时间，0表示处于非战斗状态
-            self.in_battle = 0
             # 刚进图，初始化一些数据
             if self.big_map_c == 0:
                 key_mouse_manager.keyUp("w")
@@ -271,25 +247,18 @@ class SimulatedUniverse(UniverseUtils):
                 self.big_map_c = 1
                 # 寻路模式，匹配最接近的地图
                 if self.find:
-                    now_time = time.time()
-                    self.now_map_sim = -1
-                    self.now_map = -1
                     #只有第一，第六层才寻找匹配的地图
                     if self.click_text(text="战斗", click=False, box=[55, 164, 12, 40],ocr_line=False):
-                        if self.first_get_floor:
-                            self.first_get_floor = False
-                        else:
-                            self.map_init = False
-                            old_floor=self.floor
+                        if not self.floor_init:
                             self.get_level()
-                            if old_floor != self.floor:
-                                self.map_init = True
-                        CUS_LOGGER.debug(f"检查当前层数：{self.floor}，初始化状态{self.map_init}")
-                        if self.floor in [0, 5]:
-                            self.map_init = False
+                        CUS_LOGGER.debug(f"检查当前层数：{self.floor}")
+                        if self.floor in [1, 6] and self.floor_change:
                             self.mini_state = 0
                             self.stop_move = 0
                             no_find=False
+                            now_time = time.time()
+                            self.now_map_sim = -1
+                            self.now_map = -1
                             while True:
                                 self.exist_minimap()
                                 now_map, now_map_sim = self.match_scr(self.loc_scr)
@@ -305,17 +274,13 @@ class SimulatedUniverse(UniverseUtils):
                             CUS_LOGGER.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
                             self.find=True
                             if self.now_map_sim < 0.35 :
-                                CUS_LOGGER.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor + 1},匹配地图{self.now_map}")
-                                if self.debug==2:
-                                    time.sleep(10000)
+                                CUS_LOGGER.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor},匹配地图{self.now_map}")
                                 self.find=False
                                 self.init_map()
                                 no_find=True
-                                return 1
                             if "m" in self.now_map:
                                 CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
                                 self.find = False
-                                return 1
                             if not no_find:
                                 self.now_pth = "resource/imgs/maps/" + self.now_map + "/"
                                 files = find_latest_modified_file(self.now_pth)
@@ -337,7 +302,7 @@ class SimulatedUniverse(UniverseUtils):
                         self.update_debug_map()
                     if self._stop:
                         return 1
-                    if self.consumable and (self.check_bonus or self.count<34) and self.floor in [3, 7, 12][-self.consumable:]:
+                    if self.consumable and (self.check_bonus or self.count<34) and self.floor in [4, 8, 13][-self.consumable:]:
                         self.use_consumable(1, 1)
                     key_mouse_manager.press("1")
                 # 录制模式，保存初始小地图
@@ -361,23 +326,24 @@ class SimulatedUniverse(UniverseUtils):
             
             self.must_end |= self.floor >= 4 and self.debug == 2
             # 长时间未交互/战斗，暂离或重开
-            if ((time.time() - self.lst_changed >= 37 - 2 * self.debug + 8 * self.slow) and self.find == 1)or (self.floor == 12 and self.mini_state > 4)or self.must_end:
+            if ((time.time() - self.lst_changed >= 37 - 2 * self.debug + 8 * self.slow) and self.find == 1)or (self.floor == 13 and self.mini_state > 4)or self.must_end:
                 time.sleep(2.5)
                 key_mouse_manager.press("esc")
+                self.update_state("ui")
                 time.sleep(2)
                 self.init_map()
                 self.floor_init = 0
-                if self.floor == 12 or self.must_end:
+                if self.floor == 13 or self.must_end:
                     self.end_of_university()
                     key_mouse_manager.click(0.2708, 0.1324)
                     time.sleep(1)
-                    CUS_LOGGER.info(f"通关！当前层数:{self.floor + 1}")
+                    CUS_LOGGER.info(f"通关！当前层数:{self.floor}")
                 elif self.debug == 2:
                     CUS_LOGGER.error(f"地图{self.now_map}出现问题,退出程序")
                     CUS_LOGGER.info('地图错误')
                     self._stop = 1
                 elif self.fail_count <= 1:
-                    CUS_LOGGER.error(f"地图{self.now_map}未发现目标，当前层数:{self.floor + 1},相似度{self.now_map_sim}，尝试暂离")
+                    CUS_LOGGER.error(f"地图{self.now_map}未发现目标，当前层数:{self.floor},相似度{self.now_map_sim}，尝试暂离")
                     key_mouse_manager.click(0.2708, 0.2324)
                     key_mouse_manager.keyUp("w")
                     self.re_enter()
@@ -386,10 +352,10 @@ class SimulatedUniverse(UniverseUtils):
                 else:
                     self.multi = 1.01
                     if self.debug == 0:
-                        self.floor = 0
+                        self.update_floor(1)
                         key_mouse_manager.click(0.2708, 0.1324)
                         CUS_LOGGER.error(
-                            f"地图{self.now_map}未发现目标,相似度{self.now_map_sim}，当前层数:{self.floor+1},尝试退出重进"
+                            f"地图{self.now_map}未发现目标,相似度{self.now_map_sim}，当前层数:{self.floor},尝试退出重进"
                         )
                         self.fail_count = 0
                     else:
@@ -404,7 +370,7 @@ class SimulatedUniverse(UniverseUtils):
             # if self.multi == 1.01:
             #     align_angle_main(0, [1], self)
             self.get_screen()
-            if self.floor > 0 and self.check("ruan",0.0625,0.7065,threshold=0.95) and not self.check("U", 0.0240,0.7759) and not (self.floor==12 and self.mini_state>1):
+            if self.floor > 1 and self.check("ruan",0.0625,0.7065,threshold=0.95) and not self.check("U", 0.0240,0.7759) and not (self.floor==13 and self.mini_state>1):
                 key_mouse_manager.press('e')
                 time.sleep(1.5)
                 if self.click_text(text="快速恢复",box=[864, 1058, 224, 318],click=False,ocr_line=False,warning=False):
@@ -420,28 +386,25 @@ class SimulatedUniverse(UniverseUtils):
                 #有先验寻路
                 self.get_direct_with_big_map()
             return 2
-        else:
-            return 0
+        key_mouse_manager.wait()
+        if res != '':
+            return state
 
     def auto_battle(self):
         # 需要打开自动战斗
-        if self.check("c", 0.988, 0.1028, threshold=0.985):
-            key_mouse_manager.press("v")
+        key_mouse_manager.press("v")
         if time.time() - self.f_time < 20:
             self.f_time = 0
-            self.floor -= 1
             self.restore_map()
         if self.fate == "丰饶":
             if random.randint(0, 6) == 3:
                 key_mouse_manager.press("r")
-        # self.battle：最后一次处于战斗状态的时间，0表示处于非战斗状态
-        self.in_battle = time.time()
+        self.update_state("battle")
         return 1
     # 祝福界面/回响界面 （放在一起处理了）
     def choose_bless(self):
         time.sleep(0.3)
         chose = 0
-        self.in_battle = 0
         if self.click_text(text="重置祝福",box=[1268, 1444, 929, 1025],click=False,warning=False):
             for _ in range(4):
                 img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
@@ -508,7 +471,6 @@ class SimulatedUniverse(UniverseUtils):
     def do_interaction(self):
         # is_killed：是否是禁用交互（沉浸奖励、复活装置、下载装置）
         is_killed = 0
-        time.sleep(0.4)
         if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
             for _ in range(4):
                 img = self.get_small_interaction_img(x=0.3181, y=0.4324, mask="mask_f")
@@ -523,10 +485,9 @@ class SimulatedUniverse(UniverseUtils):
             # 黑塔
             if self.ts.similar("黑塔"):
                 # 与黑塔交互后30秒内禁止再次交互（防止死循环）
-                if time.time() - self.quit > 30 and self.floor:
+                if time.time() - self.quit > 30:
                     self.quit = time.time()
                     key_mouse_manager.press('f', force=True)
-                    self.in_battle = 0
                 else:
                     is_killed = 1
             else:
@@ -542,9 +503,10 @@ class SimulatedUniverse(UniverseUtils):
                 is_killed = text in ["沉浸", "紧锁", "复活", "下载"]
                 if is_killed == 0:
                     key_mouse_manager.press('f', force=True)
-                self.in_battle = 0
             if is_killed == 0:
                 return 1
+            else:
+                self.update_state("run")
     # 跑图状态
     def re_init(self):
         if self.end:
@@ -566,17 +528,11 @@ class SimulatedUniverse(UniverseUtils):
             key_mouse_manager.click(0.9375, 0.8565 - 0.1 * (self.diffi - 1))
         key_mouse_manager.click(0.1083, 0.1009)
         if con:
-            CUS_LOGGER.info(f"继续游戏附带初始化层数,更新前{self.floor + 1}")
-            old_floor = self.floor
+            CUS_LOGGER.info(f"继续游戏附带初始化层数,更新前{self.floor}")
             self.get_level()
-            if old_floor != self.floor:
-                CUS_LOGGER.info(f"继续游戏附带初始化层数,更新后{self.floor + 1}")
-                self.map_init = True
-            self.first_get_floor = True
+            return
         else:
-            self.floor = 0
-            self.map_init = True
-        self.floor_init = 1
+            self.update_floor(1)
     def pre_start(self):
         self.fail_count = 0
         self.allow_e = 1
@@ -720,17 +676,10 @@ class SimulatedUniverse(UniverseUtils):
                 key_mouse_manager.click(0.2062, 0.2054)
                 time.sleep(0.3)
         key_mouse_manager.press("esc")
-        key_mouse_manager.press("w", 2)
-        tm = time.time()
-        while time.time() - tm < 2 and not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,
-                                                      fresh=True) and not self.is_run():
-            time.sleep(0.15)
-        # time.sleep(0.35)
-        # self.mouse_move(-30)
         self.confirm_time = time.time()
         self.lst_changed = time.time()
-        if self.floor >= 12:
-            self.floor = 11
+        if self.floor >= 13:
+            self.update_floor(12)
     def confirm_yes(self):
         if self.click_text(text="确认",click=False):
             key_mouse_manager.click(self.tx, self.ty)
@@ -911,7 +860,7 @@ class SimulatedUniverse(UniverseUtils):
         函数会利用一系列图像识别和文本识别来确定当前位置，
         并执行相应的点击、拖拽和键盘操作来完成导航。
         """
-        self.state="init"
+        self.update_state("init")
         if self.click_text(text="模拟宇宙",box=[1231, 1360, 595, 631],click=False,allow_fail= True):
             CUS_LOGGER.info("已在办公室，打开模拟宇宙")
             key_mouse_manager.press('f')
@@ -926,7 +875,7 @@ class SimulatedUniverse(UniverseUtils):
         key_mouse_manager.sleep(4)
         key_mouse_manager.keyUp("w")
         key_mouse_manager.wait()
-        self.set_state("survival_room")
+        self.update_state("survival_room")
 
     def run_static(self, json_path=None, json_file=None, action_list=[]) -> (str,int):
         """
@@ -951,6 +900,12 @@ class SimulatedUniverse(UniverseUtils):
             else:
                 json_file = load_actions(json_path)
         # 查找指定项或者默认项
+        #等待黑屏消散
+        tm=time.time()
+        while time.time()-tm<2:
+            men = np.mean(self.get_screen())
+            if men > 12:
+                break
         for j in action_list if len(action_list) else json_file:
             for i in json_file[j]:
                 trigger = i["trigger"]
@@ -1050,7 +1005,7 @@ class SimulatedUniverse(UniverseUtils):
             key_mouse_manager.scroll(action["scroll"])
             return 1
         elif "set_state" in action:
-            self.set_state(action["set_state"])
+            self.update_state(action["set_state"])
             return 1
         return 0
     def show_map(self):
@@ -1359,5 +1314,5 @@ class SimulatedUniverse(UniverseUtils):
         self.map_thread = None
 
     def set_state(self, state):
-        self.state= state
+        self.update_state(state)
 

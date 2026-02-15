@@ -30,7 +30,6 @@ class My_TS:
         """
         识别传入图像的文本并保存在self.res中
         """
-        CUS_LOGGER.info(f"ocr图片大小{img.shape}")
         if self.forward_img is not None and self.forward_img.shape == img.shape and np.sum(
                 np.abs(self.forward_img - img)) < 1e-6:
             return

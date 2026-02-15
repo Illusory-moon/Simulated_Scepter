@@ -141,6 +141,7 @@ class DivergentUniverse(UniverseUtils):
         if res == '':
             area_text = clean_text(self.ts.ocr_one_row(self.screen, [50, 350, 3, 35]), char=0)
             if '位面' in area_text or '区域' in area_text or '第' in area_text:
+                CUS_LOGGER.info("尝试进入区域")
                 self.area()
                 self.last_action_time = time.time()
 
@@ -1125,10 +1126,8 @@ class DivergentUniverse(UniverseUtils):
             remain = 0
             remain_round = -1
         CUS_LOGGER.info(
-            f"已完成,计数:{self.count} 剩余:{remain_round} 已使用：{tm//60}小时{tm%60}分钟  平均{tm//self.my_cnt}分钟一次  预计剩余{remain//60}小时{remain%60}分钟",
-            cnt=str(self.count),
-        )
-        if self.nums <= self.my_cnt and self.nums >= 0:
+            f"已完成,计数:{self.count} 剩余:{remain_round} 已使用：{tm//60}小时{tm%60}分钟  平均{tm//self.my_cnt}分钟一次  预计剩余{remain//60}小时{remain%60}分钟")
+        if self.my_cnt >= self.nums >= 0:
             CUS_LOGGER.info('已完成上限，准备停止运行')
             self.end = 1
         self.floor = 0
