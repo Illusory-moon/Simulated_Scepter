@@ -101,7 +101,7 @@ class KeyMouseManager:
             self.worker_thread.join()
     def clean(self):
         """
-        停止键鼠管理器线程
+        清除当前键鼠管理器线程所有操作
         """
         CUS_LOGGER = get_CUS_LOGGER()
         CUS_LOGGER.info("清除当前所有操作")

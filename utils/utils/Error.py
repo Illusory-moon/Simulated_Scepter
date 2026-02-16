@@ -5,3 +5,5 @@ class BigAngError(Exception):
 class FloorError(Exception):
     pass
 
+class NormalEndError(Exception):
+    pass

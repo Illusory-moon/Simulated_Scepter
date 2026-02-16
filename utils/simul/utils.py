@@ -437,16 +437,16 @@ class UniverseUtils:
                 gray_screen = cv.cvtColor(local_screen, cv.COLOR_BGR2GRAY)
             else:
                 gray_screen = local_screen
-                
+
             if len(target.shape) == 3:
                 gray_target = cv.cvtColor(target, cv.COLOR_BGR2GRAY)
             else:
                 gray_target = target
-            
+
             # 对截图和模板进行二值化处理
             _, binary_screen = cv.threshold(gray_screen, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
             _, binary_target = cv.threshold(gray_target, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
-            
+
             # 使用二值化图像进行匹配
             result = cv.matchTemplate(binary_screen, binary_target, cv.TM_CCORR_NORMED)
         else:
@@ -486,6 +486,7 @@ class UniverseUtils:
         cen = 660
         if mask:
             try:
+                #仅保留图像x轴310~910区域
                 bw_map[:, : cen - 350 // mask] = 0
                 bw_map[:, cen + 350 // mask :] = 0
             except:
@@ -496,6 +497,7 @@ class UniverseUtils:
         if max_val < 0.6:
             return None
         else:
+            #正数位于中心点660右侧，负数位于中心点660左侧
             dx = max_loc[0] - cen
             if dx > 0:
                 return dx**0.7
@@ -545,8 +547,7 @@ class UniverseUtils:
         """
         初步裁剪小地图，并增强小地图中的蓝色箭头
         """
-        self.get_screen()
-        local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True)
+        local_screen = get_minimap(self.get_screen(), radius=MINIMAP_RADIUS,copy=True)
         blue = np.array([234, 191, 4])
         local_screen[np.sum(np.abs(local_screen - blue), axis=-1) <= 50] = blue
         self.loc_scr = local_screen
@@ -708,6 +709,8 @@ class UniverseUtils:
         if text is not None:
             CUS_LOGGER.info('识别到交互信息：' + text)
         CUS_LOGGER.debug(f"交互最佳结果判断{text is not None and not is_killed}")
+        if not text is not None and not is_killed:
+            key_mouse_manager.keyDown("w")
         t_end=time.time()
         return text is not None and not is_killed, t_end-t_start
 
@@ -767,9 +770,6 @@ class UniverseUtils:
         self.get_screen()
         CUS_LOGGER.info("正在寻找交互点")
         threshold = 0.88
-        # shape = (int(self.scx * 190), int(self.scx * 190))
-        # curloc = (118 + 2, 125 + 2)
-        # blue = np.array([234, 191, 4])
         local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True)
         target = ((-1, -1), 0)
         mini_icon = cv.imread(self.format_path("mini" + str(ii + 1)))
@@ -822,26 +822,26 @@ class UniverseUtils:
         else:
             return 0
 
-    def move_thread(self):
+    def move_direct_thread(self):
         CUS_LOGGER.info("启动移动线程")
-        me = 0
+        is_find = 0
         if self.mini_state > 2:
-            CUS_LOGGER.info("移动线程前往终点")
-            me = self.move_to_end()
+            CUS_LOGGER.info("移动方向前往终点")
+            is_find = self.move_to_end()
         else:
-            CUS_LOGGER.info("移动线程前往交互点")
+            CUS_LOGGER.info("移动方向前往交互点(大图)")
             self.move_to_interact(2)
         self.ready = 1
         now_time = time.time()
-        if me == 0:
-            me = 0.5
+        if is_find == 0:
+            is_find = 0.5
         while not self.stop_move and time.time() - now_time < 3:
             if self.mini_state <= 2:
-                CUS_LOGGER.info("移动线程前往交互点2")
+                CUS_LOGGER.info("移动方向前往交互点(小图)")
                 self.move_to_interact()
             else:
-                me = max(self.move_to_end(me), me)
-        CUS_LOGGER.info("停止移动线程")
+                is_find = max(self.move_to_end(is_find), is_find)
+        CUS_LOGGER.info("停止移动方向线程")
 
 
     def backup_map(self):
@@ -866,7 +866,7 @@ class UniverseUtils:
 
             # 保存其他属性到JSON文件
             backup_data = {
-                'big_map_c': self.big_map_c,
+                'big_map_init': self.big_map_init,
                 'lst_tm': self.lst_tm,
                 'now_loc': self.now_loc,
                 'mini_state': self.mini_state,
@@ -880,11 +880,12 @@ class UniverseUtils:
     def init_map(self):
         self.backup_map()
         self.big_map = np.zeros((8192, 8192), dtype=np.uint8)
-        self.big_map_c = 0
+        self.big_map_init = False
         self.lst_tm = 0
         self.now_loc = (4096, 4096)
         self.mini_state = 1
         self.first_mini = 1
+        self.find=1
         self.map_file = "resource/imgs/maps/my_" + str(random.randint(0, 99999)) + "/"
         if self.find == 0 and not os.path.exists(self.map_file):
             os.mkdir(self.map_file)
@@ -900,8 +901,7 @@ class UniverseUtils:
             must_be='tp'
         while not ava and time.time()-tm<3.6:
             if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
-                self.fresh_state()
-                if not self.state == "run" or must_be == 'tp':
+                if not self.is_run(True) or must_be == 'tp':
                     ava = True
 
         if ava:
@@ -1549,9 +1549,12 @@ class UniverseUtils:
     def add_floor(self):
         self.floor+=1
         self.floor_change = True
-    def is_run(self):
-        scr = self.screen
+    def is_run(self,check=False):
+        scr = self.get_screen()
         loc_scr = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True)
+        if check:
+            if not self.check("run", 0.8755, 0.7769, mask="run", threshold=0.8, fresh=False):
+                return False
         hsv = cv.cvtColor(loc_scr, cv.COLOR_BGR2HSV)  # 转HSV
         lower = np.array([93, 120, 60])  # 90 改成120只剩箭头，但是角色移动过的印记会消失
         upper = np.array([97, 255, 255])
@@ -1562,7 +1565,7 @@ class UniverseUtils:
         scr[np.min(scr,axis=-1)>220]=[255,255,255]
         res = 40000 < sum_blue < 65000
         if self.tm>0.96:
-            res = 1
+            res = True
         self.screen = deepcopy(scr_bak)
         if res:
             self.f_time = 0
@@ -1591,21 +1594,24 @@ class UniverseUtils:
             return
         self.should_update_map=True
         ThreadWithException(target=self.auto_update_map,name="更新地图").start()
+        if time.time() - self.lst_tm > 5  and self.find == 0:
+            key_mouse_manager.press("s", 0.5)
+            key_mouse_manager.wait()
+            if self._stop == 0:
+                key_mouse_manager.keyDown("w")
+            self.get_screen()
         if self.debug:
             CUS_LOGGER.debug(f'当前状态{self.mini_state}')
+        #打补给罐子
         if self.mini_state==1 and self.floor in [5,9,12]:
-            time.sleep(0.5)
             key_mouse_manager.press('w',0.55)
             key_mouse_manager.click(0.5,0.5)
-            time.sleep(2)
             key_mouse_manager.press('w')
-            time.sleep(0.4)
+            key_mouse_manager.wait()
         #13层并且不要奖励
         if self.mini_state==3 and self.floor==13 and not self.check_bonus:
             self.mini_state=5
-            self.should_update_map = False
-            return
-        #3，7，12层领奖
+        #4，8，13层领奖
         if self.mini_state==3 and self.floor in [4,8,13] and self.check_bonus:
             key_mouse_manager.press('d',0.6)
             key_mouse_manager.keyDown('w')
@@ -1640,11 +1646,11 @@ class UniverseUtils:
         self.stop_move=0
         self.ready=0
         self.mini_target=0
+        self.is_target = 0
         self.get_screen()
-        self.is_target=0
         first = self.first_mini
         if not self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95,fresh=True):
-            ThreadWithException(target=self.move_thread,name="移动").start()
+            ThreadWithException(target=self.move_direct_thread, name="移动").start()
         else:
             self.ready = 1
         while not self.ready:

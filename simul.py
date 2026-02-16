@@ -6,6 +6,8 @@ import time
 import random
 from copy import deepcopy
 
+import yaml
+
 from config.GLOBAL import key_mouse_manager
 from config import EXTRA
 from diver import load_actions, merge_text
@@ -13,10 +15,9 @@ from utils.log import CUS_LOGGER, set_debug
 from utils.simul.update_map import update_map
 from utils.simul.utils import UniverseUtils, set_forground, sprint, get_dis, extract_features
 import os
-from align_angle import main as align_angle_main
 from utils.simul.config import config
 from utils.thread import ThreadWithException
-from utils.timer import timer
+from utils.utils.Error import NormalEndError
 from utils.utils.mminimap import update_minimap_data
 from utils.utils.tool import get_hwnd_and_text, find_latest_modified_file, get_center
 from utils.window_recorder import WindowRecorder
@@ -77,14 +78,10 @@ class SimulatedUniverse(UniverseUtils):
         self.nums = nums
         #启动时时间
         self.init_time = time.time()
-        #重启次数
-        self.re_align = 0
         # 是否仍然可用沉浸器
         self.check_bonus = bonus
         # 是否领取沉浸奖励
         self.bonus = bonus
-        # 是否强制结束
-        self.must_end = False
         #失败次数
         self.fail_count = 0
         #是否已完成
@@ -126,7 +123,9 @@ class SimulatedUniverse(UniverseUtils):
         with EXTRA.FILE_LOCK:
             with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
                 data = json.load(file)
-        
+
+        with open("config/config/info_old.yml", "r", encoding="utf-8", errors="ignore") as f:
+            self.event_prior = yaml.safe_load(f)["prior"]["事件"]
         self.record = data.get("recording_state", True)
         # 根据self._show_map决定是否叠加地图到录制视频上
         self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",window_class_name="UnityWndClass",see_time=True, offsets=[10, 50, 10, 10], overlay_map=self._show_map)
@@ -144,7 +143,7 @@ class SimulatedUniverse(UniverseUtils):
             while Text != "崩坏：星穹铁道" and Text != "云·星穹铁道" and not self._stop:
                 self.lst_changed = time.time()
                 if self._stop:
-                    raise KeyboardInterrupt
+                    raise NormalEndError
                 if not warn_game:
                     warn_game = True
                     CUS_LOGGER.warning(f"等待游戏窗口，当前窗口：{Text}")
@@ -159,34 +158,30 @@ class SimulatedUniverse(UniverseUtils):
             self.get_screen()# 从全屏截屏中裁剪得到游戏窗口截屏
             res = self.normal()
             # 未匹配到图片，降低匹配阈值，若一直无法匹配则乱点
-            if res == 0:
+            if not res:
                 if self.last_update_time is not None and time.time()-self.last_update_time>7 and self.state=="battle":
-                    # if self.click_text(['点击空白','开始游戏'],click=False,warning=False):
-                    #     key_mouse_manager.click(0.2062, 0.1554)
-                    #     time.sleep(0.5)
                     if self.ts.nothing:
                         self.update_state("battle")
-                    if time.time()-self.confirm_time>4:
-                        if self.threshold == 0.97 and fail_cnt==0:
-                            CUS_LOGGER.info("匹配不到任何图标")
-                            fail_time = time.time()
-                        else:
-                            time.sleep(0.8)
-                        if self.threshold > 0.95:
-                            self.threshold -= 0.015
-                        elif time.time()-fail_time>7.5:
-                            time.sleep(0.15)
-                            if fail_cnt <= 1:
-                                key_mouse_manager.click(0.5000, 0.1454)
-                                fail_cnt += 1
-                            else:
-                                key_mouse_manager.click(0.2062, 0.2054)
-                                fail_cnt = 0
-                                fail_time = time.time()
-                            time.sleep(0.35)
-                            self.threshold = 0.97
-                else:
-                    time.sleep(0.75)
+                        CUS_LOGGER.info("匹配不到任何图标，可能位于战斗中")
+                    # if time.time()-self.confirm_time>4:
+                    #     if self.threshold == 0.97 and fail_cnt==0:
+                    #         CUS_LOGGER.info("匹配不到任何图标")
+                    #         fail_time = time.time()
+                    #     else:
+                    #         time.sleep(0.8)
+                    #     if self.threshold > 0.95:
+                    #         self.threshold -= 0.015
+                    #     elif time.time()-fail_time>7.5:
+                    #         time.sleep(0.15)
+                    #         if fail_cnt <= 1:
+                    #             key_mouse_manager.click(0.5000, 0.1454)
+                    #             fail_cnt += 1
+                    #         else:
+                    #             key_mouse_manager.click(0.2062, 0.2054)
+                    #             fail_cnt = 0
+                    #             fail_time = time.time()
+                    #         time.sleep(0.35)
+                    #         self.threshold = 0.97
             # 匹配到图片 res=1时等待一段时间
             else:
                 fail_cnt = 0
@@ -210,7 +205,72 @@ class SimulatedUniverse(UniverseUtils):
             CUS_LOGGER.info('已完成上限，准备停止运行')
             self.end = 1
         self.update_floor(1)
-
+        self.update_state("exit")
+    def map_data_load(self):
+        self.big_map_init = True
+        # 寻路模式，匹配最接近的地图
+        if self.find:
+            # 只有第一，第六层才寻找匹配的地图
+            if self.click_text(text="战斗", click=False, box=[55, 164, 12, 40], ocr_line=False):
+                if not self.floor_init:
+                    self.get_level()
+                CUS_LOGGER.debug(f"检查当前层数：{self.floor}")
+                if self.floor in [1, 6] and self.floor_change:
+                    self.mini_state = 0
+                    self.stop_move = 0
+                    no_find = False
+                    now_time = time.time()
+                    self.now_map_sim = -1
+                    self.now_map = -1
+                    while True:
+                        self.exist_minimap()
+                        now_map, now_map_sim = self.match_scr(self.loc_scr)
+                        if self.now_map_sim < now_map_sim:
+                            self.now_map, self.now_map_sim = now_map, now_map_sim
+                        # 地图匹配超时或找到相似匹配
+                        if ((self.now_map_sim > 0.85 or time.time() - now_time > 2.5)
+                                and self.now_map_sim != -1) or self._stop:
+                            break
+                        time.sleep(0.3)
+                    CUS_LOGGER.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
+                    self.find = True
+                    if self.now_map_sim < 0.35:
+                        CUS_LOGGER.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor},匹配地图{self.now_map}")
+                        self.find = False
+                        self.init_map()
+                        no_find = True
+                    if "m" in self.now_map:
+                        CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
+                        self.find = False
+                    if not no_find:
+                        self.now_pth = "resource/imgs/maps/" + self.now_map + "/"
+                        files = find_latest_modified_file(self.now_pth)
+                        self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
+                        self.debug_map = deepcopy(self.big_map)
+                        # 从文件名获取初始坐标
+                        xy = files.split("/")[-1].split("_")[1:3]
+                        self.now_loc = (4096 - int(xy[0]), 4096 - int(xy[1]))
+                        # 获取目标路径
+                        self.target = self.get_target(self.now_pth + "target.jpg")
+                        self.get_screen()
+                        self.rotation, d = update_minimap_data(self.screen, rotation=0, direction=0)
+                        self.init_ang = 270 + d
+                        CUS_LOGGER.info("已从地图获取目标路径点%s" % self.target)
+                elif self.floor not in [1,6]:
+                    self.update_debug_map()
+            else:
+                self.update_debug_map()
+            if self._stop:
+                return 1
+            if self.consumable and self.check_bonus and self.floor in [4, 8, 13][-self.consumable:]:
+                self.use_consumable(1, 1)
+            key_mouse_manager.press("1")
+        # 录制模式，保存初始小地图
+        else:
+            CUS_LOGGER.warning("未找到匹配地图")
+            self.mini_state = 0
+            self.exist_minimap()
+            cv.imwrite(self.map_file + "init.jpg", self.loc_scr)
     def normal(self):
         # self.lst_changed：最后一次交互时间，长时间无交互则暂离
         bk_lst_changed = self.lst_changed
@@ -228,153 +288,54 @@ class SimulatedUniverse(UniverseUtils):
             if self.floor_init == 0:
                 CUS_LOGGER.info("开始重新初始化层数")
                 self.get_level()
-                return 1
+                return True
             #上次交互时间
             self.lst_changed = bk_lst_changed
             # 刚进图，初始化一些数据
-            if self.big_map_c == 0:
+            if self.big_map_init == 0:
+                key_mouse_manager.clean()
                 key_mouse_manager.keyUp("w")
-                # 黑屏检测
-                while 1:
-                    men = np.mean(self.get_screen())
-                    if men > 12:
-                        break
-                    time.sleep(0.1)
-                    if self._stop:
-                        return 1
+                key_mouse_manager.wait()
                 if self._stop:
                     return 1
-                self.big_map_c = 1
-                # 寻路模式，匹配最接近的地图
-                if self.find:
-                    #只有第一，第六层才寻找匹配的地图
-                    if self.click_text(text="战斗", click=False, box=[55, 164, 12, 40],ocr_line=False):
-                        if not self.floor_init:
-                            self.get_level()
-                        CUS_LOGGER.debug(f"检查当前层数：{self.floor}")
-                        if self.floor in [1, 6] and self.floor_change:
-                            self.mini_state = 0
-                            self.stop_move = 0
-                            no_find=False
-                            now_time = time.time()
-                            self.now_map_sim = -1
-                            self.now_map = -1
-                            while True:
-                                self.exist_minimap()
-                                now_map, now_map_sim = self.match_scr(self.loc_scr)
-                                if self.now_map_sim < now_map_sim:
-                                    self.now_map, self.now_map_sim = now_map, now_map_sim
-                                # 地图匹配超时或找到相似匹配
-                                if (
-                                    (self.now_map_sim > 0.85 or time.time() - now_time > 2.5)
-                                    and self.now_map_sim != -1
-                                ) or self._stop:
-                                    break
-                                time.sleep(0.3)
-                            CUS_LOGGER.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
-                            self.find=True
-                            if self.now_map_sim < 0.35 :
-                                CUS_LOGGER.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor},匹配地图{self.now_map}")
-                                self.find=False
-                                self.init_map()
-                                no_find=True
-                            if "m" in self.now_map:
-                                CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
-                                self.find = False
-                            if not no_find:
-                                self.now_pth = "resource/imgs/maps/" + self.now_map + "/"
-                                files = find_latest_modified_file(self.now_pth)
-                                self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
-                                self.debug_map = deepcopy(self.big_map)
-                                #从文件名获取初始坐标
-                                xy = files.split("/")[-1].split("_")[1:3]
-                                self.now_loc = (4096 - int(xy[0]), 4096 - int(xy[1]))
-                                #获取目标路径
-                                self.target = self.get_target(self.now_pth + "target.jpg")
-                                self.get_screen()
-                                # shape = (int(self.scx * 190), int(self.scx * 190))
-                                self.rotation,d=update_minimap_data(self.screen,rotation=0,direction=0)
-                                self.init_ang = 270 + d
-                                CUS_LOGGER.info("已从地图获取目标路径点%s" % self.target)
-                        else:
-                            self.update_debug_map()
-                    else:
-                        self.update_debug_map()
-                    if self._stop:
-                        return 1
-                    if self.consumable and (self.check_bonus or self.count<34) and self.floor in [4, 8, 13][-self.consumable:]:
-                        self.use_consumable(1, 1)
-                    key_mouse_manager.press("1")
-                # 录制模式，保存初始小地图
-                if not self.find:
-                    CUS_LOGGER.warning("未找到匹配地图")
-                    time.sleep(3)
-                    self.mini_state = 0
-                    self.exist_minimap()
-                    cv.imwrite(self.map_file + "init.jpg", self.loc_scr)
-            self.get_screen()
-            # if time.time() - self.lst_tm > 5 and self.mini_state == 0 and self.floor not in [0, 5]:
-            if time.time() - self.lst_tm > 5 and self.mini_state == 0:
-                if self.find == 0:
-                    key_mouse_manager.press("s", 0.5)
-                    if self._stop == 0:
-                        key_mouse_manager.keyDown("w")
-                    time.sleep(0.5)
-                    self.get_screen()
-                    pass
+                self.map_data_load()
             self.lst_tm = time.time()
-            
-            self.must_end |= self.floor >= 4 and self.debug == 2
             # 长时间未交互/战斗，暂离或重开
-            if ((time.time() - self.lst_changed >= 37 - 2 * self.debug + 8 * self.slow) and self.find == 1)or (self.floor == 13 and self.mini_state > 4)or self.must_end:
-                time.sleep(2.5)
+            if ((time.time() - self.lst_changed >= 37 - 2 * self.debug + 8 * self.slow) and self.find == 1)or (self.floor == 13 and self.mini_state > 4):
+                key_mouse_manager.clean()
+                key_mouse_manager.wait()
+                key_mouse_manager.keyUp("w")
                 key_mouse_manager.press("esc")
                 self.update_state("ui")
-                time.sleep(2)
                 self.init_map()
                 self.floor_init = 0
-                if self.floor == 13 or self.must_end:
+                if self.floor == 13 :
                     self.end_of_university()
-                    key_mouse_manager.click(0.2708, 0.1324)
-                    time.sleep(1)
+                    # key_mouse_manager.click(0.2708, 0.1324)
                     CUS_LOGGER.info(f"通关！当前层数:{self.floor}")
-                elif self.debug == 2:
-                    CUS_LOGGER.error(f"地图{self.now_map}出现问题,退出程序")
-                    CUS_LOGGER.info('地图错误')
-                    self._stop = 1
+                    return 1
                 elif self.fail_count <= 1:
                     CUS_LOGGER.error(f"地图{self.now_map}未发现目标，当前层数:{self.floor},相似度{self.now_map_sim}，尝试暂离")
                     key_mouse_manager.click(0.2708, 0.2324)
                     key_mouse_manager.keyUp("w")
                     self.re_enter()
-                    self.re_align += 1
                     self.fail_count += 1
                 else:
-                    self.multi = 1.01
                     if self.debug == 0:
                         self.update_floor(1)
                         key_mouse_manager.click(0.2708, 0.1324)
                         CUS_LOGGER.error(
-                            f"地图{self.now_map}未发现目标,相似度{self.now_map_sim}，当前层数:{self.floor},尝试退出重进"
+                            f"地图{self.now_map}多次未发现目标,相似度{self.now_map_sim}，当前层数:{self.floor},尝试退出重进"
                         )
                         self.fail_count = 0
                     else:
-                        self.re_align += 1
                         CUS_LOGGER.error(
-                            f"地图{self.now_map}未发现目标,相似度{self.now_map_sim}，尝试暂离 DEBUG"
+                            f"地图{self.now_map}多次未发现目标,相似度{self.now_map_sim}，尝试暂离 DEBUG"
                         )
                         key_mouse_manager.click(0.2708, 0.2324)
                         self.re_enter()
                 self.lst_changed = time.time()
                 return 1
-            # if self.multi == 1.01:
-            #     align_angle_main(0, [1], self)
-            self.get_screen()
-            if self.floor > 1 and self.check("ruan",0.0625,0.7065,threshold=0.95) and not self.check("U", 0.0240,0.7759) and not (self.floor==13 and self.mini_state>1):
-                key_mouse_manager.press('e')
-                time.sleep(1.5)
-                if self.click_text(text="快速恢复",box=[864, 1058, 224, 318],click=False,ocr_line=False,warning=False):
-                    self.solve_snack()
             # 寻路
             CUS_LOGGER.info("开始寻路")
             if self._stop:
@@ -469,8 +430,8 @@ class SimulatedUniverse(UniverseUtils):
         return 1
     # F交互界面
     def do_interaction(self):
-        # is_killed：是否是禁用交互（沉浸奖励、复活装置、下载装置）
-        is_killed = 0
+        # is_killed：是否是禁用的交互（沉浸奖励、复活装置、下载装置）
+        is_killed = False
         if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
             for _ in range(4):
                 img = self.get_small_interaction_img(x=0.3181, y=0.4324, mask="mask_f")
@@ -491,19 +452,15 @@ class SimulatedUniverse(UniverseUtils):
                 else:
                     is_killed = 1
             else:
-                # tele：区域-xx  exit：离开模拟宇宙
                 if self.ts.similar("区域"):
+                    # tele：区域-xx  exit：离开模拟宇宙
                     CUS_LOGGER.info(f"识别到传送点")
                     key_mouse_manager.press('f', force=True)
                     return self.nof()
-                elif self.re_align == 1 and self.debug == 0:
-                    # align_angle(10, 1)
-                    # self.multi = config.multi
-                    self.re_align += 1
                 is_killed = text in ["沉浸", "紧锁", "复活", "下载"]
-                if is_killed == 0:
+                if not is_killed:
                     key_mouse_manager.press('f', force=True)
-            if is_killed == 0:
+            if not is_killed:
                 return 1
             else:
                 self.update_state("run")
@@ -582,29 +539,7 @@ class SimulatedUniverse(UniverseUtils):
         # 事件选择界面
         elif self.check("star", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
             tx, ty = self.tx, self.ty
-            try:
-                import yaml
-                with open("config/config/info.yml", "r", encoding="utf-8", errors="ignore") as f:
-                    event_prior = yaml.safe_load(f)["prior"]["事件"]
-            except:
-                event_prior = [
-                    '购买一个',
-                    '丢下雕像',
-                    '和序列扑满玩',
-                    '信仰星神',
-                    '克里珀的恩赐',
-                    '哈克的藏品',
-                    '动作片',
-                    '感恩克里珀星神',
-                    '换取1个星祝福',
-                    '星神的记载',
-                    '翻开牌',
-                    '摧毁黑匣',
-                    '1个1星祝福',
-                    '1个1-星祝福',
-                    '选择里奥'
-                ]
-            event_prior = [self.fate] + event_prior
+            event_prior = [self.fate] + self.event_prior
             success = self.click_text(event_prior)
             time.sleep(1)
             self.get_screen()
@@ -817,7 +752,7 @@ class SimulatedUniverse(UniverseUtils):
                 with open(attrs_file, 'r') as f:
                     backup_data = json.load(f)
                     
-                self.big_map_c = backup_data.get('big_map_c', self.big_map_c)
+                self.big_map_init = backup_data.get('big_map_init', self.big_map_init)
                 self.lst_tm = backup_data.get('lst_tm', self.lst_tm)
                 self.now_loc = tuple(backup_data.get('now_loc', self.now_loc))
                 self.mini_state = backup_data.get('mini_state', self.mini_state)
@@ -860,6 +795,8 @@ class SimulatedUniverse(UniverseUtils):
         函数会利用一系列图像识别和文本识别来确定当前位置，
         并执行相应的点击、拖拽和键盘操作来完成导航。
         """
+        if self.state=="init2":
+            return
         self.update_state("init")
         if self.click_text(text="模拟宇宙",box=[1231, 1360, 595, 631],click=False,allow_fail= True):
             CUS_LOGGER.info("已在办公室，打开模拟宇宙")
@@ -924,14 +861,14 @@ class SimulatedUniverse(UniverseUtils):
                         #返回触发的名字
                         return i['name'],1
                 elif trigger.get("photo", None):
+                    resu=0
                     if condition==self.state if condition is not None else True:
                         if "pos" in trigger:
-                            if self.check(trigger["photo"], trigger["pos"]["x"], trigger["pos"]["y"], mask=trigger.get("mask", None), threshold=trigger.get("threshold", None)):
+                            if self.check(trigger["photo"], trigger["pos"]["x"], trigger["pos"]["y"], mask=trigger.get("mask", None), threshold=trigger.get("threshold", None),use_binary=trigger.get("binary", False)):
                                 CUS_LOGGER.info(f"触发图像 {i['name']}:{trigger['photo']}")
                                 for j in i["actions"]:
-                                    resu=self.do_action(j)
-                                if resu is None:
-                                    resu=0
+                                    re=self.do_action(j)
+                                resu=re if re is not None else resu
                                 self.action_history.append(i["name"])
                                 #记录最近10个动作
                                 self.action_history = self.action_history[-10:]
@@ -941,9 +878,8 @@ class SimulatedUniverse(UniverseUtils):
                             if self.click_target(f'resource/imgs//{trigger["photo"]}.jpg', threshold=trigger.get("threshold", 0.9), flag=False,click=False):
                                 CUS_LOGGER.info(f"触发全局图像 {i['name']}:{trigger['photo']}")
                                 for j in i["actions"]:
-                                    resu=self.do_action(j)
-                                if resu is None:
-                                    resu=0
+                                    re=self.do_action(j)
+                                resu=re if re is not None else resu
                                 self.action_history.append(i["name"])
                                 #记录最近10个动作
                                 self.action_history = self.action_history[-10:]
@@ -1281,6 +1217,9 @@ class SimulatedUniverse(UniverseUtils):
             self.map_thread.start()
         try:
             self.route()
+        except NormalEndError as e:
+            CUS_LOGGER.info(f'离开游戏界面，正常终止进程{e}')
+            raise
         except Exception as e:
             CUS_LOGGER.info(f'异常终止进程{e}')
             if not self._stop:
