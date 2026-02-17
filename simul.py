@@ -621,7 +621,8 @@ class SimulatedUniverse(UniverseUtils):
     def confirm_yes(self):
         if self.click_text(text="确认",click=False):
             key_mouse_manager.click(self.tx, self.ty)
-        time.sleep(1)
+            key_mouse_manager.wait()
+        # time.sleep(1)
         return 0
 
     def update_count(self, read=True):

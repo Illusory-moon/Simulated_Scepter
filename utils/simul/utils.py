@@ -1551,6 +1551,7 @@ class UniverseUtils:
     def add_floor(self):
         self.floor+=1
         self.floor_change = True
+    @timer
     def is_run(self,check=False):
         scr = self.get_screen()
         loc_scr = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True)
@@ -1625,18 +1626,18 @@ class UniverseUtils:
                     break
             key_mouse_manager.keyUp('w')
             key_mouse_manager.press('f',force= True)
-            time.sleep(1)
+            key_mouse_manager.wait()
             for _ in range(2):
                 if not self.check_bonus:
                     break
                 #领取沉浸奖励
                 if self.check('bonus_c',0.2385,0.6685,fresh=True):
                     key_mouse_manager.click(0.4453,0.3250)
-                    time.sleep(1.5)
+                    key_mouse_manager.wait()
                     if self.click_text(text="储存沉浸器",box=[838, 1070, 298, 400],click=False,ocr_line=False,warning=False):
                         self.check_bonus = 0
                     key_mouse_manager.click(0.5062, 0.1454)
-                    time.sleep(1.4)
+                    key_mouse_manager.wait()
             key_mouse_manager.keyUp('w')
             if self.check('bonus_c',0.2385,0.6685,fresh=True):
                 key_mouse_manager.click(0.2385,0.6685)
@@ -1665,10 +1666,8 @@ class UniverseUtils:
         self.is_sprinting = 0
         if self.mini_state==1:
             wt += 1
-            #黑塔
-            if self.mini_target!=2:
-                sprint()
-                self.is_sprinting = 1
+            sprint()
+            self.is_sprinting = 1
             #事件
             if self.mini_target==1:
                 wt += 0.8
@@ -1732,7 +1731,6 @@ class UniverseUtils:
             if self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
                 CUS_LOGGER.info("检测到怪物z标志")
                 self.stop_move=1
-                # time.sleep(1.7+self.slow*1.1-(self.quan and self.floor not in [3, 7, 12])*0.5)
                 if self.mini_state==1 and self.floor in [4, 8, 13] and not (self.quan or self.bai_e):
                     key_mouse_manager.keyUp("w")
                     if not self.check("ruan",0.0625,0.7065,threshold=0.95) and not self.check("U", 0.0240,0.7759):
@@ -1845,7 +1843,6 @@ class UniverseUtils:
                 key_mouse_manager.press('w',0.5)
                 key_mouse_manager.wait()
                 break
-            time.sleep(0.1)
         self.stop_move=1
         key_mouse_manager.keyUp("w")
         self.update_state("check")
@@ -1867,7 +1864,8 @@ class UniverseUtils:
                             self.should_update_map = False
                             return
                 elif self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
-                    key_mouse_manager.keyUp("w")
+                    key_mouse_manager.keyUp(i)
+                    key_mouse_manager.wait()
                     if self.good_f()[0] and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
                         CUS_LOGGER.info(f"找到最佳交互点")
                         key_mouse_manager.press('f',force= True)
@@ -1875,9 +1873,13 @@ class UniverseUtils:
                         if self.nof():
                             self.should_update_map = False
                             return
+                if self.is_find_end==1 and self.mini_state > 2:
+                    if self.move_to_end():
+                        key_mouse_manager.press('w')
+                        key_mouse_manager.wait()
                 key_mouse_manager.press(i, 0.25)
                 CUS_LOGGER.info(f"向{i}走0.25秒")
-                time.sleep(0.65)
+                key_mouse_manager.wait()
             key_mouse_manager.click(0.5,0.5)
             self.should_update_map = False
 
