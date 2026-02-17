@@ -692,11 +692,7 @@ class UniverseUtils:
         不是"沉浸", "紧锁", "复活", "下载"的交互
         """
         CUS_LOGGER.debug("尝试判断当前交互是否最佳")
-        key_mouse_manager.keyUp("w")
         t_start=time.time()
-        if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
-            key_mouse_manager.keyDown("w")
-            return False,0
         img = self.get_small_interaction_img(x=0.3344,y=0.4241,mask="mask_f")
         text = self.ts.similar_list(self.tk.interacts, img)
         if text is None:
@@ -707,8 +703,9 @@ class UniverseUtils:
         if text is not None:
             CUS_LOGGER.info('识别到交互信息：' + text)
         CUS_LOGGER.debug(f"交互最佳结果判断{text is not None and not is_killed}")
-        if not text is not None and not is_killed:
+        if not (text is not None and not is_killed):
             key_mouse_manager.keyDown("w")
+            key_mouse_manager.wait()
         t_end=time.time()
         return text is not None and not is_killed, t_end-t_start
 
@@ -822,23 +819,23 @@ class UniverseUtils:
 
     def move_direct_thread(self):
         CUS_LOGGER.info("启动移动线程")
-        is_find = 0
+        self.is_find_end = 0
         if self.mini_state > 2:
             CUS_LOGGER.info("移动方向前往终点")
-            is_find = self.move_to_end()
+            self.is_find_end = self.move_to_end()
         else:
             CUS_LOGGER.info("移动方向前往交互点(大图)")
             self.move_to_interact(2)
         self.ready = 1
         now_time = time.time()
-        if is_find == 0:
-            is_find = 0.5
+        if self.is_find_end == 0:
+            self.is_find_end = 0.5
         while not self.stop_move and time.time() - now_time < 3:
             if self.mini_state <= 2:
                 CUS_LOGGER.info("移动方向前往交互点(小图)")
                 self.move_to_interact()
             else:
-                is_find = max(self.move_to_end(is_find), is_find)
+                self.is_find_end = max(self.move_to_end(self.is_find_end), self.is_find_end)
         CUS_LOGGER.info("停止移动方向线程")
 
 
@@ -1012,14 +1009,16 @@ class UniverseUtils:
                 self.get_screen()
                 self.now_map = '19788'
             # 如果当前就在交互点上：直接返回
-            if self.good_f()[0] and not self.ts.similar("黑塔"):
-                self.set_path_state("位于交互点，移除交互点")
-                for j in deepcopy(self.target):
-                    #类型为二，交互点
-                    if j[1] == 2:
-                        self.target.remove(j)
-                        CUS_LOGGER.info("检测到交互点，已移除目标:" + str(j))
-                return
+            if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
+                key_mouse_manager.keyUp("w")
+                if self.good_f()[0] and not self.ts.similar("黑塔"):
+                    self.set_path_state("位于交互点，移除交互点")
+                    for j in deepcopy(self.target):
+                        #类型为二，交互点
+                        if j[1] == 2:
+                            self.target.remove(j)
+                            CUS_LOGGER.info("检测到交互点，已移除目标:" + str(j))
+                    return
             self.set_path_state("开始更新方向1")
             #纠正为标准坐标系然后上下反转的坐标系角度（取反估计是为了便于底层操作向左为负，向右为正）
             self.get_real_loc()
@@ -1219,9 +1218,11 @@ class UniverseUtils:
                         if self.nof(must_be='tp'):
                             CUS_LOGGER.info('大图识别到传送点!')
                             return
-                    elif self.target_type != 3 and self.good_f()[0]:
+                    elif self.target_type != 3 and self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
                         key_mouse_manager.keyUp("w")
-                        break
+                        if self.good_f()[0]:
+                            key_mouse_manager.keyUp("w")
+                            break
                     else:
                         self.fresh_state()
                         if not self.state=="run":
@@ -1653,19 +1654,19 @@ class UniverseUtils:
             self.ready = 1
         while not self.ready:
             time.sleep(0.1)
-        if self.mini_state == 1:
-            if self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
-                if self.floor == 12:
-                    self.add_floor()
+        if self.mini_state == 1 and self.floor == 12 and self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
+            self.update_floor(13)
         key_mouse_manager.keyDown("w")
         wt = 3
         self.first_mini = 0
         self.is_sprinting = 0
         if self.mini_state==1:
             wt += 1
+            #黑塔
             if self.mini_target!=2:
                 sprint()
                 self.is_sprinting = 1
+            #事件
             if self.mini_target==1:
                 wt += 0.8
         need_confirm=0
@@ -1677,18 +1678,19 @@ class UniverseUtils:
                 key_mouse_manager.keyUp("w")
                 self.stop_move=1
                 break
-            if self.mini_target==1:
-                if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                    key_mouse_manager.keyUp("w")
-                    key_mouse_manager.press('f')
-                    CUS_LOGGER.info('发现事件交互')
-                    self.stop_move=1
-                    need_confirm = 1
-                    if self.nof(must_be='event'):
-                        self.should_update_map = False
-                        return
-                    break
-            else:
+            have_f=self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96)
+            if have_f:
+                key_mouse_manager.keyUp("w")
+            if have_f and self.mini_target==1:
+                key_mouse_manager.press('f')
+                CUS_LOGGER.info('发现事件交互')
+                self.stop_move=1
+                need_confirm = 1
+                if self.nof(must_be='event'):
+                    self.should_update_map = False
+                    return
+                break
+            elif have_f:
                 judge,use_time=self.good_f()
                 if judge and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
                     if self.speed <= 0 or not self.ts.similar("黑塔"):
@@ -1715,104 +1717,104 @@ class UniverseUtils:
                         self.mini_state+=2
                         self.should_update_map = False
                         return
-                if self.check("auto_2", 0.0583, 0.0769): 
+            if self.check("auto_2", 0.0583, 0.0769):
+                key_mouse_manager.keyUp("w")
+                self.stop_move=1
+                self.mini_state+=2
+                break
+            if self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
+                self.stop_move=1
+                # time.sleep(1.7+self.slow*1.1-(self.quan and self.floor not in [3, 7, 12])*0.5)
+                if self.mini_state==1 and self.floor in [4, 8, 13] and not (self.quan or self.bai_e):
                     key_mouse_manager.keyUp("w")
-                    self.stop_move=1
-                    self.mini_state+=2
-                    break
-                if self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
-                    self.stop_move=1
-                    # time.sleep(1.7+self.slow*1.1-(self.quan and self.floor not in [3, 7, 12])*0.5)
-                    if self.mini_state==1 and self.floor in [4, 8, 13] and not (self.quan or self.bai_e):
-                        key_mouse_manager.keyUp("w")
-                        if not self.check("ruan",0.0625,0.7065,threshold=0.95) and not self.check("U", 0.0240,0.7759):
-                            for i in range([4, 8, 13].index(self.floor)+2):
-                                key_mouse_manager.press(str(i+1))
-                                time.sleep(0.4)
-                                self.use_e()
-                                self.get_screen()
-                                if not self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
-                                    break
-                                if self._stop:
-                                    break
-                        key_mouse_manager.keyDown("w")
-                        key_mouse_manager.wait()
-                    iters = 0
-                    while self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95,fresh=True) and not self._stop:
-                        CUS_LOGGER.info("检测到怪物，准备攻击")
-                        key_mouse_manager.keyUp("w")
-                        iters+=1
-                        if iters>4:
-                            break
-                        red = [47, 47, 232]
-                        outside=mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True), center_radius=80)
-                        rd = np.where(
-                            np.sum((outside - red) ** 2, axis=-1) <= 5000)
-                        if rd[0].shape[0]:
-                            #就在旁边
-                            pass
-                            # key_mouse_manager.keyUp("w")
-                        else:
-                            local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True)
-                            rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 4500)
-                            if rd[0].shape[0] > 0:
-                                # 仅检测存在性，不需要排序，使用第一个检测到的点
-                                target = ((rd[0][0], rd[1][0]), 3)
-                                self.get_screen()
-                                # local_screen = self.get_local(0.9333, 0.8657, shape)
-                                self.update_direction_data(mode=2,target=target)
-                                ds = get_dis(self.real_loc, self.target_loc)
-                            else:
-                                #没扫到红点，却有z的怪物标识，那红点可能被蓝色箭头挡住了，说明很近了
-                                ds=0
-                            if ds>28:
-                                key_mouse_manager.keyDown("w")
-                                if self.is_sprinting:
-                                    CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 28.0) / 12}秒(冲刺)")
-                                    time.sleep((ds-22.0)/12)
-                                else:
-                                    CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 28.0) / 8}秒")
-                                    time.sleep((ds - 22.0) / 8)
-                        if self.quan:
-                            key_mouse_manager.keyUp("w")
+                    if not self.check("ruan",0.0625,0.7065,threshold=0.95) and not self.check("U", 0.0240,0.7759):
+                        for i in range([4, 8, 13].index(self.floor)+2):
+                            key_mouse_manager.press(str(i+1))
+                            time.sleep(0.4)
                             self.use_e()
-                            if self.floor not in [4, 8, 13]:
-                                for _ in range(4):
-                                    self.use_e()
-                                self.stop_move=1
-                                self.mini_state+=2
-                                time.sleep(0.4)
-                                key_mouse_manager.press('w')
-                                time.sleep(1.4)
-                                self.should_update_map = False
-                                return
-                            else:
-                                time.sleep(0.8)
-                                key_mouse_manager.keyDown("w")
-                        elif self.bai_e:
-                            # key_mouse_manager.keyUp("w")
-                            self.use_e(face=True)
-                            if self.floor not in [4, 8, 13]:
-                                self.stop_move = 1
-                                self.mini_state += 2
-                                time.sleep(0.4)
-                                key_mouse_manager.press('w')
-                                time.sleep(1.4)
-                                self.should_update_map = False
-                                return
-                            else:
-                                time.sleep(0.8)
-                                key_mouse_manager.keyDown("w")
+                            self.get_screen()
+                            if not self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
+                                break
+                            if self._stop:
+                                break
+                    key_mouse_manager.keyDown("w")
+                    key_mouse_manager.wait()
+                iters = 0
+                while self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95,fresh=True) and not self._stop:
+                    CUS_LOGGER.info("检测到怪物，准备攻击")
+                    key_mouse_manager.keyUp("w")
+                    iters+=1
+                    if iters>4:
+                        break
+                    red = [47, 47, 232]
+                    outside=mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True), center_radius=80)
+                    rd = np.where(
+                        np.sum((outside - red) ** 2, axis=-1) <= 5000)
+                    if rd[0].shape[0]:
+                        #就在旁边
+                        pass
+                        # key_mouse_manager.keyUp("w")
+                    else:
+                        local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True)
+                        rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= 4500)
+                        if rd[0].shape[0] > 0:
+                            # 仅检测存在性，不需要排序，使用第一个检测到的点
+                            target = ((rd[0][0], rd[1][0]), 3)
+                            self.get_screen()
+                            # local_screen = self.get_local(0.9333, 0.8657, shape)
+                            self.update_direction_data(mode=2,target=target)
+                            ds = get_dis(self.real_loc, self.target_loc)
                         else:
-                            key_mouse_manager.click(0.5,0.5)
-                        if iters + self.quan == 2:
-                            time.sleep(0.9)
-                            key_mouse_manager.press('d',0.85)
-                            key_mouse_manager.press('a',0.3)
+                            #没扫到红点，却有z的怪物标识，那红点可能被蓝色箭头挡住了，说明很近了
+                            ds=0
+                        if ds>28:
+                            key_mouse_manager.keyDown("w")
+                            if self.is_sprinting:
+                                CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 28.0) / 12}秒(冲刺)")
+                                time.sleep((ds-22.0)/12)
+                            else:
+                                CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 28.0) / 8}秒")
+                                time.sleep((ds - 22.0) / 8)
+                    if self.quan:
+                        key_mouse_manager.keyUp("w")
+                        self.use_e()
+                        if self.floor not in [4, 8, 13]:
+                            for _ in range(4):
+                                self.use_e()
+                            self.stop_move=1
+                            self.mini_state+=2
+                            time.sleep(0.4)
+                            key_mouse_manager.press('w')
+                            time.sleep(1.4)
+                            self.should_update_map = False
+                            return
                         else:
-                            time.sleep(1.2)
-                    self.mini_state+=2
-                    break
+                            time.sleep(0.8)
+                            key_mouse_manager.keyDown("w")
+                    elif self.bai_e:
+                        # key_mouse_manager.keyUp("w")
+                        self.use_e(face=True)
+                        if self.floor not in [4, 8, 13]:
+                            self.stop_move = 1
+                            self.mini_state += 2
+                            time.sleep(0.4)
+                            key_mouse_manager.press('w')
+                            time.sleep(1.4)
+                            self.should_update_map = False
+                            return
+                        else:
+                            time.sleep(0.8)
+                            key_mouse_manager.keyDown("w")
+                    else:
+                        key_mouse_manager.click(0.5,0.5)
+                    if iters + self.quan == 2:
+                        time.sleep(0.9)
+                        key_mouse_manager.press('d',0.85)
+                        key_mouse_manager.press('a',0.3)
+                    else:
+                        time.sleep(1.2)
+                self.mini_state+=2
+                break
             if time.time()-init_time>wt:
                 self.stop_move=1
                 key_mouse_manager.keyUp("w")
@@ -1844,16 +1846,15 @@ class UniverseUtils:
                         if self.nof(must_be='event'):
                             self.should_update_map = False
                             return
-                elif self.good_f()[0] and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
-                    # cv.imshow("f",self.screen)
-                    CUS_LOGGER.info(f"找到最佳交互点")
-                    key_mouse_manager.press('f',force= True)
-                    self.get_screen()
-                    # cv.imshow("newf",self.screen)
-                    # cv.waitKey(0)
-                    if self.nof():
-                        self.should_update_map = False
-                        return
+                elif self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
+                    key_mouse_manager.keyUp("w")
+                    if self.good_f()[0] and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
+                        CUS_LOGGER.info(f"找到最佳交互点")
+                        key_mouse_manager.press('f',force= True)
+                        self.get_screen()
+                        if self.nof():
+                            self.should_update_map = False
+                            return
                 key_mouse_manager.press(i, 0.25)
                 CUS_LOGGER.info(f"向{i}走0.25秒")
                 time.sleep(0.65)
