@@ -510,35 +510,33 @@ class UniverseUtils:
             if i:
                 return 0
             win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, 0, -200)
-            time.sleep(0.3)
             dx = self.get_end_point()
             off = 0
             if dx is None:
                 CUS_LOGGER.debug(f'旋转查找终点')
                 for k in [60,120,60,60,30,30,-60,-60,-60,-60,-60,-60]:
                     key_mouse_manager.mouse_move(-k)
+                    key_mouse_manager.wait()
                     off += k
-                    time.sleep(0.3)
                     dx = self.get_end_point()
                     if dx is not None:
                         break
                 if dx is None:
                     key_mouse_manager.mouse_move(off*1.03)
-                    time.sleep(0.3)
+                    key_mouse_manager.wait()
                     return 0
         CUS_LOGGER.debug(f"移动面向终点 参数{i}移动距离{dx}")
         if i == 0:
             key_mouse_manager.mouse_move(dx / 3)
-            time.sleep(0.3)
+            key_mouse_manager.wait()
         else:
             key_mouse_manager.mouse_move(dx / 5)
-            time.sleep(0.3)
+            key_mouse_manager.wait()
         if i == 0 and abs(dx / 3) > 30:
-            time.sleep(0.3)
             dx = self.get_end_point(1)
             if dx is not None:
                 key_mouse_manager.mouse_move(dx / 4)
-                time.sleep(0.3)
+                key_mouse_manager.wait()
         return 1
 
 
