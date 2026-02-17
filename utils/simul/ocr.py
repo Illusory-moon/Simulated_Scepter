@@ -56,6 +56,7 @@ class My_TS:
         for i in range(len(stext)-length):
             #滑动窗口检测所有长度为length的子串
             res |= is_edit_distance_at_most_one(text,stext[i:i+length],stext[i+length])
+        CUS_LOGGER.debug(f"是否相似：{res}")
         return res
 
     def ocr_one_row(self, img, box=None):

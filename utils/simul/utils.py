@@ -30,6 +30,7 @@ import threading
 
 from utils.simul.text_key import text_keys
 from utils.thread import ThreadWithException
+from utils.timer import timer
 from utils.utils.Error import BigAngError
 from utils.utils.get_win_rect import get_window_rect
 from utils.utils.minimap_util import get_minimap, MINIMAP_RADIUS, mask_minimap_outside
@@ -227,9 +228,10 @@ class UniverseUtils:
             time.sleep(0.1)
             self.get_screen()
         return 0
+    @timer
     def fresh_state(self):
         self.get_screen()
-        self.run_static()
+        return self.run_static()[1]
     def use_it(self, x, y):
         if x != 1 or y != 1:
             key_mouse_manager.click(0.903 - 0.06 * (x - 1), 0.827 - 0.14 * (y - 1))
@@ -831,10 +833,7 @@ class UniverseUtils:
         if self.is_find_end == 0:
             self.is_find_end = 0.5
         while not self.stop_move and time.time() - now_time < 3:
-            if self.mini_state <= 2:
-                CUS_LOGGER.info("移动方向前往交互点(小图)")
-                self.move_to_interact()
-            else:
+            if self.mini_state > 2:
                 self.is_find_end = max(self.move_to_end(self.is_find_end), self.is_find_end)
         CUS_LOGGER.info("停止移动方向线程")
 
@@ -894,11 +893,15 @@ class UniverseUtils:
         ava = False
         if must_be is None and self.ts.similar("区域"):
             must_be='tp'
-        while not ava and time.time()-tm<3.6:
+        while not ava and time.time()-tm<1.8:
             if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
                 if not self.is_run(True) or must_be == 'tp':
                     ava = True
-
+        if self.state=="run":
+            key_mouse_manager.press("s")
+            key_mouse_manager.wait()
+            if not self.is_run(True):
+                ava=True
         if ava:
             CUS_LOGGER.debug('交互点生效')
             if must_be == 'event':
@@ -1552,7 +1555,7 @@ class UniverseUtils:
         scr = self.get_screen()
         loc_scr = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True)
         if check:
-            if not self.check("run", 0.8755, 0.7769, mask="run", threshold=0.8, fresh=False):
+            if not self.check("big_world", 0.0245, 0.5185, mask="run", threshold=0.98, fresh=False):
                 return False
         hsv = cv.cvtColor(loc_scr, cv.COLOR_BGR2HSV)  # 转HSV
         lower = np.array([93, 120, 60])  # 90 改成120只剩箭头，但是角色移动过的印记会消失
@@ -1673,14 +1676,17 @@ class UniverseUtils:
         init_time = time.time()
         while True:
             CUS_LOGGER.info("开始检测交互点循环")
-            self.get_screen()
             if self._stop == 1:
                 key_mouse_manager.keyUp("w")
                 self.stop_move=1
                 break
+            key_mouse_manager.keyUp("w")
+            key_mouse_manager.wait()
+            self.get_screen()
             have_f=self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96)
-            if have_f:
-                key_mouse_manager.keyUp("w")
+            if not have_f:
+                CUS_LOGGER.info("未检测到f交互")
+                key_mouse_manager.keyDown("w")
             if have_f and self.mini_target==1:
                 key_mouse_manager.press('f')
                 CUS_LOGGER.info('发现事件交互')
@@ -1691,21 +1697,20 @@ class UniverseUtils:
                     return
                 break
             elif have_f:
+                CUS_LOGGER.info("发现其它交互")
                 judge,use_time=self.good_f()
                 if judge and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
+                    CUS_LOGGER.info("不是黑塔或是黑塔但上次交互超过30秒")
                     if self.speed <= 0 or not self.ts.similar("黑塔"):
-                        # key_mouse_manager.clean()
-                        if self.is_sprinting:
-                            key_mouse_manager.press("shift")
-                        key_mouse_manager.keyUp("w",force=True)
-                        key_mouse_manager.press('f',force=True)
-                        key_mouse_manager.sleep(0.2)
+                        CUS_LOGGER.info("不是速通或并非黑塔")
                         key_mouse_manager.press('f')
-                        self.stop_move=1
-                        need_confirm = 1
+                        key_mouse_manager.press('s',use_time)
+                        self.stop_move = 1
                         key_mouse_manager.wait()
+                        need_confirm = 1
                         CUS_LOGGER.info('等待验证交互文本 ' + self.ts.text)
                         if self.nof():
+                            CUS_LOGGER.info("未检测到f")
                             key_mouse_manager.keyUp("w")
                             self.should_update_map = False
                             return
@@ -1718,11 +1723,14 @@ class UniverseUtils:
                         self.should_update_map = False
                         return
             if self.check("auto_2", 0.0583, 0.0769):
+                CUS_LOGGER.info("检测到位于战斗中")
                 key_mouse_manager.keyUp("w")
                 self.stop_move=1
                 self.mini_state+=2
+                key_mouse_manager.wait()
                 break
             if self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
+                CUS_LOGGER.info("检测到怪物z标志")
                 self.stop_move=1
                 # time.sleep(1.7+self.slow*1.1-(self.quan and self.floor not in [3, 7, 12])*0.5)
                 if self.mini_state==1 and self.floor in [4, 8, 13] and not (self.quan or self.bai_e):
@@ -1815,7 +1823,15 @@ class UniverseUtils:
                         time.sleep(1.2)
                 self.mini_state+=2
                 break
+            if not self.is_run(True):
+                key_mouse_manager.keyUp("w")
+                self.stop_move = 1
+                self.should_update_map = False
+                key_mouse_manager.wait()
+                CUS_LOGGER.info("检测到其它界面，退出循环")
+                return
             if time.time()-init_time>wt:
+                CUS_LOGGER.info("等待时间超时")
                 self.stop_move=1
                 key_mouse_manager.keyUp("w")
                 self.mini_state+=2
@@ -1832,7 +1848,11 @@ class UniverseUtils:
             time.sleep(0.1)
         self.stop_move=1
         key_mouse_manager.keyUp("w")
-        if need_confirm or (first and self.mini_target!=2):
+        self.update_state("check")
+        if self.fresh_state()==1:
+            self.should_update_map = False
+            return
+        if self.state=="run" and (need_confirm or (first and self.mini_target!=2)):
             CUS_LOGGER.info("尝试乱转找到交互点")
             for i in "sasddwwaa":
                 if self._stop:

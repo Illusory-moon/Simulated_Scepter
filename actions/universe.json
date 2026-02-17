@@ -527,11 +527,9 @@
     },{
         "name": "可能处于模拟宇宙中",
         "trigger":{
-            "photo": "run",
-            "pos": {"x":0.8755,"y":0.7769},
-            "mask":"run",
-            "binary":true,
-            "threshold":0.67
+            "photo": "big_world",
+            "pos": {"x":0.0245,"y":0.5185},
+            "threshold":0.98
         },
         "actions":
         [

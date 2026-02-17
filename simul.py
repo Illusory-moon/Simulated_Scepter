@@ -340,6 +340,9 @@ class SimulatedUniverse(UniverseUtils):
             CUS_LOGGER.info("开始寻路")
             if self._stop:
                 return 1
+            key_mouse_manager.clean()
+            key_mouse_manager.keyUp("w")
+            key_mouse_manager.wait()
             if self.mini_state:
                 #无先验寻路
                 self.get_direc_only_minimap()
