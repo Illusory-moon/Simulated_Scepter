@@ -25,6 +25,7 @@ import bisect
 from collections import defaultdict
 
 from utils.public_ocr import load_actions, clean_text, merge_text
+from utils.utils.image_tool import find_image_by_name
 
 # 版本号
 version = "v8.042"
@@ -1230,7 +1231,7 @@ class DivergentUniverse(UniverseUtils):
         CUS_LOGGER.info("前往差分宇宙")
         if self.check("smartphone", 0.9833,0.9380, threshold=0.95,fresh=True):
             key_mouse_manager.press('f4')
-            self.click_target('resource/imgs/universe.jpg',threshold=0.9,click=True)
+            self.click_target(find_image_by_name('universe.jpg'),threshold=0.9,click=True)
             self.click_text(text="差分宇宙",after_delay=0.5,box=[301, 429, 433, 470])
             self.click_text(text="前往参与",after_delay=5,box=[1443, 1539, 856, 884])
 

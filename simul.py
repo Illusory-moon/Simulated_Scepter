@@ -18,6 +18,7 @@ import os
 from utils.simul.config import config
 from utils.thread import ThreadWithException
 from utils.utils.Error import NormalEndError
+from utils.utils.image_tool import find_image_by_name
 from utils.utils.mminimap import update_minimap_data
 from utils.utils.tool import get_hwnd_and_text, find_latest_modified_file, get_center
 from utils.window_recorder import WindowRecorder
@@ -879,7 +880,7 @@ class SimulatedUniverse(UniverseUtils):
                                 #返回触发的名字
                                 return i['name'],resu
                         else:
-                            if self.click_target(f'resource/imgs//{trigger["photo"]}.jpg', threshold=trigger.get("threshold", 0.9), flag=False,click=False):
+                            if self.click_target(find_image_by_name(trigger["photo"]), threshold=trigger.get("threshold", 0.9), flag=False,click=False):
                                 CUS_LOGGER.info(f"触发全局图像 {i['name']}:{trigger['photo']}")
                                 for j in i["actions"]:
                                     re=self.do_action(j)
@@ -923,7 +924,7 @@ class SimulatedUniverse(UniverseUtils):
                     self.click_box(i["box"])
                     return 1
         if "photo" in action:
-            self.click_target(f'resource/imgs//{action["photo"]}.jpg', action.get("threshold", 0.9), flag=False,click=True)
+            self.click_target(find_image_by_name(action["photo"]), action.get("threshold", 0.9), flag=False,click=True)
             return 1
         elif "position" in action:
             CUS_LOGGER.info(f"点击 {action['position']}")

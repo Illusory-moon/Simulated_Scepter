@@ -22,6 +22,7 @@ import traceback
 
 from config.GLOBAL import key_mouse_manager
 from diver import merge_text
+from route import PATHS
 from utils.simul.config import config
 from utils.log import CUS_LOGGER, log_emitter
 import utils.simul.ocr as ocr
@@ -33,6 +34,7 @@ from utils.thread import ThreadWithException
 from utils.timer import timer
 from utils.utils.Error import BigAngError
 from utils.utils.get_win_rect import get_window_rect
+from utils.utils.image_tool import find_image_by_name, find_image_in_folder
 from utils.utils.minimap_util import get_minimap, MINIMAP_RADIUS, mask_minimap_outside
 from utils.utils.mminimap import update_minimap_data
 
@@ -208,15 +210,19 @@ class UniverseUtils:
         self.order = config.order
         self.sct = Screen()
 
-    def gen_hotkey_img(self,hotkey="e",bg="resource/imgs/f_bg.jpg"):
-        hotkey = hotkey.upper()
-        image = Image.open(bg)
-        font = ImageFont.truetype("resource/imgs/base.ttf", 24)
-        d = ImageDraw.Draw(image)
-        position = (2,-3)
-        color = (152, 214, 241)
-        d.text(position, hotkey, font=font, fill=color)
-        return np.array(image)
+    def gen_hotkey_img(self,hotkey="e",bg=PATHS["image"]+"/f_bg.jpg"):
+        img=find_image_in_folder('key/', hotkey)
+        if img is None:
+            hotkey = hotkey.upper()
+            img = Image.open(bg)
+            font = ImageFont.truetype(PATHS["image"]+"/base.ttf", 24)
+            d = ImageDraw.Draw(img)
+            position = (2,-3)
+            color = (152, 214, 241)
+            d.text(position, hotkey, font=font, fill=color)
+            img = np.array(img)
+            cv.imwrite(PATHS["image"]+"/key/"+hotkey+".jpg", img)
+        return img
 
 
     # example: self.wait_fig(lambda:self.check("strange", 0.9417, 0.9481), 1.4)
@@ -351,7 +357,7 @@ class UniverseUtils:
 
     # 点击与模板匹配的点，flag=True表示必须匹配，不匹配就会一直寻找直到出现匹配
     def click_target(self, target_path, threshold, flag=True, sub=True, click=False):
-        target = cv.imread(target_path)
+        target = target_path
         while not self._stop:
             result = self.scan_screenshot(target)
             if result["max_val"] > threshold:
@@ -375,8 +381,6 @@ class UniverseUtils:
             :,
         ]
 
-    def format_path(self, path):
-        return f"./resource/imgs/{path}.jpg"
 
     def get_small_interaction_img(self,x, y, mask=None,fresh=False):
         """
@@ -387,8 +391,7 @@ class UniverseUtils:
         if fresh:
             self.get_screen()
         CUS_LOGGER.debug(f"正在获取小交互图片{x},{y}遮罩{mask}")
-        path = self.format_path('z')
-        target = cv.imread(path)
+        target = find_image_by_name("z")
         target = cv.resize(
             target,
             dsize=(int(self.scx * target.shape[1]), int(self.scx * target.shape[0])),
@@ -396,7 +399,7 @@ class UniverseUtils:
         if mask is None:
             shape = target.shape
         else:
-            mask_img = cv.imread(self.format_path(mask))
+            mask_img = find_image_by_name(mask)
             shape = (
                 int(self.scx * mask_img.shape[0]),
                 int(self.scx * mask_img.shape[1]),
@@ -415,9 +418,12 @@ class UniverseUtils:
             self.get_screen()
         if threshold is None:
             threshold = self.threshold
-        path = self.format_path(path)
-        target = cv.imread(path)
-        if path == './resource/imgs/f.jpg' and config.mapping[0]!='f':
+        if "/" in path:
+            path = path.split("/")
+            target = find_image_in_folder(path[0], path[1])
+        else:
+            target = find_image_by_name(path)
+        if path == "f" and config.mapping[0]!='f':
             target = self.gen_hotkey_img(config.mapping[0])
             threshold -= 0.01
         target = cv.resize(
@@ -427,7 +433,7 @@ class UniverseUtils:
         if mask is None:
             shape = target.shape
         else:
-            mask_img = cv.imread(self.format_path(mask))
+            mask_img = find_image_by_name(mask)
             shape = (
                 int(self.scx * mask_img.shape[0]),
                 int(self.scx * mask_img.shape[1]),
@@ -452,18 +458,14 @@ class UniverseUtils:
             # 使用二值化图像进行匹配
             result = cv.matchTemplate(binary_screen, binary_target, cv.TM_CCORR_NORMED)
         else:
-            result = cv.matchTemplate(local_screen, target, cv.TM_CCORR_NORMED)
+            try:
+                result = cv.matchTemplate(local_screen, target, cv.TM_CCORR_NORMED)
+            except Exception as e:
+                CUS_LOGGER.error(f"{path}匹配失败，源图像{local_screen.shape}，目标图像{target.shape}")
+                raise
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
         self.tx = x - (max_loc[0] - 0.5 * local_screen.shape[1] + 0.5 * target.shape[1]) / self.xx
         self.ty = y - (max_loc[1] - 0.5 * local_screen.shape[0] + 0.5 * target.shape[0]) / self.yy
-        if path == "./resource/imgs/run.jpg" and 0:
-            print(max_val)
-            cv.imwrite('target.jpg',target)
-            cv.imwrite('local.jpg',local_screen)
-            #print(self.tx,self.ty)
-            #print(x,y,max_loc,local_screen.shape)
-            #self.click((self.tx,self.ty),click=0)
-            #exit()
         self.tm = max_val
         if max_val > threshold:
             if self.last_info != path:
@@ -493,7 +495,8 @@ class UniverseUtils:
                 bw_map[:, cen + 350 // mask :] = 0
             except:
                 pass
-        region = cv.imread("resource/imgs/region.jpg", cv.IMREAD_GRAYSCALE)
+        # region = cv.imread("resource/imgs/region.jpg", cv.IMREAD_GRAYSCALE)
+        region=find_image_in_folder('gray_image/', 'region.jpg')
         result = cv.matchTemplate(bw_map, region, cv.TM_CCORR_NORMED)
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
         if max_val < 0.6:
@@ -646,8 +649,7 @@ class UniverseUtils:
         crop_size = 12  # 24x24区域的一半是12
         loc_tp = loc_tp[center_h - crop_size-5:center_h + crop_size-5,
                         center_w - crop_size:center_w + crop_size]
-        arrows_img = self.format_path("combined_arrows")
-        arrows_img = cv.imread(arrows_img)
+        arrows_img = find_image_by_name("combined_arrows")
         # 在拼接的大图上进行一次匹配
         result = cv.matchTemplate(arrows_img, loc_tp, cv.TM_SQDIFF)
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
@@ -769,7 +771,7 @@ class UniverseUtils:
         threshold = 0.88
         local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True)
         target = ((-1, -1), 0)
-        mini_icon = cv.imread(self.format_path("mini" + str(ii + 1)))
+        mini_icon = find_image_by_name("mini" + str(ii + 1))
         sp = mini_icon.shape
         #小地图查找交互点并获取其位置
         result = cv.matchTemplate(local_screen, mini_icon, cv.TM_CCORR_NORMED)
@@ -783,7 +785,7 @@ class UniverseUtils:
                 self.update_floor(12)
         else:  # 226 64 66
             #再试试另外一张图，即黑塔图
-            mini_icon = cv.imread(self.format_path("mini" + str(ii + 2)))
+            mini_icon = find_image_by_name("mini" + str(ii + 2))
             sp = mini_icon.shape
             result = cv.matchTemplate(local_screen, mini_icon, cv.TM_CCORR_NORMED)
             min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
@@ -1551,7 +1553,8 @@ class UniverseUtils:
     def add_floor(self):
         self.floor+=1
         self.floor_change = True
-    @timer
+    # @timer
+    #0.2~0.25s
     def is_run(self,check=False):
         scr = self.get_screen()
         loc_scr = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True)
@@ -1661,16 +1664,16 @@ class UniverseUtils:
         if self.mini_state == 1 and self.floor == 12 and self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
             self.update_floor(13)
         key_mouse_manager.keyDown("w")
-        wt = 3
+        run_wait_time = 3
         self.first_mini = 0
         self.is_sprinting = 0
         if self.mini_state==1:
-            wt += 1
+            run_wait_time += 1
             sprint()
             self.is_sprinting = 1
             #事件
             if self.mini_target==1:
-                wt += 0.8
+                run_wait_time += 0.8
         need_confirm=0
         init_time = time.time()
         while True:
@@ -1776,11 +1779,12 @@ class UniverseUtils:
                         if ds>28:
                             key_mouse_manager.keyDown("w")
                             if self.is_sprinting:
-                                CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 28.0) / 12}秒(冲刺)")
-                                time.sleep((ds-22.0)/12)
+                                wait_time = (ds - 22.0) / 12
+                                CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 22.0) / 12}秒(冲刺)")
                             else:
-                                CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 28.0) / 8}秒")
-                                time.sleep((ds - 22.0) / 8)
+                                wait_time = (ds - 22.0) / 8
+                                CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 22.0) / 8}秒")
+                            time.sleep(wait_time)
                     if self.quan:
                         key_mouse_manager.keyUp("w")
                         self.use_e()
@@ -1828,7 +1832,7 @@ class UniverseUtils:
                 key_mouse_manager.wait()
                 CUS_LOGGER.info("检测到其它界面，退出循环")
                 return
-            if time.time()-init_time>wt:
+            if time.time()-init_time>run_wait_time:
                 CUS_LOGGER.info("等待时间超时")
                 self.stop_move=1
                 key_mouse_manager.keyUp("w")

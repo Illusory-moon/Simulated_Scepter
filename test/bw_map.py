@@ -3,6 +3,7 @@ from copy import deepcopy
 import cv2 as cv
 import numpy as np
 
+from utils.utils.image_tool import find_image_by_name
 from utils.utils.minimap_util import rotate_minimap, mask_minimap_center, crop, area_offset, MINIMAP_CENTER
 
 MINIMAP_RADIUS = 93
@@ -30,8 +31,7 @@ def get_minimap(image, radius,copy=False,rotation=False,center_radius=80):
         # 获取输入图片的视角角度
         input_rotation = update_rotation(minimap=image)
         # 读取0度视角纹理图
-        zero_degree_texture_path = "only_rotated.png"
-        zero_texture = cv.imread(zero_degree_texture_path)
+        zero_texture = find_image_by_name("only_rotated.png")
         # 根据输入图片的视角旋转0度视角纹理图
         rotated_texture = rotate_minimap(zero_texture, input_rotation)
         # 将输入图片的小地图与旋转后的视角纹理相减

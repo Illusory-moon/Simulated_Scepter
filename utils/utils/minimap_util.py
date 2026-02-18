@@ -479,7 +479,97 @@ def rgb2yuv(image):
     """
     image = cv2.cvtColor(image, cv2.COLOR_RGB2YUV)
     return image
+def group_points(points, threshold=3):
+    """
+    对点集进行分组，依据点之间的曼哈顿距离是否小于阈值 threshold。
 
+    参数:
+        points (np.ndarray): 形状为 (N, 2) 的点集，例如 [[x1, y1], [x2, y2], ...]
+        threshold (int): 分组的距离阈值
+
+    返回:
+        np.ndarray: 每组点的平均坐标，形状为 (M, 2)
+    """
+    if points is None or len(points) == 0:
+        return np.array([])
+
+    groups = []
+    points = np.array(points)  # 确保输入为 NumPy 数组
+    if len(points) == 1:
+        return np.array([points[0]])
+
+    while len(points):
+        p0, p1 = points[0], points[1:]
+        # 计算当前点与其他点的曼哈顿距离
+        distance = np.sum(np.abs(p1 - p0), axis=1)
+        # 找出距离小于阈值的点，组成新组
+        new_group = np.append(p1[distance <= threshold], [p0], axis=0)
+        # 计算该组的平均坐标并加入结果列表
+        groups.append(np.round(np.mean(new_group, axis=0)).astype(int))
+        # 移除已处理的点
+        points = p1[distance > threshold]
+
+    return np.array(groups)
+def inrange(image, lower=0, upper=255):
+    """
+    获取范围内像素的坐标。
+    等效于 `np.array(np.where(lower <= image <= upper))` 但更快。
+    注意此方法会改变 `image`。
+
+    `cv2.findNonZero()` 比 `np.where` 更快
+    points = np.array(np.where(y > 24)).T[:, ::-1]
+    points = np.array(cv2.findNonZero((y > 24).astype(np.uint8)))[:, 0, :]
+
+    `cv2.inRange(y, 24)` 比 `y > 24` 更快
+    cv2.inRange(y, 24, 255, dst=y)
+    y = y > 24
+
+    返回:
+        np.ndarray: 形状 (N, 2)
+            例如 [[x1, y1], [x2, y2], ...]
+    """
+    cv2.inRange(image, lower, upper, dst=image)
+    try:
+        return np.array(cv2.findNonZero(image))[:, 0, :]
+    except IndexError:
+        # Empty result
+        # IndexError: too many indices for array: array is 0-dimensional, but 3 were indexed
+        return np.array([])
+def remove_border(image, radius):
+    """
+    将边缘像素涂黑。
+    无返回值，更改写入到 `image`
+
+    参数:
+        image:
+        radius:
+    """
+    width, height = image_size(image)
+    image[:, :radius + 1] = 0
+    image[:, width - radius:] = 0
+    image[:radius + 1, :] = 0
+    image[height - radius:, :] = 0
+def draw_circle(image, circle, points):
+    """
+    在图像上添加一个圆。
+    无返回值，更改写入到 `image`
+
+    参数:
+        image:
+        circle: 由 create_circle() 创建
+        points: (x, y)，要绘制的圆的中心
+    """
+    width, height = image_size(circle)
+    x1 = -int(width // 2)
+    y1 = -int(height // 2)
+    x2 = width + x1
+    y2 = height + y1
+    for point in points:
+        x, y = point
+        # Fancy index is faster
+        index = image[y + y1:y + y2, x + x1:x + x2]
+        # print(index.shape)
+        cv2.add(index, circle, dst=index)
 path=PATHS["image"]+"/ArrowRotateMap.png"
 ArrowRotateMap=load_image(path)
 path=PATHS["image"]+"/ArrowRotateMapAll.png"

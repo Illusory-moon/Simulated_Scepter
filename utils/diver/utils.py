@@ -439,7 +439,7 @@ class UniverseUtils:
 
     # 点击与模板匹配的点，flag=True表示必须匹配，不匹配就会一直寻找直到出现匹配
     def click_target(self, target_path, threshold, flag=True,sub=True,click=False, mask_path=None, refine_mask_path=None, use_binary=False):
-        target = cv.imread(target_path)
+        target = target_path
         mask = None
         refine_mask = None
         
