@@ -161,8 +161,8 @@ def _predict_position(image, scale=1.0):
 
     result_mask = ~image_center_crop(result_mask, size=image_size(result)).astype(bool)
     result[result_mask] = 0
-    cv2.imshow('match_result.png', result)
-    cv2.waitKey(0)
+    # cv2.imshow('match_result.png', result)
+    # cv2.waitKey(0)
     _, sim, _, loca = cv2.minMaxLoc(result)
     # from PIL import Image
     # if round(scale, 3) == self.POSITION_SEARCH_SCALE * 1.0:
@@ -243,6 +243,66 @@ def update_position(image):
     return position
 
 
+def draw_position_on_map(position, output_path="position_on_map.png", radius=90):
+    """
+    在assets_floor_feat上绘制当前位置对应的点和小地图范围
+
+    Args:
+        position (tuple): 全局坐标位置 (x, y)
+        output_path (str): 输出图像路径
+        radius (int): 小地图半径范围
+
+    Returns:
+        None
+    """
+    # 创建assets_floor_feat的副本用于绘制
+    print(f"绘制位置: {position}")
+    map_with_position = assets_floor_feat.copy()
+
+    # 将全局坐标转换为地图坐标
+    # 反向执行_update_position中的坐标变换
+    map_position = np.array(position, dtype=np.float64)
+
+    # 添加特征填充偏移
+    map_position += POSITION_FEATURE_PAD
+
+    # 应用搜索比例缩放
+    map_position *= POSITION_SEARCH_SCALE
+
+    # 转换为整数坐标
+    map_position = np.round(map_position).astype(int)
+
+    # 确保坐标在图像范围内
+    h, w = map_with_position.shape
+    map_position[0] = np.clip(map_position[0], 0, w - 1)
+    map_position[1] = np.clip(map_position[1], 0, h - 1)
+
+    # 将灰度图转换为BGR彩色图以便使用红色
+    map_color = cv2.cvtColor(map_with_position, cv2.COLOR_GRAY2BGR)
+
+    # 绘制红色小圆点标记位置中心
+    cv2.circle(map_color,
+               tuple(map_position),
+               radius=3,  # 更小的圆点半径
+               color=(0, 0, 255),  # 红色 (BGR格式)
+               thickness=-1)  # 填充圆点
+
+    # 绘制红色圆形标记小地图范围
+    cv2.circle(map_color,
+               tuple(map_position),
+               radius=int(radius * POSITION_SEARCH_SCALE),  # 根据实际小地图半径绘制
+               color=(0, 0, 255),  # 红色
+               thickness=2)  # 圆形边框
+
+    # 保存结果到文件
+    cv2.imwrite(output_path, map_color)
+    print(f"位置标记已保存到: {output_path}")
+
+    # 显示结果
+    cv2.imshow("Position on Map", map_color)
+    print("按任意键关闭窗口...")
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 if __name__ == "__main__":
     my_screen=cv2.imread("20251021_224505.png")
-    print(update_position(my_screen))
+    draw_position_on_map(update_position(my_screen))
