@@ -583,7 +583,7 @@ class UniverseUtils:
         log_emitter.find_path_state_signal.emit(text)
 
 
-
+    @timer
     def get_bw_map(self, local_screen=None,re_screen=1):
         """
             进一步得到小地图的黑白格式
@@ -591,7 +591,8 @@ class UniverseUtils:
             大小是186*186
         """
         try:
-            if re_screen and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
+            if re_screen and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False) or self.state!="run":
+                CUS_LOGGER.warning("未找到大地图，可能在其它游戏界面")
                 return None
             black = np.array([0, 0, 0])
             white = np.array([210, 210, 210])
@@ -628,7 +629,6 @@ class UniverseUtils:
                 for j in range(bw_map.shape[1]):
                     if ((i - 93) ** 2 + (j - 93) ** 2) > 90 ** 2:
                         bw_map[i, j] = 0
-            cv.imwrite("bwmap.jpg", bw_map)
             return bw_map
         except Exception as e:
             print(f"get_bw_map函数执行出错: {str(e)}")
@@ -999,8 +999,6 @@ class UniverseUtils:
         self.loc_off = 0
         self.get_loc(bw_map, rg = 40 - self.find * 10)
         self.set_path_state("获取完路径1")
-        if self.find == 1:
-            key_mouse_manager.press("w", 0.2)
         self.get_screen()
         # 录图模式，将小地图覆盖到录制的大地图中
         if self.find == 0:
@@ -1010,11 +1008,8 @@ class UniverseUtils:
             self.get_map()
         # 寻路模式
         else:
+            key_mouse_manager.press("w")
             self.set_path_state("开始寻路")
-            if self.now_map == '19787':
-                key_mouse_manager.press('w',0.3)
-                self.get_screen()
-                self.now_map = '19788'
             # 如果当前就在交互点上：直接返回
             if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
                 key_mouse_manager.keyUp("w")
@@ -1031,15 +1026,13 @@ class UniverseUtils:
             self.get_real_loc()
             self.target_loc, self.target_type = self.get_recent_target()
             self.update_direction_data()
-            threshold_distance = [13,9 + (self.quan|self.bai_e)*7,11,7]
-            if self._stop == 0:
+            if not self._stop:
                 key_mouse_manager.keyDown("w")
-            time.sleep(0.25)
+                key_mouse_manager.wait()
             self.is_sprinting=0
             if self.target_type != 3:
                 sprint()
                 self.is_sprinting = 1
-            time.sleep(0.25)
             bw_map = self.get_bw_map()
             if bw_map is None:
                 CUS_LOGGER.warning("获取bw_map失败，无法继续寻路")
@@ -1055,6 +1048,7 @@ class UniverseUtils:
             go_time=random.uniform(0.5, 0.75)
             retry_time = 0
             has_not_found_red=False
+            threshold_distance = [13,9 + (self.quan|self.bai_e)*7,11,7]
             # 简单的位置卡住检测（连续3次相同位置）
             last_locs = []
             
@@ -1729,6 +1723,14 @@ class UniverseUtils:
                         self.mini_state+=2
                         self.should_update_map = False
                         return
+                elif self.ts.similar("黑塔") and time.time() - self.quit < 30:
+                    CUS_LOGGER.info("检测到黑塔,但上次交互时间过短")
+                    key_mouse_manager.press("w")
+                    self.mini_state+=2
+                    self.should_update_map = False
+                else:
+                    CUS_LOGGER.info("未检测到黑塔")
+                    key_mouse_manager.keyUp("w")
             if self.check("auto_2", 0.0583, 0.0769):
                 CUS_LOGGER.info("检测到位于战斗中")
                 key_mouse_manager.keyUp("w")

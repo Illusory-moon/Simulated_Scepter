@@ -134,8 +134,6 @@ class SimulatedUniverse(UniverseUtils):
 
     def route(self):
         self.init_map()
-        fail_cnt = 0
-        fail_time = 0
         set_forground()
         while not self._stop:
             hwnd,Text = get_hwnd_and_text()
@@ -155,8 +153,6 @@ class SimulatedUniverse(UniverseUtils):
                 hwnd,Text = get_hwnd_and_text()
             if self._stop:
                 break
-            
-            self.get_screen()# 从全屏截屏中裁剪得到游戏窗口截屏
             res = self.normal()
             # 未匹配到图片，降低匹配阈值，若一直无法匹配则乱点
             if not res:
@@ -185,10 +181,7 @@ class SimulatedUniverse(UniverseUtils):
                     #         self.threshold = 0.97
             # 匹配到图片 res=1时等待一段时间
             else:
-                fail_cnt = 0
                 self.threshold = 0.97
-                fail_time = time.time()
-            time.sleep(0.1)
         CUS_LOGGER.info("停止运行")
 
     def end_of_university(self):
@@ -232,7 +225,6 @@ class SimulatedUniverse(UniverseUtils):
                         if ((self.now_map_sim > 0.85 or time.time() - now_time > 2.5)
                                 and self.now_map_sim != -1) or self._stop:
                             break
-                        time.sleep(0.3)
                     CUS_LOGGER.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
                     self.find = True
                     if self.now_map_sim < 0.35:
