@@ -590,49 +590,45 @@ class UniverseUtils:
             re_screen：是否重新截图
             大小是186*186
         """
-        try:
-            if re_screen and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False) or self.state!="run":
-                CUS_LOGGER.warning("未找到大地图，可能在其它游戏界面")
-                return None
-            black = np.array([0, 0, 0])
-            white = np.array([210, 210, 210])
-            gray = np.array([55, 55, 55])
-            # local_screen=screen[46:222,43:219]#[43,46,219,222]源范围  正确范围#[45,56,231,242]
-            # local_screen=screen[56:242,45:231]#[43,46,219,222]源范围  正确范围#[45,56,231,242] 偏移[2,10,12,20]
-            if local_screen is None:
-                local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True,center_radius=93)
-
-            # local_screen[np.sum(np.abs(local_screen - blue), axis=-1) <= 50] = 0
-            hsv = cv.cvtColor(local_screen, cv.COLOR_BGR2HSV)  # 转HSV
-            lower = np.array([80, 60, 60])  # 90 改成120只剩箭头，但是角色移动过的印记会消失
-            upper = np.array([110, 255, 255])
-
-            mask = cv.inRange(hsv, lower, upper)  # 创建掩膜
-            loc_tp = cv.bitwise_and(local_screen, local_screen, mask=mask)
-            local_screen = local_screen - loc_tp
-            bw_map = np.zeros(local_screen.shape[:2], dtype=np.uint8)
-            # 灰块、白线：小地图中的可移动区域、可移动区域的边缘
-            # b_map：当前像素点是否是灰块。只允许灰块附近（2像素）的像素被识别为白线
-            grey_map = deepcopy(bw_map)
-            grey_map[
-                np.sum((local_screen - gray) ** 2, axis=-1) <= 4800
-                ] = 255
-            kernel = np.zeros((5, 5), np.uint8)  # 设置kenenel大小
-            kernel += 1
-            grey_map = cv.dilate(grey_map, kernel, iterations=1)
-            bw_map[
-                (np.sum((local_screen - white) ** 2, axis=-1) <= 9000)
-                & (grey_map > 200)
-                ] = 255
-            # 排除半径90以外的像素点
-            for i in range(bw_map.shape[0]):
-                for j in range(bw_map.shape[1]):
-                    if ((i - 93) ** 2 + (j - 93) ** 2) > 90 ** 2:
-                        bw_map[i, j] = 0
-            return bw_map
-        except Exception as e:
-            print(f"get_bw_map函数执行出错: {str(e)}")
+        if re_screen and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False) or self.state!="run":
+            CUS_LOGGER.warning("未找到大地图，可能在其它游戏界面")
             return None
+        black = np.array([0, 0, 0])
+        white = np.array([210, 210, 210])
+        gray = np.array([55, 55, 55])
+        # local_screen=screen[46:222,43:219]#[43,46,219,222]源范围  正确范围#[45,56,231,242]
+        # local_screen=screen[56:242,45:231]#[43,46,219,222]源范围  正确范围#[45,56,231,242] 偏移[2,10,12,20]
+        if local_screen is None:
+            local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True,center_radius=93)
+
+        # local_screen[np.sum(np.abs(local_screen - blue), axis=-1) <= 50] = 0
+        hsv = cv.cvtColor(local_screen, cv.COLOR_BGR2HSV)  # 转HSV
+        lower = np.array([80, 60, 60])  # 90 改成120只剩箭头，但是角色移动过的印记会消失
+        upper = np.array([110, 255, 255])
+
+        mask = cv.inRange(hsv, lower, upper)  # 创建掩膜
+        loc_tp = cv.bitwise_and(local_screen, local_screen, mask=mask)
+        local_screen = local_screen - loc_tp
+        bw_map = np.zeros(local_screen.shape[:2], dtype=np.uint8)
+        # 灰块、白线：小地图中的可移动区域、可移动区域的边缘
+        # b_map：当前像素点是否是灰块。只允许灰块附近（2像素）的像素被识别为白线
+        grey_map = deepcopy(bw_map)
+        grey_map[
+            np.sum((local_screen - gray) ** 2, axis=-1) <= 4800
+            ] = 255
+        kernel = np.zeros((5, 5), np.uint8)  # 设置kenenel大小
+        kernel += 1
+        grey_map = cv.dilate(grey_map, kernel, iterations=1)
+        bw_map[
+            (np.sum((local_screen - white) ** 2, axis=-1) <= 9000)
+            & (grey_map > 200)
+            ] = 255
+        # 排除半径90以外的像素点
+        for i in range(bw_map.shape[0]):
+            for j in range(bw_map.shape[1]):
+                if ((i - 93) ** 2 + (j - 93) ** 2) > 90 ** 2:
+                    bw_map[i, j] = 0
+        return bw_map
 
     def get_now_direct(self, loc_scr):
         """
@@ -1051,7 +1047,6 @@ class UniverseUtils:
             threshold_distance = [13,9 + (self.quan|self.bai_e)*7,11,7]
             # 简单的位置卡住检测（连续3次相同位置）
             last_locs = []
-            
             for i in range(3000):
                 self.set_path_state("开始定位寻路")
                 CUS_LOGGER.info("第{}次定位寻路".format(i))
@@ -1062,7 +1057,6 @@ class UniverseUtils:
                 bw_map = self.get_bw_map()
                 if bw_map is None:
                     self.set_path_state("获取地图失败，跳过本轮循环")
-                    time.sleep(0.1)  # 短暂等待后重试
                     if not self.is_run(True):
                         return
                     continue
@@ -1178,14 +1172,13 @@ class UniverseUtils:
                         self.move = 1
                         self.get_screen()
                         ThreadWithException(target=self.keep_move,name="保持移动").start()
-                        bw_map = self.get_bw_map(re_screen=0)
+                        bw_map = self.get_bw_map()
                         if bw_map is None:
                             CUS_LOGGER.warning("获取绕障bw_map失败，跳过坐标更新")
-                            continue
+                            return
                         self.get_loc(bw_map, rg=28, fbw=1)
                         self.get_real_loc()
                         self.move = 0
-                        time.sleep(0.12)
                         # 成功绕过障碍后清空位置记录
                         last_locs.clear()
                         go_direct -= 1
@@ -1264,7 +1257,7 @@ class UniverseUtils:
                         self.use_e()
                         bw_map = self.get_bw_map()
                         if bw_map is None:
-                            continue
+                            return
                         self.get_loc(bw_map, fbw=1, offset=self.get_offset(2), rg=24)
                         self.get_real_loc(1)
                         key_mouse_manager.press('w')
@@ -1275,29 +1268,11 @@ class UniverseUtils:
                     bw_map = self.get_bw_map()
                     if bw_map is None:
                         CUS_LOGGER.warning("获取bw_map失败，跳过本次坐标更新")
-                        time.sleep(0.1)  # 短暂等待后继续
+                        return
                     else:
                         self.get_loc(bw_map, fbw=1, offset=self.get_offset(2), rg=24)
                         self.get_real_loc(1)
                     key_mouse_manager.press('w')
-            # else:
-            #         if self._stop == 0:
-            #             key_mouse_manager.click(0.5,0.5)
-            #         time.sleep(1.1)
-            #         key_mouse_manager.press("s")
-            #         if self._stop == 0:
-            #             key_mouse_manager.click(0.5,0.5)
-            #         time.sleep(0.8)
-            #         if len(self.target) <= 2:
-            #             time.sleep(0.3)
-            #             key_mouse_manager.press("s")
-            #             key_mouse_manager.click(0.5,0.5)
-            #             time.sleep(0.6)
-            #             key_mouse_manager.press("s", 0.5)
-            #             key_mouse_manager.click(0.5,0.5)
-            #             time.sleep(0.5)
-            #             key_mouse_manager.press("w", 1.6)
-            #             key_mouse_manager.click(0.5,0.5)
             if self.target_type == 3:
                 self.set_path_state("当前寻找终点")
                 for i in range(9):
@@ -1310,13 +1285,12 @@ class UniverseUtils:
                         if self.nof(must_be='tp'):
                             time.sleep(1.5)
                             break
-
                     self.fresh_state()
                     if self.state=="run":
                         if i in [0,4]:
                             self.move_to_end()
                         key_mouse_manager.press('w', 0.5)
-                        time.sleep(0.2)
+                        key_mouse_manager.wait()
             # 离目标点挺近了，准备找下一个目标点
             elif now_distance <= 20:
                 self.set_path_state("距离目标非常近2")
