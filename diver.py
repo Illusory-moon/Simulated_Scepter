@@ -6,6 +6,8 @@ import time
 import win32gui, win32api, win32con
 import json
 
+from config import EXTRA
+from route import PATHS
 from utils.diver.ocr import sort_text
 from utils.log import CUS_LOGGER, set_debug
 from utils.log import my_print as print
@@ -26,6 +28,7 @@ from collections import defaultdict
 
 from utils.public_ocr import load_actions, clean_text, merge_text
 from utils.utils.image_tool import find_image_by_name
+from utils.window_recorder import WindowRecorder
 
 # 版本号
 version = "v8.042"
@@ -99,6 +102,13 @@ class DivergentUniverse(UniverseUtils):
         self.update_count()
         CUS_LOGGER.info(f"开始运行:初始计数：{self.count}")
         # set_debug(debug > 0)
+        with EXTRA.FILE_LOCK:
+            with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
+                data = json.load(file)
+        self.record = data.get("recording_state", True)
+        # 根据self._show_map决定是否叠加地图到录制视频上
+        self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",
+                                       window_class_name="UnityWndClass", see_time=True, offsets=[10, 50, 10, 10])
 
     def route(self):
         self.goto_diver_universe()
@@ -737,6 +747,8 @@ class DivergentUniverse(UniverseUtils):
                 time.sleep(0.5)
 
             if click:
+                CUS_LOGGER.info(f"点击了一下")
+                self.press('w')
                 pyautogui.click()
                 self.check_pop()
 
@@ -1191,6 +1203,12 @@ class DivergentUniverse(UniverseUtils):
 
     def stop(self, *_, **__):
         CUS_LOGGER.info("尝试停止运行")
+        if self.record:
+            CUS_LOGGER.info("尝试停止录制")
+            try:
+                self.recorder.stop_recording()
+            except Exception as e:
+                CUS_LOGGER.error(f"停止录制时发生错误: {e}")
         try:
             self.init_floor()
         except:
@@ -1203,6 +1221,8 @@ class DivergentUniverse(UniverseUtils):
         self._stop = False
         self.keys = KeyController(self)
         key_mouse_manager.start()
+        if self.record:
+            self.recorder.start_recording()
         try:
             self.route()
         except KeyboardInterrupt:
@@ -1219,6 +1239,7 @@ class DivergentUniverse(UniverseUtils):
             CUS_LOGGER.info(str(e))
             CUS_LOGGER.info("发生错误，尝试停止运行")
             self.stop()
+            raise
 
     def screen_test(self):
         try:

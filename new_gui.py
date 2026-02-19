@@ -14,7 +14,8 @@ from utils.log import CUS_LOGGER, log_emitter
 from utils.thread import ThreadWithException
 from config import EXTRA
 from route import PATHS
-
+from utils.utils.image_tool import load_all_images_from_directory, find_image_by_name
+load_all_images_from_directory()
 from utils.simul.config import config as config_simul
 from utils.diver.config import config as config_diver
 
@@ -30,9 +31,7 @@ from iron_blood import IronBloodUniverse
 
 import faulthandler
 
-from utils.utils.image_tool import load_all_images_from_directory, find_image_by_name
 
-load_all_images_from_directory()
 
 
 class MainWindow(QMainWindowLog):

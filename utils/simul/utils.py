@@ -37,6 +37,7 @@ from utils.utils.get_win_rect import get_window_rect
 from utils.utils.image_tool import find_image_by_name, find_image_in_folder
 from utils.utils.minimap_util import get_minimap, MINIMAP_RADIUS, mask_minimap_outside
 from utils.utils.mminimap import update_minimap_data
+from utils.utils.predict import predict, get_text_position
 
 
 def set_forground():
@@ -215,13 +216,13 @@ class UniverseUtils:
         if img is None:
             hotkey = hotkey.upper()
             img = Image.open(bg)
-            font = ImageFont.truetype(PATHS["image"]+"/base.ttf", 24)
+            font = ImageFont.truetype(PATHS["font"]+"/base.ttf", 24)
             d = ImageDraw.Draw(img)
             position = (2,-3)
             color = (152, 214, 241)
             d.text(position, hotkey, font=font, fill=color)
             img = np.array(img)
-            cv.imwrite(PATHS["image"]+"/key/"+hotkey+".jpg", img)
+            cv.imwrite(PATHS["image"]+"/key/"+hotkey.lower()+".jpg", img)
         return img
 
 
@@ -793,8 +794,6 @@ class UniverseUtils:
                 nearest = (max_loc[1] + sp[0] // 2, max_loc[0] + sp[1] // 2)
                 target = (nearest, 2)
                 CUS_LOGGER.info(f"黑塔相似度{max_val}，位置{max_loc[1]},{max_loc[0]}")
-
-                
                 if self.floor >= 13:
                     self.update_floor(12)
         #在图像上绘制一个以(120, 128)为中心、半径为82的圆形遮罩，圆形区域外的所有像素都被涂黑
@@ -818,8 +817,9 @@ class UniverseUtils:
             CUS_LOGGER.info(f"交互点类型{target[1]}，位置{target[0][0]},{target[0][1]}")
             self.get_screen()
             self.update_direction_data(mode=2,target=target)
+            return True
         else:
-            return 0
+            return False
 
     def move_direct_thread(self):
         CUS_LOGGER.info("启动移动线程")
@@ -835,6 +835,8 @@ class UniverseUtils:
         if self.is_find_end == 0:
             self.is_find_end = 0.5
         while not self.stop_move and time.time() - now_time < 3:
+            if self.moving_direct:
+                continue
             if self.mini_state > 2:
                 self.is_find_end = max(self.move_to_end(self.is_find_end), self.is_find_end)
         CUS_LOGGER.info("停止移动方向线程")
@@ -1067,6 +1069,8 @@ class UniverseUtils:
                 if bw_map is None:
                     self.set_path_state("获取地图失败，跳过本轮循环")
                     time.sleep(0.1)  # 短暂等待后重试
+                    if not self.is_run(True):
+                        return
                     continue
                 #预判实际点位
                 if not self.get_loc(bw_map, fbw=1, offset=self.get_offset(2 + (retry_time <= 2)),
@@ -1653,6 +1657,7 @@ class UniverseUtils:
         self.ready=0
         self.mini_target=0
         self.is_target = 0
+        self.moving_direct=False
         self.get_screen()
         first = self.first_mini
         if not self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95,fresh=True):
@@ -1664,7 +1669,7 @@ class UniverseUtils:
         if self.mini_state == 1 and self.floor == 12 and self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
             self.update_floor(13)
         key_mouse_manager.keyDown("w")
-        run_wait_time = 3
+        run_wait_time = 4
         self.first_mini = 0
         self.is_sprinting = 0
         if self.mini_state==1:
@@ -1784,22 +1789,23 @@ class UniverseUtils:
                             else:
                                 wait_time = (ds - 22.0) / 8
                                 CUS_LOGGER.debug(f"距离目标{ds},太远，等待{(ds - 22.0) / 8}秒")
-                            time.sleep(wait_time)
+                            now=time.time()
+                            while time.time()-now<wait_time:
+                                self.get_screen()
+                                if predict(self.screen, enemy=True, item=False)['enemy'] is not None:
+                                     break
+
                     if self.quan:
                         key_mouse_manager.keyUp("w")
                         self.use_e()
                         if self.floor not in [4, 8, 13]:
-                            for _ in range(4):
+                            for _ in range(2):
                                 self.use_e()
                             self.stop_move=1
                             self.mini_state+=2
-                            time.sleep(0.4)
-                            key_mouse_manager.press('w')
-                            time.sleep(1.4)
                             self.should_update_map = False
                             return
                         else:
-                            time.sleep(0.8)
                             key_mouse_manager.keyDown("w")
                     elif self.bai_e:
                         # key_mouse_manager.keyUp("w")
@@ -1807,22 +1813,16 @@ class UniverseUtils:
                         if self.floor not in [4, 8, 13]:
                             self.stop_move = 1
                             self.mini_state += 2
-                            time.sleep(0.4)
                             key_mouse_manager.press('w')
-                            time.sleep(1.4)
                             self.should_update_map = False
                             return
                         else:
-                            time.sleep(0.8)
                             key_mouse_manager.keyDown("w")
                     else:
                         key_mouse_manager.click(0.5,0.5)
                     if iters + self.quan == 2:
-                        time.sleep(0.9)
                         key_mouse_manager.press('d',0.85)
                         key_mouse_manager.press('a',0.3)
-                    else:
-                        time.sleep(1.2)
                 self.mini_state+=2
                 break
             if not self.is_run(True):
@@ -1881,6 +1881,8 @@ class UniverseUtils:
                     if self.move_to_end():
                         key_mouse_manager.press('w')
                         key_mouse_manager.wait()
+                elif self.move_direct_to_text():
+                    i="w"
                 key_mouse_manager.press(i, 0.25)
                 CUS_LOGGER.info(f"向{i}走0.25秒")
                 key_mouse_manager.wait()
@@ -1900,11 +1902,25 @@ class UniverseUtils:
         time.sleep(0.6)
         if self.allow_e:
             key_mouse_manager.press('e')
-    
+    def move_direct_to_text(self):
+        find=False
+        self.moving_direct = True
+        for k in [0, 90, 90, 90, 45, -90, -90, -90, -45]:
+            pos = get_text_position(self.get_screen())
+            if pos:
+                CUS_LOGGER.debug(f"距离中心点{960 - pos[0][0]}，进行旋转")
+                key_mouse_manager.mouse_move((pos[0][0] - 960) / 16.5)
+                find=True
+                key_mouse_manager.wait()
+                break
+            key_mouse_manager.mouse_move(-k)
+            key_mouse_manager.wait()
+        self.moving_direct = False
+        return find
     def use_e(self,face=False):
         if self.quan:
             key_mouse_manager.press('e',force= True)
-            time.sleep(0.4)
+            key_mouse_manager.wait()
         elif self.bai_e:
             if face:
                 key_mouse_manager.press('e',force= True)
@@ -1919,11 +1935,13 @@ class UniverseUtils:
                 key_mouse_manager.press('w')
         else:
             key_mouse_manager.press('e')
+        tm=time.time()
+        while time.time()-tm<0.8:
+            if self.click_text(text="快速恢复", box=[864, 1058, 224, 318], click=False, ocr_line=False, warning=False):
+                self.solve_snack()
+                CUS_LOGGER.debug("检测到快速恢复")
+                break
 
-        if not self.quan or self.bai_e:
-            time.sleep(0.8)
-        if self.click_text(text="快速恢复",box=[864, 1058, 224, 318],click=False,ocr_line=False,warning=False):
-            self.solve_snack()
     def reset_bless(self,chose=0):
         if self.click_text(text="重置祝福", box=[1268, 1444, 929, 1025], click=False, warning=False):
             for _ in range(14):

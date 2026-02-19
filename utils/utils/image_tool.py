@@ -211,14 +211,12 @@ def find_image_in_folder(folder_path: str, image_identifier: str) -> Optional[np
         if image_identifier in current_dict:
             image_data = current_dict[image_identifier]
             if isinstance(image_data, np.ndarray):
-                CUS_LOGGER.debug(f"在文件夹 '{folder_path}' 中找到图像: {image_identifier}")
                 return image_data.copy()
         
         # 查找不带后缀的匹配
         if clean_identifier in current_dict:
             image_data = current_dict[clean_identifier]
             if isinstance(image_data, np.ndarray):
-                CUS_LOGGER.debug(f"在文件夹 '{folder_path}' 中找到图像: {clean_identifier}.jpg")
                 return image_data.copy()
         
         # 查找部分匹配（文件名前缀）
@@ -226,7 +224,6 @@ def find_image_in_folder(folder_path: str, image_identifier: str) -> Optional[np
             if isinstance(value, np.ndarray):  # 确保是图像数据
                 key_without_ext = key.replace('.jpg', '')
                 if key_without_ext == clean_identifier:
-                    CUS_LOGGER.debug(f"在文件夹 '{folder_path}' 中找到图像: {key}")
                     return value.copy()
     
     CUS_LOGGER.warning(f"在文件夹 '{folder_path}' 中未找到图像: {image_identifier}")
@@ -300,12 +297,10 @@ def find_image_by_name(image_identifier: str) -> Optional[np.ndarray]:
                 if has_extension:
                     # 精确匹配带后缀的文件名
                     if key == image_identifier:
-                        CUS_LOGGER.debug(f"找到匹配图像: {'/'.join(current_path + [key])}")
                         return value.copy()
                 else:
                     # 不带后缀，匹配文件名部分
                     if file_name == name_part:
-                        CUS_LOGGER.debug(f"找到匹配图像: {'/'.join(current_path + [key])}")
                         return value.copy()
         return None
     

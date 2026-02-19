@@ -372,20 +372,27 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
             self.set_common_theme()
             
     def font_set(self) -> None:
+        """
+        加载字体文件并设置应用程序默认字体
+        通过文件名精确匹配排除base.ttf
+        """
         font_dir = PATHS["font"]
         font_database = QFontDatabase()
         first_font_family = None
-        
+        valid_font_count = 0
         if os.path.exists(font_dir):
             font_files = os.listdir(font_dir)
-            for i, font_file in enumerate(font_files):
+            for font_file in font_files:
+                if font_file == "base.ttf":
+                    continue
                 if font_file.endswith(".ttf") or font_file.endswith(".otf"):
                     font_path = os.path.join(font_dir, font_file)
                     font_id = font_database.addApplicationFont(font_path)
                     if font_id != -1:
                         family_names = font_database.applicationFontFamilies(font_id)
-                        if i == 0 and family_names:
+                        if valid_font_count == 0 and family_names:
                             first_font_family = family_names[0]
+                        valid_font_count += 1
         
         if first_font_family:
             font = QFont(first_font_family, 8)

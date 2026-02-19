@@ -3,7 +3,8 @@ import numpy as np
 from scipy import signal
 from PIL import Image
 
-from route import PATHS
+from utils.utils.image_tool import find_image_in_folder
+
 MINIMAP_RADIUS = 93
 MINIMAP_CENTER = (45 + MINIMAP_RADIUS, 56 + MINIMAP_RADIUS)#(138,149)
 DIRECTION_RADIUS = 17
@@ -570,7 +571,24 @@ def draw_circle(image, circle, points):
         index = image[y + y1:y + y2, x + x1:x + x2]
         # print(index.shape)
         cv2.add(index, circle, dst=index)
-path=PATHS["image"]+"/ArrowRotateMap.png"
-ArrowRotateMap=load_image(path)
-path=PATHS["image"]+"/ArrowRotateMapAll.png"
-ArrowRotateMapAll=load_image(path)
+def create_circle(min_radius, max_radius):
+    """
+    创建一个 min_radius <= R <= max_radius 的圆。
+    1 表示圆形，0 表示背景
+
+    参数:
+        min_radius:
+        max_radius:
+
+    返回:
+        np.ndarray:
+    """
+    circle = np.ones((max_radius * 2 + 1, max_radius * 2 + 1), dtype=np.uint8)
+    center = np.array((max_radius, max_radius))
+    points = np.array(np.meshgrid(np.arange(circle.shape[0]), np.arange(circle.shape[1]))).T
+    distance = np.linalg.norm(points - center, axis=2)
+    circle[distance < min_radius] = 0
+    circle[distance > max_radius] = 0
+    return circle
+ArrowRotateMap=find_image_in_folder('gray_image/', "ArrowRotateMap.png")
+ArrowRotateMapAll=find_image_in_folder('gray_image/', "ArrowRotateMapAll.png")

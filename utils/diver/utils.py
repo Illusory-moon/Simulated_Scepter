@@ -18,6 +18,7 @@ from math import sin, cos
 import traceback
 
 from config.GLOBAL import key_mouse_manager
+from route import PATHS
 from utils.diver.config import config
 from utils.log import CUS_LOGGER
 import utils.diver.ocr as ocr
@@ -174,7 +175,7 @@ class UniverseUtils:
     def gen_hotkey_img(self,hotkey="e",bg="resource/imgs/f_bg.jpg"):
         hotkey = hotkey.upper()
         image = Image.open(bg)
-        font = ImageFont.truetype("resource/imgs/base.ttf", 24)
+        font = ImageFont.truetype(PATHS["font"]+"/base.ttf", 24)
         d = ImageDraw.Draw(image)
         position = (2,-3)
         color = (152, 214, 241)
