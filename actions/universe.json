@@ -192,7 +192,51 @@
         ]
     },
     {
-        "name": "选择事件",
+        "name": "事件触发箭头",
+        "trigger":{
+            "photo": "arrow",
+            "pos": {"x":0.1828,"y":0.5000},
+            "mask":"mask_event",
+            "condition": "event"
+        },
+        "actions":
+        [
+            {
+                "photo": "arrow"
+            }
+        ]
+    },
+    {
+        "name": "黑塔触发箭头",
+        "trigger":{
+            "photo": "arrow_1",
+            "pos": {"x":0.1828,"y":0.5000},
+            "mask":"mask_event",
+            "condition": "event"
+        },
+        "actions":
+        [
+            {
+                "photo": "arrow_1"
+            }
+        ]
+    },
+        {
+        "name": "正式选择事件",
+        "trigger":{
+            "photo": "star",
+            "pos": {"x":0.1828,"y":0.5000},
+            "mask":"mask_event",
+            "threshold":0.965,
+            "condition": "event"
+        },
+        "actions":
+        [
+             "select_event"
+        ]
+    },
+    {
+        "name": "选择事件空白",
         "trigger":{
             "text": "事件",
             "box": [93, 156, 55, 96],
@@ -200,7 +244,9 @@
         },
         "actions":
         [
-            "select_event",
+            {
+                "position": [100, 47]
+            },
             {
                 "set_state": "event"
             }

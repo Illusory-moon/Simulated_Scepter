@@ -165,28 +165,7 @@ class SimulatedUniverse(UniverseUtils):
                     if self.ts.nothing:
                         self.update_state("battle")
                         CUS_LOGGER.info("匹配不到任何图标，可能位于战斗中")
-                    # if time.time()-self.confirm_time>4:
-                    #     if self.threshold == 0.97 and fail_cnt==0:
-                    #         CUS_LOGGER.info("匹配不到任何图标")
-                    #         fail_time = time.time()
-                    #     else:
-                    #         time.sleep(0.8)
-                    #     if self.threshold > 0.95:
-                    #         self.threshold -= 0.015
-                    #     elif time.time()-fail_time>7.5:
-                    #         time.sleep(0.15)
-                    #         if fail_cnt <= 1:
-                    #             key_mouse_manager.click(0.5000, 0.1454)
-                    #             fail_cnt += 1
-                    #         else:
-                    #             key_mouse_manager.click(0.2062, 0.2054)
-                    #             fail_cnt = 0
-                    #             fail_time = time.time()
-                    #         time.sleep(0.35)
-                    #         self.threshold = 0.97
             # 匹配到图片 res=1时等待一段时间
-            else:
-                self.threshold = 0.97
         CUS_LOGGER.info("停止运行")
 
     def end_of_university(self):
@@ -376,18 +355,15 @@ class SimulatedUniverse(UniverseUtils):
         return 1
     # 祝福界面/回响界面 （放在一起处理了）
     def choose_bless(self):
-        time.sleep(0.3)
         chose = 0
         if self.click_text(text="重置祝福",box=[1268, 1444, 929, 1025],click=False,warning=False):
             for _ in range(4):
                 img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
                 if (self.ts.split_and_find(self.tk.fates, img_down, mode="bless")[1]
                         or self._stop):
-                    time.sleep(0.2)
                     break
                 if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                     return 1
-                time.sleep(0.2)
             img_up = self.get_small_interaction_img(x=0.5047, y=0.5491, mask="mask_bless", fresh=True)
             res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, mode="bless_skip=self.tk.skip")
             img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
@@ -403,18 +379,15 @@ class SimulatedUniverse(UniverseUtils):
             if not chose:
                 key_mouse_manager.click(0.2990, 0.1046)
                 key_mouse_manager.wait()
-                time.sleep(1.2)
         # 未匹配到优先祝福，刷新祝福并再次匹配
         if not chose:
             for _ in range(4):
                 img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
                 if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
-                    time.sleep(0.2)
                     break
                 CUS_LOGGER.debug("未识别到命途")
                 if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                     return 1
-                time.sleep(0.2)
             img_up = self.get_small_interaction_img(x=0.5047, y=0.5491, mask="mask_bless", fresh=True)
             res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
             img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
@@ -430,7 +403,6 @@ class SimulatedUniverse(UniverseUtils):
             else:
                 key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
                 key_mouse_manager.wait()
-            time.sleep(0.4)
         key_mouse_manager.click(0.1203, 0.1093)
         key_mouse_manager.wait()
         tm = time.time()
@@ -453,7 +425,6 @@ class SimulatedUniverse(UniverseUtils):
                     text = self.ts.similar_list(self.tk.interacts, img)
                 if text is not None:
                     break
-                time.sleep(0.3)
                 self.get_screen()
             # 黑塔
             if self.ts.similar("黑塔"):
@@ -479,21 +450,17 @@ class SimulatedUniverse(UniverseUtils):
     # 跑图状态
     def re_init(self):
         if self.end:
-            time.sleep(1)
             key_mouse_manager.press('esc')
             self._stop = 1
             CUS_LOGGER.info('已退出模拟宇宙，自动化结束')
             return 1
-        time.sleep(2)
         key_mouse_manager.click(0.3448, 0.4926)
-        time.sleep(1)
         self.init_map()
     def begin_universe(self):
         con = self.click_text(text="继续进度",box=[1610, 1762, 937, 1023],click=False,ocr_line=False,warning=False)
         if not con:
             if self.diffi == 5:
                 key_mouse_manager.click(0.9375, 0.5565)
-                time.sleep(0.2)
             key_mouse_manager.click(0.9375, 0.8565 - 0.1 * (self.diffi - 1))
         key_mouse_manager.click(0.1083, 0.1009)
         if con:
@@ -512,13 +479,11 @@ class SimulatedUniverse(UniverseUtils):
                 key_mouse_manager.click(
                     0.9266 - dx * ((i - 1) % 3), 0.8194 - dy * ((i - 1) // 3)
                 )
-                time.sleep(0.3)
         key_mouse_manager.click(0.1635, 0.1056)
     def confirm_fate(self):
         key_mouse_manager.click(0.1182, 0.0926)
         self.confirm_time = time.time()
     def select_fate(self):
-        time.sleep(0.6)
         click_x = [0.02, 0.98]
         n = 4  # 重试次数
         res = None
@@ -530,7 +495,6 @@ class SimulatedUniverse(UniverseUtils):
                 CUS_LOGGER.info(f"未找到 {self.fate} 命途，尝试翻页")
                 key_mouse_manager.click(click_x[n % len(click_x)], 0.5)
                 n -= 1
-                time.sleep(0.5)
                 continue
             else:
                 break
@@ -539,40 +503,22 @@ class SimulatedUniverse(UniverseUtils):
         if not self.click_text(['2星祝福', '奇物']):
             key_mouse_manager.click(0.5047, 0.4917)
         key_mouse_manager.click(0.5062, 0.1065)
-        time.sleep(1)
     # 事件界面
     def select_event(self):
-        # 事件界面：选择
-        if self.check("arrow", 0.1828, 0.5000, mask="mask_event"):
+        tx, ty = self.tx, self.ty
+        event_prior = [self.fate] + self.event_prior
+        success = self.click_text(event_prior)
+        key_mouse_manager.wait()
+        self.get_screen()
+        if success and self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
             key_mouse_manager.click(self.tx, self.ty)
-        # 事件界面：退出
-        elif self.check("arrow_1", 0.1828, 0.5000, mask="mask_event"):
-            key_mouse_manager.click(self.tx, self.ty)
-        # 事件选择界面
-        elif self.check("star", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
-            tx, ty = self.tx, self.ty
-            event_prior = [self.fate] + self.event_prior
-            success = self.click_text(event_prior)
-            time.sleep(1)
-            self.get_screen()
-            if success and self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
-                key_mouse_manager.click(self.tx, self.ty)
-            elif self.click_text(text="休息区",box=[187, 289, 903, 941],click=False,warning=False):
-                key_mouse_manager.click(0.1667, 0.2592)
-            else:
-                key_mouse_manager.click(tx, ty)
-                time.sleep(0.3)
-                key_mouse_manager.click(0.1167, ty - 0.1139)
-            time.sleep(0.5)
-            for _ in range(7):
-                if not self.click_text(text="事件",box=[6, 196, 0, 102],click=False,ocr_line=False,warning=False):
-                    break
-                time.sleep(0.1)
+        elif self.click_text(text="休息区",box=[187, 289, 903, 941],click=False,warning=False):
+            key_mouse_manager.click(0.1667, 0.2592)
         else:
-            key_mouse_manager.click(0.9479, 0.9565)
+            key_mouse_manager.click(tx, ty)
+            key_mouse_manager.click(0.1167, ty - 0.1139)
     # 选取奇物
     def select_strange(self):
-        time.sleep(0.6)
         img = self.get_small_interaction_img(x=0.5000, y=0.7333, mask="mask_strange", fresh=True)
         res = self.ts.split_and_find(self.tk.strange, img, mode="strange")
         key_mouse_manager.click(*self.calc_point((0.5000, 0.7333), res[0]))
@@ -584,7 +530,6 @@ class SimulatedUniverse(UniverseUtils):
         key_mouse_manager.click(0.1339, 0.1028)
         self.wait_flag(lambda: self.click_text(text="丢弃奇物",box=[10, 220, 0, 112],click=False,ocr_line=False,warning=False), 1.4)
     def drop_bless(self):
-        time.sleep(1.5)
         st = set(self.tk.fates) - set(self.tk.secondary)
         clicked = 0
         for i, ft in enumerate(self.tk.secondary[::-1]):
@@ -600,7 +545,6 @@ class SimulatedUniverse(UniverseUtils):
                 st.add(ft)
         if not clicked:
             key_mouse_manager.click(0.4714, 0.5500)
-        time.sleep(0.5)
         key_mouse_manager.click(0.1203, 0.1093)
         self.confirm_time = time.time()
     def setting(self):
@@ -608,19 +552,15 @@ class SimulatedUniverse(UniverseUtils):
         self.re_enter()
     def enhance(self):
         self.quit = time.time()
-        time.sleep(1.5)
         for i in [None, (0.7984, 0.6824), (0.6859, 0.6824)]:
             if self.check("enhance_fail", 0.1068, 0.0907, fresh=True):
                 break
             if i is not None:
                 key_mouse_manager.click(i[0], i[1])
-                time.sleep(0.3)
             key_mouse_manager.click(0.1089, 0.0926)
-            time.sleep(0.3)
             tm = time.time()
             while not self.click_text(text="祝福强化",box=[70, 236, 9, 125],click=False,ocr_line=False,warning=False) and time.time() - tm < 7:
                 key_mouse_manager.click(0.2062, 0.2054)
-                time.sleep(0.3)
         key_mouse_manager.press("esc")
         self.confirm_time = time.time()
         if self.floor >= 13:
@@ -629,7 +569,6 @@ class SimulatedUniverse(UniverseUtils):
         if self.click_text(text="确认",click=False):
             key_mouse_manager.click(self.tx, self.ty)
             key_mouse_manager.wait()
-        # time.sleep(1)
         return 0
 
     def update_count(self, read=True):
@@ -820,10 +759,6 @@ class SimulatedUniverse(UniverseUtils):
         while time.time() - tm < 10:
             self.get_screen()
             if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                key_mouse_manager.press('f')
-                time.sleep(0.5)
-                key_mouse_manager.press('f')
-                time.sleep(0.5)
                 key_mouse_manager.press('f')
                 break
 

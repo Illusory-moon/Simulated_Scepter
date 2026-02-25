@@ -245,7 +245,6 @@ class UniverseUtils:
     def use_it(self, x, y):
         if x != 1 or y != 1:
             key_mouse_manager.click(0.903 - 0.06 * (x - 1), 0.827 - 0.14 * (y - 1))
-            time.sleep(0.5)
         # 点击使用
         key_mouse_manager.click(0.154,0.088)
         self.wait_flag(lambda:not self.click_text(text="确认",box=[1126, 1252, 716, 812],click=False,ocr_line=False,warning=False), 1.2)
@@ -262,21 +261,16 @@ class UniverseUtils:
         """
         key_mouse_manager.press("b")
         if self.wait_flag(lambda:not self.check("use_package", 0.5182, 0.9407), 3):
-            time.sleep(0.4)
             key_mouse_manager.click(0.3677,0.0861)
-            time.sleep(0.4)
             self.get_screen()
             if self.wait_flag(lambda:not self.check("use_star", 0.8828, 0.8648, threshold=0.9), 0.8):
                 self.use_it(x, y)
                 if self.wait_flag(lambda:not self.check("use_def", 0.3198, 0.0880), 2.2):
-                    time.sleep(0.4)
                     key_mouse_manager.click(0.3198,0.0880)
-                    time.sleep(0.4)
                     self.get_screen()
                     if self.wait_flag(lambda:not self.check("use_star", 0.8828, 0.8648, threshold=0.9), 0.6):
                         self.use_it(x, y)
                         self.wait_flag(lambda:not self.check("use_package", 0.5182, 0.9407), 2)
-                        time.sleep(0.3)
                     key_mouse_manager.press("esc")
             else:
                 key_mouse_manager.press("esc")
@@ -667,7 +661,6 @@ class UniverseUtils:
         if not self.floor_init:
             key_mouse_manager.press("m", 0.3)
             self.update_state("map")
-            time.sleep(2)
         return 1
     def get_floor(self):
         CUS_LOGGER.info(f"开始更新层数旧层数：{self.floor}")
@@ -680,8 +673,8 @@ class UniverseUtils:
                 self.floor_init = 1
                 break
         if self.floor!=old_floor and old_floor!=0:
-            CUS_LOGGER.error(f"层数已更新为：{self.floor}")
-            # raise FloorError(f"层数不一致旧{old_floor+1}, 新{self.floor+1}")
+            CUS_LOGGER.warning(f"层数已更新为：{self.floor}")
+            self.floor_change=True
         key_mouse_manager.press("m", 0.2)
         return 1
 
@@ -1049,7 +1042,7 @@ class UniverseUtils:
                     outside = mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True),
                                                    center_radius=80)
                     rd = np.where(
-                        np.sum((outside - red) ** 2, axis=-1) <= 5000)
+                        np.sum((outside - red) ** 2, axis=-1) <= 4000)
                     if rd[0].shape[0]:
                         # 就在旁边
                         self.set_path_state("检测到遇敌红环")
@@ -1098,7 +1091,7 @@ class UniverseUtils:
                     outside = mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True),
                                                    center_radius=80)
                     rd = np.where(
-                        np.sum((outside - red) ** 2, axis=-1) <= 5000)
+                        np.sum((outside - red) ** 2, axis=-1) <= 4000)
                     if rd[0].shape[0]:
                         # 就在旁边
                         self.set_path_state("检测到遇敌红环,但是当前为非战斗节点！！！")
@@ -1533,7 +1526,7 @@ class UniverseUtils:
                     if not self.check("ruan",0.0625,0.7065,threshold=0.95) and not self.check("U", 0.0240,0.7759):
                         for i in range([4, 8, 13].index(self.floor)+2):
                             key_mouse_manager.press(str(i+1))
-                            time.sleep(0.4)
+                            key_mouse_manager.wait()
                             self.use_e()
                             self.get_screen()
                             if not self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
@@ -1552,7 +1545,7 @@ class UniverseUtils:
                     red = [47, 47, 232]
                     outside=mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True), center_radius=80)
                     rd = np.where(
-                        np.sum((outside - red) ** 2, axis=-1) <= 5000)
+                        np.sum((outside - red) ** 2, axis=-1) <= 4000)
                     if rd[0].shape[0]:
                         #就在旁边
                         pass
@@ -1688,14 +1681,10 @@ class UniverseUtils:
     def solve_snack(self):
         if self.check('snack', 0.3844,0.5065, mask='mask_snack',fresh= True):
             key_mouse_manager.click(self.tx,self.ty)
-            time.sleep(0.3)
             self.click_position([1184, 815])
-            time.sleep(0.4)
         else:
             self.allow_e = 0
-            time.sleep(1.0)
         self.click_position([768, 815])
-        time.sleep(0.6)
         if self.allow_e:
             key_mouse_manager.press('e')
     def move_direct_to_text(self):
@@ -1743,12 +1732,10 @@ class UniverseUtils:
             for _ in range(14):
                 img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
                 if self.ts.split_and_find(self.tk.fates, img_down, mode="bless")[1]or self._stop:
-                    time.sleep(0.2)
                     break
                 if not self.click_text(text="选择祝福", box=[60, 222, 0, 113], click=False, ocr_line=False,
                                        warning=False):
                     return 1
-                time.sleep(0.2)
             img_up = self.get_small_interaction_img(x=0.5047, y=0.5491, mask="mask_bless", fresh=True)
             res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
             img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
@@ -1764,18 +1751,15 @@ class UniverseUtils:
             if not chose:
                 CUS_LOGGER.info("未知行为")
                 key_mouse_manager.click(0.2990, 0.1046)
-                time.sleep(1.2)
         if not chose:
             CUS_LOGGER.info("未优选，寻找次优解（非主命途）")
             for _ in range(8):
                 img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
                 if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
-                    time.sleep(0.2)
                     break
                 if not self.click_text(text="选择祝福", box=[60, 222, 0, 113], click=False, ocr_line=False,
                                        warning=False):
                     return 1
-                time.sleep(0.2)
             img_up = self.get_small_interaction_img(x=0.5047, y=0.5491, mask="mask_bless", fresh=True)
             res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
             img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
@@ -1788,12 +1772,10 @@ class UniverseUtils:
                 key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
             else:
                 key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
-            time.sleep(0.5)
     def bless(self):
         self.get_screen()
         if self.wait_flag(lambda:not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False), 2.3):
             self.wait_flag(lambda:not self.click_text(text="重置祝福",box=[1268, 1444, 929, 1025],click=False,warning=False), 0.7)
-            time.sleep(1.2)
         else:
             return
         for _ in range(6):
@@ -1801,7 +1783,6 @@ class UniverseUtils:
             self.reset_bless()
             # 未匹配到优先祝福，刷新祝福并再次匹配
             key_mouse_manager.click(0.1203, 0.1093)
-            time.sleep(1.7)
             self.get_screen()
             if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                 return
