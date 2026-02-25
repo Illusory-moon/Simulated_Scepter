@@ -1,18 +1,86 @@
 from datetime import datetime
 
+from importimg import load_img
+from utils.utils.image_tool import find_image_by_name
+
+load_img()
 import cv2
 import numpy as np
 from scipy import signal
-from utils.utils.minimap_util import MINIMAP_RADIUS, get_minimap, rgb2yuv, RotationRemapData, peak_confidence, convolve, \
+from utils.utils.minimap_util import rgb2yuv, RotationRemapData, peak_confidence, convolve, \
     DIRECTION_RADIUS, DIRECTION_ARROW_COLOR, area_pad, color_similarity_2d, get_bbox, area_limit, image_size, \
     DIRECTION_ROTATION_SCALE, crop, DIRECTION_SEARCH_SCALE, subtract_blur, POSITION_SEARCH_SCALE, cubic_find_maximum, \
-     ArrowRotateMap, ArrowRotateMapAll
-
+    ArrowRotateMap, ArrowRotateMapAll, area_offset, MINIMAP_RADIUS, map_image_preprocess
 
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('Qt5Agg')
 
 
+def detect_minimap_center(image):
+    """
+    通过白色圆形边缘模板匹配检测小地图中心
+    """
+    # 创建白色圆形边缘模板
+    template = np.zeros((2*MINIMAP_RADIUS, 2*MINIMAP_RADIUS), dtype=np.uint8)
+    cv2.circle(template, (MINIMAP_RADIUS, MINIMAP_RADIUS), MINIMAP_RADIUS, 255, 3)
+    gray_template = template
+    
+    result = cv2.matchTemplate(image, gray_template, cv2.TM_CCOEFF_NORMED)
+    _, _, _, max_loc = cv2.minMaxLoc(result)
+    
+    # 计算实际中心坐标
+    center_x = max_loc[0] + MINIMAP_RADIUS
+    center_y = max_loc[1] + MINIMAP_RADIUS
+    print("minimap center:", center_x, center_y)
+    return (center_x, center_y)
+
+def get_minimap(image, radius, copy=False, rotation=False, center_radius=80):
+    """
+    裁剪图像中的小地图区域
+
+    Args:
+        image (np.ndarray): 输入图像
+        radius (int): 裁剪半径
+        copy (bool): 是否复制图像
+        rotation (bool): 是否进行旋转校正
+        center_radius (int): 中心掩膜半径
+
+    Returns:
+        np.ndarray: 处理后的小地图图像
+    """
+    # 通过模板匹配获取准确的MINIMAP_CENTER
+    area = [0,0,245,255]
+    MINIMAP_CENTER = detect_minimap_center(map_image_preprocess(crop(image, area, copy=copy)))
+    area = area_offset((-radius, -radius, radius, radius), offset=MINIMAP_CENTER)
+    image = crop(image, area, copy=copy)
+    if rotation:
+        from utils.utils.mminimap import update_rotation
+        # 获取输入图片的视角角度
+        input_rotation = update_rotation(minimap=image)
+        # 读取0度视角纹理图
+        zero_texture = find_image_by_name("only_rotated.png")
+
+        # 根据输入图片的视角旋转0度视角纹理图
+        rotated_texture = rotate_minimap(zero_texture, input_rotation)
+        # 从纹理中心裁剪以匹配目标图像尺寸
+        if rotated_texture.shape != image.shape:
+            tex_h, tex_w = rotated_texture.shape[:2]
+            target_h, target_w = image.shape[:2]
+            center_y, center_x = tex_h // 2, tex_w // 2
+            half_target_h, half_target_w = target_h // 2, target_w // 2
+
+            # 计算裁剪边界
+            y1 = max(0, center_y - half_target_h)
+            y2 = min(tex_h, center_y + half_target_h + (target_h % 2))
+            x1 = max(0, center_x - half_target_w)
+            x2 = min(tex_w, center_x + half_target_w + (target_w % 2))
+
+            rotated_texture = rotated_texture[y1:y2, x1:x2]
+        image = cv2.subtract(image, rotated_texture)
+
+        # 掩膜掩盖非中心区域避免遇敌红色圈干扰敌人追踪
+        image = mask_minimap_center(image, center_radius=center_radius)
+    return image
 def update_rotation(or_image=None,minimap=None):
     """
     获取角色方向，耗时约0.66ms。
@@ -28,8 +96,7 @@ def update_rotation(or_image=None,minimap=None):
         minimap = get_minimap(or_image, radius=MINIMAP_RADIUS)
     image = rgb2yuv(minimap)[:, :, 1].copy()
     cv2.subtract(src1=184, src2=image, dst=image)
-    cv2.imshow("minimap", image)
-    cv2.waitKey(0)
+
     cv2.GaussianBlur(image, (3, 3), 0, dst=image)
     # 将圆形展开为矩形
     remap = cv2.remap(image, *RotationRemapData(), cv2.INTER_LINEAR)[d * 1 // 10:d * 6 // 10].astype(np.float32)
@@ -39,11 +106,11 @@ def update_rotation(or_image=None,minimap=None):
 
     # 查找导数
     gradx = cv2.Scharr(remap, cv2.CV_32F, 1, 0)
-    cv2.imshow("minimap", gradx)
-    cv2.waitKey(0)
-    import matplotlib.pyplot as plt
-    plt.imshow(gradx)
-    plt.show()
+    # cv2.imshow("minimap", gradx)
+    # cv2.waitKey(0)
+    # import matplotlib.pyplot as plt
+    # plt.imshow(gradx)
+    # plt.show()
 
     # scipy.find_peaks的魔法参数
     para = {
@@ -144,9 +211,10 @@ def update_direction(or_image=None,minimap=None):
     image = crop(image, area=area, copy=False)
     # cv2.imshow("minimap", image)
     # cv2.waitKey(0)
+
     scale = DIRECTION_ROTATION_SCALE * DIRECTION_SEARCH_SCALE
     mapping = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
-
+    print(mapping.shape)
     result = cv2.matchTemplate(ArrowRotateMap, mapping, cv2.TM_CCOEFF_NORMED)
     result = subtract_blur(result, 5)
     _, sim, _, loca = cv2.minMaxLoc(result)
@@ -163,13 +231,15 @@ def update_direction(or_image=None,minimap=None):
                   (match_x, match_y), 
                   (match_x + mapping.shape[1], match_y + mapping.shape[0]),
                   (0, 0, 255), 2)  # 红色框
-
+    print("匹配位置:", loca)
+    loca=(match_x + mapping.shape[1]/2, match_y + mapping.shape[0]/2)
+    print("匹配位置:", loca)
     loca = np.array(loca) / DIRECTION_SEARCH_SCALE // (DIRECTION_RADIUS * 2)
-    # cv2.imshow("ArrowRotateMap with match", arrow_map_copy)
-    # cv2.waitKey(0)
+    cv2.imshow("ArrowRotateMap with match", arrow_map_copy)
+    cv2.waitKey(0)
     degree = int((loca[0] + loca[1] * 8) * 5)
     def to_map(x):
-        return int((x * DIRECTION_RADIUS * 2 + DIRECTION_RADIUS) * POSITION_SEARCH_SCALE)
+        return int((x * DIRECTION_RADIUS * 2 + DIRECTION_RADIUS) * 0.5)
 
     # ArrowRotateMapAll上的行
     row = int(degree // 8) + 45
@@ -180,38 +250,38 @@ def update_direction(or_image=None,minimap=None):
     precise_map = ArrowRotateMapAll[row[0]:row[1], :].copy()
     
     # 在精确匹配区域上绘制匹配结果
-    # if len(precise_map.shape) == 2:  # 灰度图
-    #     precise_display = cv2.cvtColor(precise_map, cv2.COLOR_GRAY2BGR)
-    # else:
-    #     precise_display = precise_map.copy()
+    if len(precise_map.shape) == 2:  # 灰度图
+        precise_display = cv2.cvtColor(precise_map, cv2.COLOR_GRAY2BGR)
+    else:
+        precise_display = precise_map.copy()
         
     result = cv2.matchTemplate(precise_map, mapping, cv2.TM_CCOEFF_NORMED)
     result = subtract_blur(result, 5)
     
     # 在精确匹配区域上找到最佳匹配位置并绘制框
     _, _, _, precise_loc = cv2.minMaxLoc(result)
-    # cv2.rectangle(precise_display,
-    #               (precise_loc[0], precise_loc[1]),
-    #               (precise_loc[0] + mapping.shape[1], precise_loc[1] + mapping.shape[0]),
-    #               (0, 255, 0), 0)  # 绿色框
+    cv2.rectangle(precise_display,
+                  (precise_loc[0], precise_loc[1]),
+                  (precise_loc[0] + mapping.shape[1], precise_loc[1] + mapping.shape[0]),
+                  (0, 255, 0), 0)  # 绿色框
     
     # 将原始图像叠加到匹配区域
-    # resized_image = cv2.resize(image, (mapping.shape[1], mapping.shape[0]))
-    # if len(resized_image.shape) == 2:  # 灰度图转BGR
-    #     resized_image = cv2.cvtColor(resized_image, cv2.COLOR_GRAY2BGR)
+    resized_image = cv2.resize(image, (mapping.shape[1], mapping.shape[0]))
+    if len(resized_image.shape) == 2:  # 灰度图转BGR
+        resized_image = cv2.cvtColor(resized_image, cv2.COLOR_GRAY2BGR)
     
     # 在匹配位置叠加原始图像
-    # x, y = precise_loc
-    # h, w = resized_image.shape[:2]
-    # if y + h <= precise_display.shape[0] and x + w <= precise_display.shape[1]:
-    #     precise_display[y:y+h, x:x+w] = cv2.addWeighted(
-    #         precise_display[y:y+h, x:x+w], -0.5, resized_image, 0.5, 0)
-    
-    # cv2.imshow("Precise matching area with match", precise_display)
-    # cv2.waitKey(0)
+    x, y = precise_loc
+    h, w = resized_image.shape[:2]
+    if y + h <= precise_display.shape[0] and x + w <= precise_display.shape[1]:
+        precise_display[y:y+h, x:x+w] = cv2.addWeighted(
+            precise_display[y:y+h, x:x+w], -0.5, resized_image, 0.5, 0)
+    cv2.resize(precise_display, (precise_display.shape[1] * 5, precise_display.shape[0] * 5), 0)
+    cv2.imshow("Precise matching area with match", precise_display)
+    cv2.waitKey(0)
 
     def to_map(x):
-        return int((x * DIRECTION_RADIUS * 2) * POSITION_SEARCH_SCALE)
+        return int((x * DIRECTION_RADIUS * 2) * 0.5)
 
     def get_precise_sim(d):
         y, x = divmod(d, 8)
@@ -286,9 +356,9 @@ def show_minimap(image,rotation,direction=0):
 
 def update_minimap_data(image=None,rotation_minimap=None, direction_minimap=None):
     if rotation_minimap is None:
-        rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS)
+        rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS,copy=True)
     if direction_minimap is None:
-        direction_minimap = get_minimap(image, radius=DIRECTION_RADIUS)
+        direction_minimap = get_minimap(image, radius=DIRECTION_RADIUS,copy=True)
     rotation = update_rotation(minimap=rotation_minimap)
     direction=update_direction(minimap=direction_minimap)
     return rotation, direction
@@ -556,10 +626,10 @@ def test_mask_minimap_outside(image_path, center_radius=40):
     return masked_minimap
 
 if __name__ == "__main__":
-    pth="../temp/20260120_123030.png"
+    pth="./20260223_162719.png"
     image = cv2.imread(pth)
     # # analyze_red(image)
-    rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS)
+    rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS,copy=True)
     # # direction_minimap = get_minimap(image.copy(), radius=DIRECTION_RADIUS)
     # # s_time = time.time()
     # # rotation=update_rotation(minimap=rotation_minimap)

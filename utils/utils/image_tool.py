@@ -2,8 +2,6 @@
 """
 全局图像资源导入工具
 将图像目录下的所有图片一次性加载到内存中，避免重复读取
-Author: syfoud
-CreateTime: 2026-02-18
 """
 
 import os
@@ -133,49 +131,16 @@ def load_all_images_from_directory(directory_path: str = None) -> Dict[str, bool
     return results
 
 
-def get_cached_image(image_name: str, folder_path: list = None) -> Optional[np.ndarray]:
-    """
-    从缓存中获取图像
-    
-    Args:
-        image_name: 图像文件名
-        folder_path: 文件夹路径列表，如 ['floor', 'subfolder']
-        
-    Returns:
-        np.ndarray: 图像数据，如果不在缓存中返回None
-    """
-    global _image_cache
-    
-    # 在嵌套结构中查找
-    def find_image(structure, path_parts):
-        current = structure
-        for part in path_parts:
-            if isinstance(current, dict) and part in current:
-                current = current[part]
-            else:
-                return None
-        return current if isinstance(current, np.ndarray) else None
-    
-    # 构造查找路径
-    if folder_path is None:
-        folder_path = []
-    search_path = folder_path + [image_name]
-    
-    image = find_image(_image_cache, search_path)
-    if image is not None:
-        return image.copy()
-    
-    CUS_LOGGER.warning(f"图像不在缓存中: {'/'.join(search_path)}")
-    return None
 
 
-def find_image_in_folder(folder_path: str, image_identifier: str) -> Optional[np.ndarray]:
+def find_image_in_folder(folder_path: str, image_identifier: str, search_subfolders: bool = False) -> Optional[np.ndarray]:
     """
     在指定文件夹的内存缓存中查找图像
     
     Args:
         folder_path: 相对于图像根目录的文件夹路径（如 'boss/' 或 'map/'）
         image_identifier: 图像文件名（可以带.jpg后缀也可以不带）
+        search_subfolders: 是否递归搜索子文件夹，默认False
         
     Returns:
         np.ndarray: 图像数据，如果找不到返回None
@@ -183,88 +148,86 @@ def find_image_in_folder(folder_path: str, image_identifier: str) -> Optional[np
     Examples:
         # >>> img = find_image_in_folder('boss/', 'run')
         # >>> img = find_image_in_folder('map/', 'ff1.jpg')
+        # >>> img = find_image_in_folder('boss/', 'run', search_subfolders=True)
     """
     global _image_cache
     
-    # 确保folder_path以/结尾
-    if not folder_path.endswith('/'):
+    # 处理空路径情况
+    if not folder_path or folder_path == './' or folder_path == '.':
+        folder_path = ''
+    # 确保非空路径以/结尾
+    elif not folder_path.endswith('/'):
         folder_path = folder_path + '/'
     
     # 移除可能的.jpg后缀用于标准化比较
     clean_identifier = image_identifier.replace('.jpg', '')
     
     # 在指定文件夹中查找
-    folder_parts = folder_path.strip('/').split('/')
-    current_dict = _image_cache
-    
-    # 导航到指定文件夹
-    for part in folder_parts:
-        if part and part in current_dict:
-            current_dict = current_dict[part]
-        else:
-            CUS_LOGGER.warning(f"指定的文件夹不存在: {folder_path}")
-            return None
+    if folder_path:
+        folder_parts = folder_path.strip('/').split('/')
+        current_dict = _image_cache
+        
+        # 导航到指定文件夹
+        for part in folder_parts:
+            if part and part in current_dict:
+                current_dict = current_dict[part]
+            else:
+                CUS_LOGGER.warning(f"指定的文件夹不存在: {folder_path}")
+                return None
+    else:
+        # 空路径，使用根目录
+        current_dict = _image_cache
     
     # 在目标文件夹中查找图像
     if isinstance(current_dict, dict):
-        # 查找完全匹配（带.jpg）
-        if image_identifier in current_dict:
-            image_data = current_dict[image_identifier]
-            if isinstance(image_data, np.ndarray):
-                return image_data.copy()
-        
-        # 查找不带后缀的匹配
-        if clean_identifier in current_dict:
-            image_data = current_dict[clean_identifier]
-            if isinstance(image_data, np.ndarray):
-                return image_data.copy()
-        
-        # 查找部分匹配（文件名前缀）
-        for key, value in current_dict.items():
-            if isinstance(value, np.ndarray):  # 确保是图像数据
-                key_without_ext = key.replace('.jpg', '')
-                if key_without_ext == clean_identifier:
-                    return value.copy()
+        if search_subfolders:
+            # 递归搜索所有子文件夹
+            def recursive_search(search_dict):
+                for key, value in search_dict.items():
+                    if isinstance(value, dict):
+                        # 递归搜索子文件夹
+                        result = recursive_search(value)
+                        if result is not None:
+                            return result
+                    elif isinstance(value, np.ndarray):
+                        # 检查图像匹配
+                        key_without_ext = key.replace('.jpg', '')
+                        if key == image_identifier or key_without_ext == clean_identifier:
+                            return value.copy()
+                return None
+            
+            result = recursive_search(current_dict)
+            if result is not None:
+                return result
+        else:
+            # 只在当前文件夹中查找
+            # 查找完全匹配（带.jpg）
+            if image_identifier in current_dict:
+                image_data = current_dict[image_identifier]
+                if isinstance(image_data, np.ndarray):
+                    return image_data.copy()
+            
+            # 查找不带后缀的匹配
+            if clean_identifier in current_dict:
+                image_data = current_dict[clean_identifier]
+                if isinstance(image_data, np.ndarray):
+                    return image_data.copy()
+            
+            # 查找部分匹配（文件名前缀）
+            for key, value in current_dict.items():
+                if isinstance(value, np.ndarray):  # 确保是图像数据
+                    key_without_ext = key.replace('.jpg', '')
+                    if key_without_ext == clean_identifier:
+                        return value.copy()
     
-    CUS_LOGGER.warning(f"在文件夹 '{folder_path}' 中未找到图像: {image_identifier}")
+    warning_msg = f"在文件夹 '{folder_path}'"
+    if search_subfolders:
+        warning_msg += "及其子文件夹"
+    warning_msg += f"中未找到图像: {image_identifier}"
+    CUS_LOGGER.warning(warning_msg)
     return None
 
 
-def list_images_in_folder(folder_path: str) -> list:
-    """
-    列出指定文件夹中所有已缓存的图像文件名
-    
-    Args:
-        folder_path: 相对于图像根目录的文件夹路径
-        
-    Returns:
-        图像文件名列表
-
-    """
-    global _image_cache
-    
-    # 确保folder_path以/结尾
-    if not folder_path.endswith('/'):
-        folder_path = folder_path + '/'
-    
-    # 导航到指定文件夹
-    folder_parts = folder_path.strip('/').split('/')
-    current_dict = _image_cache
-    
-    for part in folder_parts:
-        if part and part in current_dict:
-            current_dict = current_dict[part]
-        else:
-            return []  # 文件夹不存在
-    
-    # 收集该文件夹中的所有图像文件名
-    image_files = []
-    if isinstance(current_dict, dict):
-        for key, value in current_dict.items():
-            if isinstance(value, np.ndarray):  # 只收集图像数据
-                image_files.append(key)
-    
-    return sorted(image_files)
 
 
 def find_image_by_name(image_identifier: str) -> Optional[np.ndarray]:
@@ -408,27 +371,7 @@ def _load_image_from_disk(image_identifier: str) -> Optional[np.ndarray]:
     return None
 
 
-def get_all_cached_images() -> Dict:
-    """
-    获取所有缓存的图像（嵌套结构）
-    
-    Returns:
-        Dict: 所有缓存的图像嵌套字典
-    """
-    global _image_cache
-    
-    def copy_structure(structure):
-        result = {}
-        for key, value in structure.items():
-            if isinstance(value, dict):
-                result[key] = copy_structure(value)
-            elif isinstance(value, np.ndarray):
-                result[key] = value.copy()
-            else:
-                result[key] = value
-        return result
-    
-    return copy_structure(_image_cache)
+
 
 
 def clear_image_cache():
@@ -481,19 +424,6 @@ def print_cache_info():
         print_structure(_image_cache)
 
 
-# 兼容性函数
-def cached_imread(image_name: str, folder_path: list = None) -> Optional[np.ndarray]:
-    """
-    兼容OpenCV imread的缓存版本
-    
-    Args:
-        image_name: 图像文件名
-        folder_path: 文件夹路径列表
-        
-    Returns:
-        np.ndarray: 图像数据
-    """
-    return get_cached_image(image_name, folder_path)
 
 
 if __name__ == "__main__":
@@ -505,10 +435,3 @@ if __name__ == "__main__":
     
     # 打印缓存信息
     print_cache_info()
-    
-    # 测试获取图像
-    if results:
-        first_image_path = list(results.keys())[0]
-        img = get_cached_image(first_image_path)
-        if img is not None:
-            CUS_LOGGER.info(f"测试成功: 能够从缓存获取图像 {first_image_path}")

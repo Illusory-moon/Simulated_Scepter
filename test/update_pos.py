@@ -1,18 +1,24 @@
 from dataclasses import dataclass
 from typing import Any
 
+from utils.timer import timer
+from utils.utils.image_tool import find_image_in_folder
 from utils.utils.minimap_util import get_minimap, image_size, crop, area_offset, cubic_find_maximum, subtract_blur
+from utils.utils.image_tool import load_all_images_from_directory
+load_all_images_from_directory()
 import numpy as np
 import cv2
 POSITION_RADIUS = 90
-POSITION_SEARCH_SCALE = 0.5
+POSITION_SEARCH_SCALE = 0.425
 POSITION_MOVE_PATCH = (0.5, 0.5)
 POSITION_FEATURE_PAD = 155
 POSITION_SEARCH_RADIUS = 1.666
 dict_circle_mask = {}
-position: tuple[float, float] = (656.8, 60.5)
-assets_floor_feat=cv2.imread("map_5f.png", cv2.IMREAD_GRAYSCALE)
-assets_floor_outside_mask=cv2.imread("map_5a.png", cv2.IMREAD_GRAYSCALE)
+position: tuple[float, float] = (0, 0)
+
+assets_floor_feat = cv2.imread("map_5f.png", cv2.IMREAD_GRAYSCALE)
+assets_floor_outside_mask = cv2.imread("map_5a.png", cv2.IMREAD_GRAYSCALE)
+
 @dataclass
 class PositionPredictState:
     size: Any = None
@@ -52,7 +58,7 @@ def get_circle_mask(image):
     try:
         return dict_circle_mask[(w, h)]
     except KeyError:
-        mask = create_circular_mask(w=w, h=h)
+        mask = create_circular_mask(w=w, h=h,radius=80)
         mask = (mask * 255).astype(np.uint8)
         dict_circle_mask[(w, h)] = mask
         return mask
@@ -134,6 +140,7 @@ def _predict_position(image, scale=1.0):
     """
     scale *= POSITION_SEARCH_SCALE
     local = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    cv2.imwrite("map.png", local)
     size = np.array(image_size(image))
     if sum(position) > 0:
         search_position = np.array(position, dtype=np.int64)
@@ -158,11 +165,12 @@ def _predict_position(image, scale=1.0):
     # mask = self.get_circle_mask(local)
     # result = cv2.matchTemplate(search_image, local, cv2.TM_CCOEFF_NORMED, mask=mask)
     result = cv2.matchTemplate(search_image, local, cv2.TM_CCOEFF_NORMED)
-
+    # cv2.imshow('match_result.png', search_image)
+    # cv2.imshow('local.png', local)
+    # cv2.waitKey(0)
     result_mask = ~image_center_crop(result_mask, size=image_size(result)).astype(bool)
     result[result_mask] = 0
-    # cv2.imshow('match_result.png', result)
-    # cv2.waitKey(0)
+
     _, sim, _, loca = cv2.minMaxLoc(result)
     # from PIL import Image
     # if round(scale, 3) == self.POSITION_SEARCH_SCALE * 1.0:
@@ -205,7 +213,7 @@ def _predict_position(image, scale=1.0):
     state.global_loca = global_loca
 
     return state
-def update_position(image):
+def update_position(image,scale_list=[1.00, 1.05, 1.10, 1.15, 1.20, 1.25]):
     """
     获取GIMAP上的位置，耗时约6.57ms。
 
@@ -214,17 +222,14 @@ def update_position(image):
     - position
     - position_scene
     """
-    image = get_minimap(image, radius=POSITION_RADIUS)
+    image = get_minimap(image, radius=90)
     image = map_image_preprocess(image)
     image &= get_circle_mask(image)
-
     best_sim = -1.
     best_scale = 1.0
     best_state = None
     # 步行时缩放为1.20
     # 跑步时缩放为1.25
-    scale_list = [1.00, 1.05, 1.10, 1.15, 1.20, 1.25]
-
     for scale in scale_list:
         state = _predict_position(image, scale)
         # print([np.round(i, 3) for i in [scale, state.sim, state.local_sim, state.global_loca]])
@@ -240,7 +245,7 @@ def update_position(image):
     position = tuple(np.round(best_state.global_loca, 1))
     position_scale = round(best_scale, 3)
     print(position_scale)
-    return position
+    return position, position_similarity
 
 
 def draw_position_on_map(position, output_path="position_on_map.png", radius=90):
@@ -303,6 +308,63 @@ def draw_position_on_map(position, output_path="position_on_map.png", radius=90)
     print("按任意键关闭窗口...")
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+@timer
+def match_multiple_maps(image):
+    """
+    在多个地图中匹配最佳位置
+    使用image_tool的缓存机制加载图像
+    
+    Args:
+        image: 输入图像
+        
+    Returns:
+        dict: 包含最佳匹配信息的字典
+    """
+
+    print("开始多地图匹配...")
+    best_match = {
+        'similarity': 0.0,
+        'position': None,
+        'map_name': None,
+        'scale': 1.0
+    }
+    for i in range(1,42):
+        feat_name = f'map_{i}f.png'
+        mask_img_name = f'map_{i}a.png'
+        floor_img = find_image_in_folder('gray_image/', feat_name,search_subfolders= True)
+        mask_img = find_image_in_folder('gray_image/', mask_img_name,search_subfolders= True)
+
+        print(f"  正在匹配地图{i}")
+        global assets_floor_feat ,assets_floor_outside_mask
+        assets_floor_feat = floor_img
+        assets_floor_outside_mask = mask_img
+        pos,sim = update_position(image,[1.0])
+        print(f"地图{i}的相似度: {sim:.3f}")
+        if sim > best_match['similarity']:
+            best_match.update({
+                'similarity': sim,
+                'position': pos,
+                'map_name': i,
+                'floor_image': floor_img
+            })
+            print(f"    更新最佳匹配: {sim:.3f}")
+
+    if best_match['similarity'] > 0:
+        print(f"\n=== 匹配完成 ===")
+        print(f"最佳匹配地图: {best_match['map_name']}")
+        print(f"相似度: {best_match['similarity']:.3f}")
+        print(f"位置坐标: {best_match['position']}")
+        assets_floor_feat = best_match['floor_image']
+        draw_position_on_map(best_match['position'])
+    else:
+        print("未找到匹配的地图")
+    
+    return best_match
+
 if __name__ == "__main__":
-    my_screen=cv2.imread("20251021_224505.png")
-    draw_position_on_map(update_position(my_screen))
+    # 测试单个地图绘制功能
+    my_screen=cv2.imread("20260221_175239.png")
+    pos,sim=update_position(my_screen,[1.0])
+    print(sim)
+    draw_position_on_map(pos)
+    # result = match_multiple_maps(my_screen)

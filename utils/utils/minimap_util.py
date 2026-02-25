@@ -1,18 +1,99 @@
+from dataclasses import dataclass
+from typing import Any
+
 import cv2
 import numpy as np
 from scipy import signal
 from PIL import Image
 
-from utils.utils.image_tool import find_image_in_folder
+from utils.utils.image_tool import find_image_in_folder, find_image_by_name
 
 MINIMAP_RADIUS = 93
-MINIMAP_CENTER = (45 + MINIMAP_RADIUS, 56 + MINIMAP_RADIUS)#(138,149)
+# MINIMAP_CENTER = (45 + MINIMAP_RADIUS, 56 + MINIMAP_RADIUS)#(138,149)
 DIRECTION_RADIUS = 17
 DIRECTION_ARROW_COLOR = (255, 199, 2)
 DIRECTION_ROTATION_SCALE = 1.0
 DIRECTION_SEARCH_SCALE = 0.5
-POSITION_SEARCH_SCALE = 0.5
+POSITION_SEARCH_SCALE = 0.425
+POSITION_RADIUS = 90
+POSITION_MOVE_PATCH = (0.5, 0.5)
+POSITION_FEATURE_PAD = 155
+POSITION_SEARCH_RADIUS = 1.666
+dict_circle_mask = {}
+@dataclass
+class PositionPredictState:
+    size: Any = None
+    scale: Any = None
 
+    search_area: Any = None
+    search_image: Any = None
+    result_mask: Any = None
+    result: Any = None
+
+    sim: Any = None
+    loca: Any = None
+    local_sim: Any = None
+    local_loca: Any = None
+    precise_sim: Any = None
+    precise_loca: Any = None
+
+    global_loca: Any = None
+def create_circular_mask(h, w, center=None, radius=None):
+    # https://stackoverflow.com/questions/44865023/how-can-i-create-a-circular-mask-for-a-numpy-array
+    if center is None:  # 使用图像的中心
+        center = (int(w / 2), int(h / 2))
+    if radius is None:  # 使用中心点到图像边缘的最短距离
+        radius = min(center[0], center[1], w - center[0], h - center[1])
+
+    y, x = np.ogrid[:h, :w]
+    dist_from_center = np.sqrt((x - center[0]) ** 2 + (y - center[1]) ** 2)
+
+    mask = dist_from_center <= radius
+    return mask
+def get_circle_mask(image):
+    """
+    Create a circle mask with the shape of given image,
+    Masks will be cached once created.
+    """
+    w, h = image_size(image)
+    try:
+        return dict_circle_mask[(w, h)]
+    except KeyError:
+        mask = create_circular_mask(w=w, h=h,radius=80)
+        mask = (mask * 255).astype(np.uint8)
+        dict_circle_mask[(w, h)] = mask
+        return mask
+def map_image_preprocess(image):
+    """
+    在ResourceGenerate和_predict_position()中使用的共享预处理方法
+
+    Args:
+        image (np.ndarray): RGB格式的屏幕截图
+
+    Returns:
+        np.ndarray:
+    """
+    # image = rgb2luma(image)
+    image = cv2.GaussianBlur(image, (5, 5), 0)
+    image = cv2.Canny(image, 15, 50)
+    return image
+
+def image_center_crop(image, size):
+    """
+    居中裁剪给定图像。
+
+    Args:
+        image (np.ndarray):
+        size: 输出图像形状，(width, height)
+
+    Returns:
+        np.ndarray:
+    """
+    diff = image_size(image) - np.array(size)
+    left, top = int(diff[0] / 2), int(diff[1] / 2)
+    right, bottom = diff[0] - left, diff[1] - top
+    image = image[top:-bottom, left:-right]
+    return image
 def load_image(file, area=None):
     """
     Load an image like pillow and drop alpha channel.
@@ -408,10 +489,38 @@ def mask_minimap_outside(minimap, center_radius=80):
     cv2.circle(mask, center, center_radius, (0), -1)
     masked_minimap = cv2.bitwise_and(minimap, minimap, mask=mask)
     return masked_minimap
-def get_minimap(image, radius,copy=False,rotation=False,center_radius=80):
+def detect_minimap_center(image):
     """
-    Crop the minimap area on image.
+    通过白色圆形边缘模板匹配检测小地图中心
     """
+    # 创建白色圆形边缘模板
+    template = np.zeros((2 * MINIMAP_RADIUS, 2 * MINIMAP_RADIUS), dtype=np.uint8)
+    cv2.circle(template, (MINIMAP_RADIUS, MINIMAP_RADIUS), MINIMAP_RADIUS, 255, 3)
+    gray_template = template
+
+    result = cv2.matchTemplate(image, gray_template, cv2.TM_CCOEFF_NORMED)
+    _, _, _, max_loc = cv2.minMaxLoc(result)
+    # 计算实际中心坐标
+    center_x = max_loc[0] + MINIMAP_RADIUS
+    center_y = max_loc[1] + MINIMAP_RADIUS
+    return (center_x, center_y)
+def get_minimap(image, radius, copy=False, rotation=False, center_radius=80):
+    """
+    裁剪图像中的小地图区域
+
+    Args:
+        image (np.ndarray): 输入图像
+        radius (int): 裁剪半径
+        copy (bool): 是否复制图像
+        rotation (bool): 是否进行旋转校正
+        center_radius (int): 中心掩膜半径
+
+    Returns:
+        np.ndarray: 处理后的小地图图像
+    """
+    # 通过模板匹配获取准确的MINIMAP_CENTER（很奇怪，小地图相对坐标会变化）
+    area = [0,0,245,255]
+    MINIMAP_CENTER = detect_minimap_center(map_image_preprocess(crop(image, area, copy=copy)))
     area = area_offset((-radius, -radius, radius, radius), offset=MINIMAP_CENTER)
     image = crop(image, area, copy=copy)
     if rotation:
@@ -419,13 +528,27 @@ def get_minimap(image, radius,copy=False,rotation=False,center_radius=80):
         # 获取输入图片的视角角度
         input_rotation = update_rotation(minimap=image)
         # 读取0度视角纹理图
-        zero_degree_texture_path = "resource/imgs/only_rotated.png"
-        zero_texture = cv2.imread(zero_degree_texture_path)
+        zero_texture = find_image_by_name("only_rotated.png")
+
         # 根据输入图片的视角旋转0度视角纹理图
         rotated_texture = rotate_minimap(zero_texture, input_rotation)
-        # 将输入图片的小地图与旋转后的视角纹理相减
+        # 从纹理中心裁剪以匹配目标图像尺寸
+        if rotated_texture.shape != image.shape:
+            tex_h, tex_w = rotated_texture.shape[:2]
+            target_h, target_w = image.shape[:2]
+            center_y, center_x = tex_h // 2, tex_w // 2
+            half_target_h, half_target_w = target_h // 2, target_w // 2
+
+            # 计算裁剪边界
+            y1 = max(0, center_y - half_target_h)
+            y2 = min(tex_h, center_y + half_target_h + (target_h % 2))
+            x1 = max(0, center_x - half_target_w)
+            x2 = min(tex_w, center_x + half_target_w + (target_w % 2))
+
+            rotated_texture = rotated_texture[y1:y2, x1:x2]
         image = cv2.subtract(image, rotated_texture)
-        #掩膜掩盖非中心区域避免遇敌红色圈干扰敌人追踪
+
+        # 掩膜掩盖非中心区域避免遇敌红色圈干扰敌人追踪
         image = mask_minimap_center(image, center_radius=center_radius)
     return image
 def convolve(arr, kernel=3):
@@ -550,6 +673,36 @@ def remove_border(image, radius):
     image[:, width - radius:] = 0
     image[:radius + 1, :] = 0
     image[height - radius:, :] = 0
+def deal_minimap(image,is_minimap=False):
+    if not is_minimap:
+        image = get_minimap(image, radius=POSITION_RADIUS,copy= True)
+    image = map_image_preprocess(image)
+    image &= get_circle_mask(image)
+    return image
+def re_get_position(position,need_int=True,re=False):
+    """
+    把计算用放缩坐标转换为游戏图像坐标
+    re为true则把游戏图像坐标转换为计算用放缩坐标
+    参数:
+        position: (x, y)
+        need_int: 是否将结果转换为整数
+        re: 是否反转
+    返回:
+        (x, y)
+    """
+    if re:
+        map_position = np.array(position, dtype=np.float64)
+        map_position /= POSITION_SEARCH_SCALE
+        map_position -= POSITION_FEATURE_PAD
+    else:
+        map_position = np.array(position, dtype=np.float64)
+        # 添加特征填充偏移
+        map_position += POSITION_FEATURE_PAD
+        # 应用搜索比例缩放
+        map_position *= POSITION_SEARCH_SCALE
+        if need_int:
+            map_position = np.round(map_position).astype(int)
+    return map_position
 def draw_circle(image, circle, points):
     """
     在图像上添加一个圆。

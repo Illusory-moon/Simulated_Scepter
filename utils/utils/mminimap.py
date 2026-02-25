@@ -1,10 +1,15 @@
 import cv2
 import numpy as np
 from scipy import signal
+
+from utils.log import CUS_LOGGER
+from utils.utils.image_tool import find_image_in_folder
 from utils.utils.minimap_util import MINIMAP_RADIUS, get_minimap, rgb2yuv, RotationRemapData, peak_confidence, convolve, \
     DIRECTION_RADIUS, DIRECTION_ARROW_COLOR, area_pad, color_similarity_2d, get_bbox, area_limit, image_size, \
     DIRECTION_ROTATION_SCALE, crop, DIRECTION_SEARCH_SCALE, subtract_blur, POSITION_SEARCH_SCALE, cubic_find_maximum, \
-    ArrowRotateMap, ArrowRotateMapAll, ImageNotSupported
+    ArrowRotateMap, ArrowRotateMapAll, ImageNotSupported, get_circle_mask, map_image_preprocess, POSITION_RADIUS, \
+    POSITION_FEATURE_PAD, POSITION_MOVE_PATCH, area_offset, POSITION_SEARCH_RADIUS, image_center_crop, \
+    PositionPredictState, deal_minimap, re_get_position
 
 
 def update_rotation(or_image=None, minimap=None):
@@ -100,7 +105,7 @@ def update_direction(or_image=None, minimap=None):
     degree = int((loca[0] + loca[1] * 8) * 5)
 
     def to_map(x):
-        return int((x * DIRECTION_RADIUS * 2 + DIRECTION_RADIUS) * POSITION_SEARCH_SCALE)
+        return int((x * DIRECTION_RADIUS * 2 + DIRECTION_RADIUS) * 0.5)
 
     row = int(degree // 8) + 45
     row = (row - 2, row + 3)
@@ -114,7 +119,7 @@ def update_direction(or_image=None, minimap=None):
 
 
     def to_map(x):
-        return int((x * DIRECTION_RADIUS * 2) * POSITION_SEARCH_SCALE)
+        return int((x * DIRECTION_RADIUS * 2) * 0.5)
 
     def get_precise_sim(d):
         y, x = divmod(d, 8)
@@ -146,25 +151,254 @@ def show_minimap(image, rotation, direction=0):
     image = cv2.line(image, position, vector(rotation), color=(255, 0, 0), thickness=1)  # 蓝线
     cv2.imshow('MinimapTracking', image)
     cv2.waitKey(0)
+def _predict_precise_position(state):
+    """
+    Args:
+        result (PositionPredictState): 结果状态
 
+    Returns:
+        PositionPredictState
+    """
+    size = state.size
+    scale = state.scale
+    search_area = state.search_area
+    result = state.result
+    loca = state.loca
+    local_loca = state.local_loca
 
-def update_minimap_data(image=None,rotation=None,direction=None, rotation_minimap=None, direction_minimap=None):
-    if rotation_minimap is None:
-        rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS)
-    if direction_minimap is None:
-        direction_minimap = get_minimap(image, radius=DIRECTION_RADIUS)
-    try:
-        direction = update_direction(minimap=direction_minimap)
-    except ImageNotSupported:
-        return rotation, direction
-    rotation = update_rotation(minimap=rotation_minimap)
+    precise = crop(result, area=area_offset((-4, -4, 4, 4), offset=loca), copy=False)
+    precise_sim, precise_loca = cubic_find_maximum(precise, precision=0.05)
+    precise_loca -= 5
 
-    return rotation, direction
+    state.precise_sim = precise_sim
+    state.precise_loca = precise_loca
+
+    # 在search_image上的位置
+    lookup_loca = precise_loca + local_loca + size * scale / 2
+    # 在GIMAP上的位置
+    global_loca = (lookup_loca + search_area[:2]) / POSITION_SEARCH_SCALE
+    # 不知道为什么，但result_of_0.5_lookup_scale + 0.5 ~= result_of_1.0_lookup_scale
+    global_loca += POSITION_MOVE_PATCH
+    # 移动到地图的原点
+    global_loca -= POSITION_FEATURE_PAD
+
+    state.global_loca = global_loca
+
+    return state
+
+class PositionPredict:
+    def __init__(self, position: tuple[float, float]= (0, 0)):
+        self.position = position
+        self.set_now_map(1)
+        self.rotation=None
+        self.direction=None
+    def _predict_position(self,image, scale=1.0):
+        """
+        Args:
+            image: 图像
+            scale: 缩放比例
+
+        Returns:
+            PositionPredictState:
+        """
+        scale *= POSITION_SEARCH_SCALE
+        local = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        size = np.array(image_size(image))
+        if sum(self.position) > 0:
+            search_position = np.array(self.position, dtype=np.int64)
+            search_position += POSITION_FEATURE_PAD
+            search_size = np.array(image_size(local)) * POSITION_SEARCH_RADIUS
+            search_half = (search_size // 2).astype(np.int64)
+            search_area = area_offset((0, 0, *(search_half * 2)), offset=-search_half)
+            search_area = area_offset(search_area, offset=np.multiply(search_position, POSITION_SEARCH_SCALE))
+            search_area = np.array(search_area).astype(np.int64)
+            search_image = crop(self.assets_floor_feat, search_area, copy=False)
+            result_mask = crop(self.assets_floor_outside_mask, search_area, copy=False)
+        else:
+            search_area = (0, 0, *image_size(local))
+            search_image = self.assets_floor_feat
+            result_mask = self.assets_floor_outside_mask
+
+        result = cv2.matchTemplate(search_image, local, cv2.TM_CCOEFF_NORMED)
+
+        result_mask = ~image_center_crop(result_mask, size=image_size(result)).astype(bool)
+        result[result_mask] = 0
+        _, sim, _, loca = cv2.minMaxLoc(result)
+
+        # 高斯滤波获取局部最大值
+        local_maximum = subtract_blur(result, radius=5)
+        # 相乘以去除次级峰值
+        cv2.multiply(local_maximum, result, dst=local_maximum)
+        cv2.multiply(local_maximum, 10, dst=local_maximum)
+        _, local_sim, _, local_loca = cv2.minMaxLoc(local_maximum)
+        precise_loca = np.array((0, 0))
+        precise_sim = result[local_loca[1], local_loca[0]]
+        state = PositionPredictState(
+            size=size, scale=scale,
+            search_area=search_area, search_image=search_image, result_mask=result_mask, result=result,
+            sim=sim, loca=loca, local_sim=local_sim, local_loca=local_loca,
+            precise_sim=precise_sim, precise_loca=precise_loca,
+        )
+
+        # 在search_image上的位置
+        lookup_loca = precise_loca + local_loca + size * scale / 2
+        # 在GIMAP上的位置
+        global_loca = (lookup_loca + search_area[:2]) / POSITION_SEARCH_SCALE
+        # 不知道为什么，但result_of_0.5_lookup_scale + 0.5 ~= result_of_1.0_lookup_scale
+        global_loca += POSITION_MOVE_PATCH
+        # 移动到地图的原点
+        global_loca -= POSITION_FEATURE_PAD
+
+        state.global_loca = global_loca
+
+        return state
+    def update_position(self,image,scale_list=[1.00, 1.05, 1.10, 1.15, 1.20, 1.25],update=True):
+        """
+        获取GIMAP上的位置，耗时约6.57ms。
+
+        将设置以下属性：
+        - position_similarity
+        - position
+        - position_scene
+        """
+        image = deal_minimap(image)
+        best_sim = -1.0
+        best_scale = 1.0
+        best_state = None
+        # 步行时缩放为1.20
+        # 跑步时缩放为1.25
+        for scale in scale_list:
+            state = self._predict_position(image, scale)
+            # print([np.round(i, 3) for i in [scale, state.sim, state.local_sim, state.global_loca]])
+            if state.sim > best_sim:
+                best_sim = state.sim
+                best_scale = scale
+                best_state = state
+
+        best_state = _predict_precise_position(best_state)
+
+        position_similarity = round(best_state.precise_sim, 3)
+        position_similarity_local = round(best_state.local_sim, 3)
+        if update:
+            self.position = tuple(np.round(best_state.global_loca, 1))
+            position=self.position
+            CUS_LOGGER.debug(f"更新位置: {position}")
+        else:
+            position = tuple(np.round(best_state.global_loca, 1))
+        position_scale = round(best_scale, 3)
+        print(position_scale)
+        return position, position_similarity
+
+    def draw_position_on_map(self, raidus=90.0,show=True):
+        """
+        在assets_floor_feat上绘制当前位置对应的点和小地图范围
+
+        Args:
+            radius (int): 小地图半径范围
+
+        Returns:
+            None
+        """
+        # 创建assets_floor_feat的副本用于绘制
+        print(f"绘制位置: {self.position}")
+        map_with_position = self.assets_floor_feat.copy()
+
+        # 将全局坐标转换为地图坐标反向执行坐标变换
+        map_position=re_get_position(self.position)
+
+        # 将灰度图转换为BGR彩色图以便使用红色
+        map_color = cv2.cvtColor(map_with_position, cv2.COLOR_GRAY2BGR)
+
+        # 绘制红色小圆点标记位置中心
+        cv2.circle(map_color,
+                   tuple(map_position),
+                   radius=3,  # 更小的圆点半径
+                   color=(0, 0, 255),  # 红色 (BGR格式)
+                   thickness=-1)  # 填充圆点
+
+        # 绘制红色圆形标记小地图范围
+        cv2.circle(map_color,
+                   tuple(map_position),
+                   radius=int(raidus * POSITION_SEARCH_SCALE),  # 根据实际小地图半径绘制
+                   color=(0, 0, 255),  # 红色
+                   thickness=2)  # 圆形边框
+
+        # 显示结果
+        if show:
+            cv2.imshow("Position on Map", map_color)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+        return map_color
+    def set_now_map(self,map_num):
+        CUS_LOGGER.debug(f"设置当前地图为{map_num}")
+        self.map_num=map_num
+        feat_name = f'map_{map_num}f.png'
+        mask_img_name = f'map_{map_num}a.png'
+        self.assets_floor_feat = find_image_in_folder('gray_image/', feat_name, search_subfolders=True)
+        self.assets_floor_outside_mask = find_image_in_folder('gray_image/', mask_img_name, search_subfolders=True)
+    def match_multiple_maps(self,image,show_result= False):
+        """
+        在多个地图中匹配最佳位置
+        使用image_tool的缓存机制加载图像
+
+        Args:
+            image: 输入图像
+
+        Returns:
+            dict: 包含最佳匹配信息的字典
+        """
+
+        CUS_LOGGER.debug(f"开始多地图匹配...")
+        best_match = {
+            'similarity': 0.0,
+            'position': None,
+            'map_name': None
+        }
+        for i in range(1, 42):
+            CUS_LOGGER.debug(f"  正在匹配地图{i}")
+            self.set_now_map(i)
+            pos, sim = self.update_position(image.copy(),[1.00],update=False)
+            CUS_LOGGER.debug(f"地图{i}的相似度: {sim:.3f}")
+            if sim > best_match['similarity']:
+                best_match.update({
+                    'similarity': sim,
+                    'position': pos,
+                    'map_name': i
+                })
+                CUS_LOGGER.debug(f"更新最佳匹配: {sim:.3f}")
+
+        if best_match['similarity'] > 0:
+            CUS_LOGGER.debug(f"最佳匹配地图: {best_match['map_name']} ,相似度: {best_match['similarity']:.3f} ,位置坐标: {best_match['position']}")
+            self.set_now_map(best_match['map_name'])
+            self.position = best_match['position']
+            if show_result:
+                self.draw_position_on_map()
+        else:
+            CUS_LOGGER.warning("未找到匹配的地图")
+
+        return best_match
+    def update_minimap_data(self,image=None,rotation_minimap=None, direction_minimap=None):
+        if rotation_minimap is None:
+            rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS)
+        if direction_minimap is None:
+            direction_minimap = get_minimap(image, radius=DIRECTION_RADIUS)
+        try:
+            self.direction = update_direction(minimap=direction_minimap)
+        except Exception as e:
+            CUS_LOGGER.error(f"更新方向失败: {e}")
+            self.direction = None
+            return self.rotation, self.direction
+        if self.direction is None:
+            return self.rotation, self.direction
+        self.rotation = update_rotation(minimap=rotation_minimap)
+
+        return self.rotation, self.direction
 
 
 if __name__ == "__main__":
-    pth = "../temp/20251019_154916.png"
-    image = cv2.imread(pth)
-    rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS)
-    rotation, direct = update_minimap_data(image)
-    show_minimap(rotation_minimap, rotation, direct)
+    pass
+    # pth = "../temp/20251019_154916.png"
+    # image = cv2.imread(pth)
+    # rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS)
+    # rotation, direct = update_minimap_data(image)
+    # show_minimap(rotation_minimap, rotation, direct)

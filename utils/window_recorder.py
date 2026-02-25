@@ -242,7 +242,7 @@ class WindowRecorder:
                                 
                                 if map_img_cv is not None:
                                     # 进一步缩小地图图像尺寸
-                                    map_scale = 0.1  # 缩放到原图的10%，更小一些
+                                    map_scale = 0.3  # 缩放到原图的10%，更小一些
                                     map_resized_width = int(img_cv.shape[1] * map_scale)  # 基于主窗口宽度计算
                                     map_resized_height = int(map_resized_width * (map_img_cv.shape[0] / map_img_cv.shape[1]))  # 保持比例
                                     map_img_resized = cv2.resize(map_img_cv, (map_resized_width, map_resized_height))

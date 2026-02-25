@@ -5,16 +5,13 @@ import pyuac
 
 from config.GLOBAL import key_mouse_manager
 from utils.log import CUS_LOGGER
-from utils.utils.mminimap import update_minimap_data
 
 
 def get_angle(su):
     key_mouse_manager.press("w")
     time.sleep(0.5)
     su.get_screen()
-    # shape = (int(su.scx * 190), int(su.scx * 190))
-    # local_screen = su.get_local(0.9333, 0.8657, shape)  # 裁剪后得到的小地图
-    r, d = update_minimap_data(su.screen)
+    r, d = su.pos_predictor.update_minimap_data(su.screen)
     return r
 
 
@@ -22,7 +19,7 @@ def get_angle(su):
 
 # 不同电脑鼠标移动速度、放缩比、分辨率等不同，因此需要校准
 # 基本逻辑：每次转60度，然后计算实际转了几度，计算出误差比
-def main(safe=0, ang=[1,1,3], su=None):
+def main(ang=[1,1,3], su=None):
     key_mouse_manager.start()
     if su is None:
         from utils.simul.utils import UniverseUtils

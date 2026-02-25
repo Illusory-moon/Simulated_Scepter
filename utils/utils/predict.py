@@ -169,6 +169,7 @@ def show_aim(draw_enemy,draw_item):
     cv2.imshow('AimDetector', image)
     cv2.waitKey(0)
 def get_text_position(image):
+    CUS_LOGGER.debug('查找一次视觉文本')
     scr = image[:497]
     mask = np.zeros((497, scr.shape[1]), dtype=np.uint8)
     mask_zero = np.zeros((497, scr.shape[1]), dtype=np.uint8)

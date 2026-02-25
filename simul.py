@@ -1,4 +1,5 @@
 import json
+
 import pyautogui
 import cv2 as cv
 import numpy as np
@@ -13,13 +14,13 @@ from config import EXTRA
 from diver import load_actions, merge_text
 from utils.log import CUS_LOGGER, set_debug
 from utils.simul.update_map import update_map
-from utils.simul.utils import UniverseUtils, set_forground, sprint, get_dis, extract_features
+from utils.simul.utils import UniverseUtils, set_forground, sprint, get_dis
 import os
 from utils.simul.config import config
 from utils.thread import ThreadWithException
 from utils.utils.Error import NormalEndError
 from utils.utils.image_tool import find_image_by_name
-from utils.utils.mminimap import update_minimap_data
+from utils.utils.minimap_util import deal_minimap, get_minimap, MINIMAP_RADIUS, re_get_position
 from utils.utils.tool import get_hwnd_and_text, find_latest_modified_file, get_center
 from utils.window_recorder import WindowRecorder
 from route import PATHS
@@ -55,8 +56,7 @@ class SimulatedUniverse(UniverseUtils):
         key_mouse_manager.set_config(config)
         # 设置屏幕参数以支持坐标转换
         key_mouse_manager.set_screen_params(self.x1, self.y1, self.xx, self.yy, self.full)
-        #目标坐标
-        self.target_loc = [0, 0]
+
         #停止运行标志
         self._stop = True
         #是否为寻路模式
@@ -98,6 +98,10 @@ class SimulatedUniverse(UniverseUtils):
         self.map_thread = None
         #当前运行状态
         self.state=None
+        #首次保存地图
+        self.first_save_map = True
+        #目标小地图左上角偏移
+        self.upx, self.upy=0,0
         #事件与行为存储路径
         self.default_json_path = "actions/universe.json"
         self.default_json = load_actions(self.default_json_path)
@@ -111,15 +115,16 @@ class SimulatedUniverse(UniverseUtils):
         # set_debug(debug > 0)
         if update and find:
             update_map()
-        self.lst_changed = time.time()
+        self.last_interact_time = time.time()
         CUS_LOGGER.info("加载地图")
-        for file in os.listdir("resource/imgs/maps"):
-            pth = "resource/imgs/maps/" + file + "/init.jpg"
+        for file in os.listdir(PATHS["image"]+"/nmaps"):
+            pth = PATHS["image"]+"/nmaps/" + file + "/init.jpg"
             if os.path.exists(pth):
-                image = cv.imread(pth)
-                self.img_set.append((file, extract_features(image)))
+                image = deal_minimap(cv.imread(pth),is_minimap=True)
+                image=cv.resize(image, None, fx=0.5, fy=0.5, interpolation=cv.INTER_CUBIC)
                 self.img_map[file]= image
-        CUS_LOGGER.info("加载地图完成，共 %d 张" % len(self.img_set))
+
+        CUS_LOGGER.info("加载地图完成，共 %d 张" % len(self.img_map))
         # 从settings.json获取录制状态
         with EXTRA.FILE_LOCK:
             with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
@@ -140,7 +145,7 @@ class SimulatedUniverse(UniverseUtils):
             warn_game = False
             cnt = 0
             while Text != "崩坏：星穹铁道" and Text != "云·星穹铁道" and not self._stop:
-                self.lst_changed = time.time()
+                self.last_interact_time = time.time()
                 if self._stop:
                     raise NormalEndError
                 if not warn_game:
@@ -203,6 +208,7 @@ class SimulatedUniverse(UniverseUtils):
     def map_data_load(self):
         self.big_map_init = True
         # 寻路模式，匹配最接近的地图
+        need_write=True
         if self.find:
             # 只有第一，第六层才寻找匹配的地图
             if self.click_text(text="战斗", click=False, box=[55, 164, 12, 40], ocr_line=False):
@@ -210,48 +216,49 @@ class SimulatedUniverse(UniverseUtils):
                     self.get_level()
                 CUS_LOGGER.debug(f"检查当前层数：{self.floor}")
                 if self.floor in [1, 6] and self.floor_change:
-                    self.mini_state = 0
                     self.stop_move = 0
                     no_find = False
-                    now_time = time.time()
-                    self.now_map_sim = -1
-                    self.now_map = -1
-                    while True:
-                        self.exist_minimap()
-                        now_map, now_map_sim = self.match_scr(self.loc_scr)
-                        if self.now_map_sim < now_map_sim:
-                            self.now_map, self.now_map_sim = now_map, now_map_sim
-                        # 地图匹配超时或找到相似匹配
-                        if ((self.now_map_sim > 0.85 or time.time() - now_time > 2.5)
-                                and self.now_map_sim != -1) or self._stop:
-                            break
+                    self.now_map, self.now_map_sim = self.match_scr(get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True))
+                    # 地图匹配超时或找到相似匹配
                     CUS_LOGGER.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
-                    self.find = True
-                    if self.now_map_sim < 0.35:
+                    if (self.debug and self.now_map_sim < 0.8) or self.now_map_sim < 0.35:
                         CUS_LOGGER.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor},匹配地图{self.now_map}")
                         self.find = False
-                        self.init_map()
+                        self.map_file =PATHS["image"]+ "/nmaps/my_" + str(random.randint(0, 99999)) + "/"
+                        if self.find == 0 and not os.path.exists(self.map_file):
+                            os.mkdir(self.map_file)
                         no_find = True
-                    if "m" in self.now_map:
+                    elif self.now_map !=-1 and "m" in str(self.now_map):
                         CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
+                        self.map_file = PATHS["image"] + "/nmaps/" + self.now_map + "/"
+                        need_write = False
                         self.find = False
                     if not no_find:
-                        self.now_pth = "resource/imgs/maps/" + self.now_map + "/"
-                        files = find_latest_modified_file(self.now_pth)
+                        self.now_pth = PATHS["image"]+"/nmaps/" + self.now_map + "/"
+                        files,x,y,map_num,self.upx,self.upy,target_path = find_latest_modified_file(self.now_pth)
                         self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
-                        self.debug_map = deepcopy(self.big_map)
-                        # 从文件名获取初始坐标
-                        xy = files.split("/")[-1].split("_")[1:3]
-                        self.now_loc = (4096 - int(xy[0]), 4096 - int(xy[1]))
+                        self.debug_map =None
+                        self.now_loc = (x, y)
+                        self.start_pos =(x, y)
+                        self.pos_predictor.position=self.now_loc
+                        self.pos_predictor.set_now_map(map_num)
+                        self.mini_state = 0
                         # 获取目标路径
-                        self.target = self.get_target(self.now_pth + "target.jpg")
-                        self.get_screen()
-                        self.rotation, d = update_minimap_data(self.screen, rotation=0, direction=0)
+                        if target_path is not None:
+                            self.target = self.get_target(target_path,self.upx,self.upy)
+                            self.pos_map=cv.imread(target_path)
+                            CUS_LOGGER.info("已从地图获取目标路径点%s" % self.target)
+                        self.rotation, d = self.pos_predictor.update_minimap_data(self.screen)
                         self.init_ang = 270 + d
-                        CUS_LOGGER.info("已从地图获取目标路径点%s" % self.target)
                 elif self.floor not in [1,6]:
+                    self.upx=0
+                    self.upy=0
+                    self.mini_state = 1
                     self.update_debug_map()
             else:
+                self.upx = 0
+                self.upy = 0
+                self.mini_state = 1
                 self.update_debug_map()
             if self._stop:
                 return 1
@@ -259,15 +266,24 @@ class SimulatedUniverse(UniverseUtils):
                 self.use_consumable(1, 1)
             key_mouse_manager.press("1")
         # 录制模式，保存初始小地图
-        else:
+        if (not self.find) and self.first_save_map and self.floor in [1, 6]:
+            self.first_save_map=False
             CUS_LOGGER.warning("未找到匹配地图")
             self.mini_state = 0
-            self.exist_minimap()
-            cv.imwrite(self.map_file + "init.jpg", self.loc_scr)
+            if need_write:
+                cv.imwrite(self.map_file + "init.jpg", get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True))
+                self.best_match=self.pos_predictor.match_multiple_maps(self.screen,0)
+                self.start_pos=self.best_match['position']
+            key_mouse_manager.press("s")
+            key_mouse_manager.wait()
+            key_mouse_manager.keyDown("w")
+        elif (not self.find) and self.floor not in [1, 6]:
+            CUS_LOGGER.warning("非常规地图，将进行无地图寻路")
+            # self.mini_state = 0
     def normal(self):
-        # self.lst_changed：最后一次交互时间，长时间无交互则暂离
-        bk_lst_changed = self.lst_changed
-        self.lst_changed = time.time()
+        # self.last_interact_time：最后一次交互时间，长时间无交互则暂离
+        bk_lst_changed = self.last_interact_time
+        self.last_interact_time = time.time()
         self.ts.forward(self.get_screen())
         res,state = self.run_static()
         if self.state=="run":
@@ -283,7 +299,7 @@ class SimulatedUniverse(UniverseUtils):
                 self.get_level()
                 return True
             #上次交互时间
-            self.lst_changed = bk_lst_changed
+            self.last_interact_time = bk_lst_changed
             # 刚进图，初始化一些数据
             if self.big_map_init == 0:
                 key_mouse_manager.clean()
@@ -292,9 +308,8 @@ class SimulatedUniverse(UniverseUtils):
                 if self._stop:
                     return 1
                 self.map_data_load()
-            self.lst_tm = time.time()
             # 长时间未交互/战斗，暂离或重开
-            if ((time.time() - self.lst_changed >= 37 - 2 * self.debug + 8 * self.slow) and self.find == 1)or (self.floor == 13 and self.mini_state > 4):
+            if ((time.time() - self.last_interact_time >= 37 - 2 * self.debug + 8 * self.slow) and self.find == 1)or (self.floor == 13 and self.mini_state > 4):
                 key_mouse_manager.clean()
                 key_mouse_manager.wait()
                 key_mouse_manager.keyUp("w")
@@ -302,7 +317,7 @@ class SimulatedUniverse(UniverseUtils):
                 self.update_state("ui")
                 self.init_map()
                 self.floor_init = 0
-                if self.floor == 13 :
+                if self.floor == 13:
                     self.end_of_university()
                     # key_mouse_manager.click(0.2708, 0.1324)
                     CUS_LOGGER.info(f"通关！当前层数:{self.floor}")
@@ -327,15 +342,16 @@ class SimulatedUniverse(UniverseUtils):
                         )
                         key_mouse_manager.click(0.2708, 0.2324)
                         self.re_enter()
-                self.lst_changed = time.time()
+                self.last_interact_time = time.time()
                 return 1
             # 寻路
             CUS_LOGGER.info("开始寻路")
             if self._stop:
                 return 1
-            key_mouse_manager.clean()
-            key_mouse_manager.keyUp("w")
-            key_mouse_manager.wait()
+            if self.find:
+                key_mouse_manager.clean()
+                key_mouse_manager.keyUp("w")
+                key_mouse_manager.wait()
             if self.mini_state:
                 #无先验寻路
                 self.get_direc_only_minimap()
@@ -552,7 +568,6 @@ class SimulatedUniverse(UniverseUtils):
                 if not self.click_text(text="事件",box=[6, 196, 0, 102],click=False,ocr_line=False,warning=False):
                     break
                 time.sleep(0.1)
-            self.lst_changed = time.time()
         else:
             key_mouse_manager.click(0.9479, 0.9565)
     # 选取奇物
@@ -608,7 +623,6 @@ class SimulatedUniverse(UniverseUtils):
                 time.sleep(0.3)
         key_mouse_manager.press("esc")
         self.confirm_time = time.time()
-        self.lst_changed = time.time()
         if self.floor >= 13:
             self.update_floor(12)
     def confirm_yes(self):
@@ -683,7 +697,7 @@ class SimulatedUniverse(UniverseUtils):
         for dx, dy in [(0, -1), (0, 1), (1, 0), (-1, 0)]:
             self.del_pt(img, (A[0] + dx, A[1] + dy), S, f)
 
-    def get_target(self, pth):
+    def get_target(self, pth,x,y):
         """
         根据地图获取目标路径点位及类型
         """
@@ -692,7 +706,7 @@ class SimulatedUniverse(UniverseUtils):
         f_set = [
             lambda p: p[2] < 85 and p[1] < 85 and p[0] > 180,  # 路径点 蓝
             lambda p: p[2] > 180 and p[1] < 70 and p[0] < 70,  # 怪 红
-            lambda p: p[2] < 90 and p[1] > 150 and p[0] < 90,  # 交互点 绿
+            lambda p: p[2] < 90 and p[1] > 220 and p[0] < 90,  # 交互点 绿
             lambda p: p[2] > 180 and p[1] > 180 and p[0] < 70,  # 终点 黄
         ]
         for i in range(img.shape[0]):
@@ -701,13 +715,49 @@ class SimulatedUniverse(UniverseUtils):
                     if f_set[k](img[i, j]):
                         p = get_center(img, i, j)
                         #记录坐标，类型，坐标取整
-                        res.add((p, k))
+                        # CUS_LOGGER.debug(f"原始位置{(i,j)}，加权位置{p},类型{k}")
+                        nep=tuple(re_get_position((p[1]+x,p[0]+y),re=True))
+                        # CUS_LOGGER.debug(f"映射坐标{nep}")
+                        res.add((nep, k))
                         p = (int(p[0]), int(p[1]))
                         #引用传递，会影响img源图像
                         self.del_pt(img, p, p, f_set[k])
                         if k == 3:
                             #记录终点
                             self.last = p
+                
+        # 聚类合并相近点
+        if len(res) > 1:
+            # 按类型分组
+            groups = {}
+            for p in res:
+                groups.setdefault(p[1], []).append(p)
+            
+            # 对每组进行距离聚类
+            merged = []
+            for pts in groups.values():
+                if len(pts) <= 1:
+                    merged.extend(pts)
+                    continue
+                
+                # 聚类逻辑
+                used, clusters = set(), []
+                for i, p1 in enumerate(pts):
+                    if i in used: continue
+                    cluster = [p1]
+                    used.add(i)
+                    for j, p2 in enumerate(pts[i+1:], i+1):
+                        if j not in used and get_dis(p1[0], p2[0]) < 5:
+                            cluster.append(p2)
+                            used.add(j)
+                    clusters.append(cluster)
+                
+                # 选择代表点
+                for c in clusters:
+                    rep = min(c, key=lambda x: get_dis(x[0], self.last)) if hasattr(self, 'last') else c[0]
+                    merged.append(rep)
+            CUS_LOGGER.debug(f"聚类合并: {len(res)}-> {len(merged)}")
+            res = set(merged)
         if self.speed:
             dis = 1000000
             pt = None
@@ -750,7 +800,6 @@ class SimulatedUniverse(UniverseUtils):
                     backup_data = json.load(f)
                     
                 self.big_map_init = backup_data.get('big_map_init', self.big_map_init)
-                self.lst_tm = backup_data.get('lst_tm', self.lst_tm)
                 self.now_loc = tuple(backup_data.get('now_loc', self.now_loc))
                 self.mini_state = backup_data.get('mini_state', self.mini_state)
                 self.first_mini = backup_data.get('first_mini', self.first_mini)
@@ -959,11 +1008,10 @@ class SimulatedUniverse(UniverseUtils):
             # 创建窗口时使用 WINDOW_FREERATIO 标志以避免自动获取焦点
             cv.namedWindow("Map", cv.WINDOW_FREERATIO | cv.WINDOW_NORMAL)
             # 设置窗口初始大小
-            cv.resizeWindow("Map", 200, 600)
+            win_width, win_height = 600, 600
+            cv.resizeWindow("Map", win_width, win_height)
             cv.startWindowThread()
-            angle_history = []
-            last_angle_change_time = 0
-        
+            set_forground()
             # 缓存上一次的状态，避免不必要的重绘
             last_real_loc = None
             last_target_loc = None
@@ -971,7 +1019,9 @@ class SimulatedUniverse(UniverseUtils):
             last_ang = None
 
             while not self._stop:
-                if self.debug_map.shape[0] == 8192:
+                if self.debug_map is not None:
+                    pass
+                elif self.big_map is None or self.now_loc is None or self.target_loc is None :
                     # 使用cv.pollKey()替代cv.waitKey()以避免阻塞
                     key = cv.pollKey()
                     if key == ord('q'):
@@ -980,13 +1030,13 @@ class SimulatedUniverse(UniverseUtils):
                     continue
 
                 # 检查是否有变化，如果没有变化则跳过更新
-                current_real_loc = (int(self.real_loc[0]), int(self.real_loc[1]))
-                current_target_loc = (int(self.target_loc[0]), int(self.target_loc[1]))
-                current_target_type = getattr(self, 'target_type', None)
-                current_ang = getattr(self, 'ang', None)
+                current_now_loc = self.now_loc
+                current_target_loc = self.target_loc
+                current_target_type = self.target_type
+                current_ang = self.ang
 
                 # 如果没有重要变化，则短暂等待后继续
-                if (last_real_loc == current_real_loc and
+                if (last_real_loc == current_now_loc and
                     last_target_loc == current_target_loc and
                     last_target_type == current_target_type and
                     last_ang == current_ang):
@@ -998,109 +1048,89 @@ class SimulatedUniverse(UniverseUtils):
                     continue
 
                 # 更新缓存值
-                last_real_loc = current_real_loc
+                last_real_loc = current_now_loc
                 last_target_loc = current_target_loc
                 last_target_type = current_target_type
                 last_ang = current_ang
-
                 # 只在需要时才拷贝图像
-                updated_image = self.debug_map.copy()
+                if self.debug_map is not None:
+                    updated_image = self.debug_map
+                else:
+                    updated_image = self.pos_predictor.draw_position_on_map(show=False)
+                    current_target_loc = re_get_position(current_target_loc)
+                    current_now_loc = re_get_position(current_now_loc)
                 # 初始化坐标偏移量
                 x_offset = 0
                 y_offset = 0
                 # 检查是否存在tmp地图，如果有则与原始地图拼接
-                if hasattr(self, 'tmp_map') and self.tmp_map is not None:
-                    try:
-                        # 确保tmp_map和debug_map都是彩色图像以进行拼接
-                        if len(updated_image.shape) == 2:
-                            updated_image = cv.cvtColor(updated_image, cv.COLOR_GRAY2RGB)
-                        
-                        tmp_map_to_use = self.tmp_map
-                        # 确保tmp_map也是彩色图像
-                        if len(tmp_map_to_use.shape) == 2:
-                            tmp_colored = cv.cvtColor(tmp_map_to_use, cv.COLOR_GRAY2RGB)
-                        else:
-                            tmp_colored = tmp_map_to_use
-                        
-                        # 调整图像尺寸以匹配垂直拼接的宽度
-                        max_width = max(updated_image.shape[1], tmp_colored.shape[1])
+                if self.pos_map is not None:
+                    tmp_colored = self.pos_map.copy()
+                    # 调整图像尺寸以匹配垂直拼接的宽度
+                    max_width = max(updated_image.shape[1], tmp_colored.shape[1])
+                    # 调整两个图像的宽度以匹配最大宽度
+                    if updated_image.shape[1] < max_width:
+                        # 为updated_image添加右侧填充
+                        width_diff = max_width - updated_image.shape[1]
+                        left_pad = width_diff // 2
+                        right_pad = width_diff - left_pad
+                        updated_image = np.pad(updated_image, ((0, 0), (left_pad, right_pad), (0, 0)), mode='constant', constant_values=0)
+                        x_offset = left_pad  # 更新x方向偏移量
 
-                        # 调整两个图像的宽度以匹配最大宽度
-                        if updated_image.shape[1] < max_width:
-                            # 为updated_image添加右侧填充
-                            width_diff = max_width - updated_image.shape[1]
-                            left_pad = width_diff // 2
-                            right_pad = width_diff - left_pad
-                            updated_image = np.pad(updated_image, ((0, 0), (left_pad, right_pad), (0, 0)), mode='constant', constant_values=0)
-                            x_offset = left_pad  # 更新x方向偏移量
-                        
-                        if tmp_colored.shape[1] < max_width:
-                            # 为tmp_colored添加右侧填充
-                            width_diff = max_width - tmp_colored.shape[1]
-                            left_pad = width_diff // 2
-                            right_pad = width_diff - left_pad
-                            tmp_colored = np.pad(tmp_colored, ((0, 0), (left_pad, right_pad), (0, 0)), mode='constant', constant_values=0)
-                            if x_offset == 0:  # 如果updated_image没有偏移，则使用tmp_colored的偏移
-                                x_offset = left_pad
-                        
-                        # 在正常地图上方添加间距
-                        top_spacing = 10  # 上方间距像素
-                        top_spacing_img = np.zeros((top_spacing, max_width, 3), dtype=np.uint8)
-                        y_offset = top_spacing  # 上方间距
-                        # 在两个图像之间添加一些间距
-                        middle_spacing = 10  # 间距像素
-                        middle_spacing_img = np.zeros((middle_spacing, max_width, 3), dtype=np.uint8)
-                        
-                        # 垂直拼接：上方间距 + 正常地图 + 中间间距 + tmp地图
-                        updated_image = np.vstack((top_spacing_img, updated_image, middle_spacing_img, tmp_colored))
-                    except Exception as e:
-                        # 如果拼接失败，使用原逻辑
-                        try:
-                            updated_image = cv.cvtColor(updated_image, cv.COLOR_GRAY2RGB)
-                        except:
-                            pass  # 如果转换失败，保持原图
+                    elif tmp_colored.shape[1] < max_width:
+                        # 对updated_image进行resize以匹配tmp_colored的宽度
+                        scale_factor = tmp_colored.shape[1] / updated_image.shape[1]
+                        new_height = int(updated_image.shape[0] * scale_factor)
+                        updated_image = cv.resize(updated_image, (tmp_colored.shape[1], new_height), interpolation=cv.INTER_AREA)
+                        max_width = tmp_colored.shape[1]  # 更新max_width为tmp_colored的宽度
+                    top_spacing = 10
+                    top_spacing_img = np.zeros((top_spacing, max_width, 3), dtype=np.uint8)
+                    y_offset = top_spacing
+                    middle_spacing = 10
+                    middle_spacing_img = np.zeros((middle_spacing, max_width, 3), dtype=np.uint8)
+                    # 垂直拼接：上方间距 + 小地图 + 中间间距 + 大地图
+                    updated_image = np.vstack((top_spacing_img, tmp_colored, middle_spacing_img,updated_image ))
                 else:
-                    # 如果没有tmp地图，使用原逻辑
-                    try:
-                        updated_image = cv.cvtColor(updated_image, cv.COLOR_GRAY2RGB)
-                    except:
-                        pass  # 如果转换失败，保持原图
+                    top_spacing = 10
+                    top_spacing_img = np.zeros((top_spacing, updated_image.shape[1], 3), dtype=np.uint8)
+                    down_spacing = max(0,3*updated_image.shape[1]-updated_image.shape[0])
+                    if self.debug_map is None:
+                        down_spacing_img = np.zeros((down_spacing, updated_image.shape[1], 3), dtype=np.uint8)
+                        updated_image = np.vstack((top_spacing_img,updated_image,down_spacing_img))
 
                 # 确保坐标值为整数类型，避免切片索引错误
-                real_x, real_y = current_real_loc
-                target_x, target_y = current_target_loc
-
-
-                # 调整坐标以适应图像拼接后的偏移
-                adjusted_real_x = real_x + y_offset
-                adjusted_real_y = real_y + x_offset
-                adjusted_target_x = target_x + y_offset
-                adjusted_target_y = target_y + x_offset
-
+                real_x, real_y = current_now_loc
+                real_x = int(real_x + x_offset -self.upx)
+                real_y = int(real_y + y_offset-self.upy)
                 # 绘制当前位置（绿色）
                 for dx in range(-2, 3):
                     for dy in range(-2, 3):
-                        if (0 <= adjusted_real_x + dx < updated_image.shape[0] and
-                            0 <= adjusted_real_y + dy < updated_image.shape[1]):
-                            updated_image[adjusted_real_x + dx, adjusted_real_y + dy] = [49, 140, 49]
-
-                # 绘制目标位置
-                if current_target_type is not None:
+                        if (0 <= real_y + dy < updated_image.shape[0] and
+                            0 <= real_x + dx < updated_image.shape[1]):
+                            updated_image[real_y + dy, real_x + dx] = [49, 140, 49]
+                if current_target_loc is not None:
+                    target_x, target_y = current_target_loc
+                    target_x = int(target_x + x_offset - self.upx)
+                    target_y = int(target_y + y_offset - self.upy)
+                # 调整坐标以适应图像拼接后的偏移
+                    # 绘制目标位置
                     color_map = {
-                        0: [49, 140, 140],  # 黄色
+                        0: [140, 49, 49],  # 蓝色
                         1: [49, 49, 140],   # 红色
                         2: [49, 140, 49],   # 绿色
-                        3: [140, 140, 49]   # 青色
+                        3: [49, 140, 140]   # 黄色
                     }
                     target_color = color_map.get(current_target_type, [49, 140, 140])
-                else:
-                    target_color = [49, 49, 140]
 
-                for dx in range(-2, 3):
-                    for dy in range(-2, 3):
-                        if (0 <= adjusted_target_x + dx < updated_image.shape[0] and
-                            0 <= adjusted_target_y + dy < updated_image.shape[1]):
-                            updated_image[adjusted_target_x + dx, adjusted_target_y + dy] = target_color
+
+                    for dx in range(-2, 3):
+                        for dy in range(-2, 3):
+                            if (0 <= target_y + dy < updated_image.shape[0] and
+                                0 <= target_x + dx < updated_image.shape[1]):
+                                updated_image[target_y + dy, target_x + dx] = target_color
+                    # 在左上角显示目标坐标
+                    target_text = f"target: ({target_x - x_offset - self.upx}, {target_y - y_offset - self.upy})"
+                    cv.putText(updated_image, target_text, (x_offset, 20),
+                               cv.FONT_HERSHEY_SIMPLEX, 0.25, (0, 255, 255), 1)
 
                 # 绘制朝向箭头
                 if current_ang is not None:
@@ -1108,66 +1138,32 @@ class SimulatedUniverse(UniverseUtils):
                     angle_rad = math.radians(-current_ang)
                     line_length = 20
                     end_point = (
-                        int(adjusted_real_y + line_length * math.cos(angle_rad)),
-                        int(adjusted_real_x - line_length * math.sin(angle_rad))
+                        int(real_x + line_length * math.cos(angle_rad)),
+                        int(real_y - line_length * math.sin(angle_rad))
                     )
 
                     # 确保线条端点在图像范围内
-                    if (0 <= adjusted_real_y < updated_image.shape[1] and
-                        0 <= adjusted_real_x < updated_image.shape[0] and
-                        0 <= end_point[0] < updated_image.shape[1] and
-                        0 <= end_point[1] < updated_image.shape[0]):
+                    if (0 <= real_y < updated_image.shape[0] and
+                        0 <= real_x < updated_image.shape[1] and
+                        0 <= end_point[1] < updated_image.shape[0] and
+                        0 <= end_point[0] < updated_image.shape[1]):
                         cv.arrowedLine(
                             updated_image,
-                            (adjusted_real_y, adjusted_real_x),
+                            (real_x, real_y),  # 注意：cv.arrowedLine使用(x,y)坐标
                             end_point,
                             (0, 255, 0),
                             1,
                             tipLength=0.4
                         )
 
-                # 更新角度历史记录
-                current_time = time.time()
-                if current_ang is not None:
-                    if not angle_history or angle_history[-1][1] != current_ang:
-                        angle_history.append((current_time, current_ang))
-                        last_angle_change_time = current_time
-                    # 保留最近5秒的角度记录
-                    while angle_history and current_time - angle_history[0][0] > 5:
-                        angle_history.pop(0)
+                color = (255, 0, 0)  # 蓝色
+                angle_text = f"state: {self.state}"
+                cv.putText(updated_image, angle_text, (x_offset, 10),
+                          cv.FONT_HERSHEY_SIMPLEX, 0.25, color, 1)
 
-                # 在左上角显示角度数值
-                if current_ang is not None:
-                    # 计算颜色 (新变更红色，随时间推移逐渐变蓝)
-                    elapsed_time = current_time - last_angle_change_time
-                    if elapsed_time < 2:  # 2秒内变为蓝色
-                        red = max(0, 255 * (1 - elapsed_time / 2))
-                        blue = min(255, 255 * (elapsed_time / 2))
-                        color = (int(blue), 0, int(red))  # BGR格式
-                    else:
-                        color = (255, 0, 0)  # 蓝色
 
-                    angle_text = f"Angle: {-current_ang:.1f}"
-                    cv.putText(updated_image, angle_text, (10 + x_offset, 30),
-                              cv.FONT_HERSHEY_SIMPLEX, 0.3, color, 1)
 
-                # 在左上角显示目标坐标
-                target_text = f"Target: ({target_x}, {target_y})"
-                cv.putText(updated_image, target_text, (10 + x_offset, 50),
-                          cv.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 255), 1)
-
-                # 根据窗口大小调整图像尺寸以适应200x600的窗口
-                img_height, img_width = updated_image.shape[:2]
-                max_width, max_height = 200, 600
-                
-                # 计算缩放比例，保持宽高比
-                scale = min(max_width / img_width, max_height / img_height)
-                
-                # 调整图像大小以适应窗口
-                updated_image = cv.resize(
-                    updated_image, None, fx=scale, fy=scale, interpolation=cv.INTER_LINEAR
-                )
-
+                # cv.resizeWindow("Map", win_width, win_height)
                 cv.imshow("Map", updated_image)
                 # 使用cv.pollKey()替代cv.waitKey()以避免阻塞
                 key = cv.pollKey()
@@ -1176,12 +1172,8 @@ class SimulatedUniverse(UniverseUtils):
                 # 检查停止标志
                 if self._stop:
                     break
-        except SystemExit:
-            # 捕获强制退出异常，确保窗口被关闭
-            pass
-        except:
-            # 捕获其他异常
-            pass
+        except Exception as e:
+            raise e
         finally:
             # 无论如何都要确保窗口被关闭
             try:
@@ -1192,7 +1184,6 @@ class SimulatedUniverse(UniverseUtils):
                 CUS_LOGGER.info(f'完成窗口关闭')
             except Exception as e:
                 CUS_LOGGER.info(f'异常关闭窗口{e}')
-                pass
     def start(self):
         """
         启动模拟宇宙自动化程序
@@ -1249,6 +1240,4 @@ class SimulatedUniverse(UniverseUtils):
 
         self.map_thread = None
 
-    def set_state(self, state):
-        self.update_state(state)
 

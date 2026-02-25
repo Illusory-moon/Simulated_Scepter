@@ -33,18 +33,21 @@ def find_latest_modified_file(folder_path):
     files = [
         os.path.join(folder_path, file)
         for file in os.listdir(folder_path)
-        if file.split("/")[-1][0] == "m"
     ]
-    nx, ny = 4096, 4096
-    file = ""
+    x,y,upx,upy=-1,-1,-1,-1
+    target_path=None
+    file = None
     for i in files:
-        try:
-            x, y = i.split("_")[-3:-1]
-            x, y = int(x), int(y)
-            if x < nx or y < ny:
-                nx, ny = x, y
-                file = i
-        except:
-            pass
-    return file
+        name = os.path.splitext(i)[0].split("/")[-1]
+        if "map" in name:
+            map_num=name.split("_")[1]
+            coords = name.split("(")[1].split(")")[0]
+            x, y = map(float, coords.split(","))  # 将坐标转换为浮点数
+            file= i
+        if "target" in name:
+            upx=float(name.split("_")[1])
+            upy=float(name.split("_")[2])
+            target_path= i
+
+    return file,x,y,map_num,upx,upy,target_path
 
