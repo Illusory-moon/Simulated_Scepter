@@ -351,9 +351,7 @@
         },
         "actions":
         [
-            {
-                "position": [1359, 811]
-            }
+            "setting_exit"
         ]
     },
     {
@@ -366,6 +364,22 @@
         "actions":
         [
             "auto_battle"
+        ]
+    },
+    {
+        "name": "点击空白结算",
+        "trigger":{
+            "text": "点击空白",
+            "box": [873, 1047, 878, 909],
+            "redundancy": 30,
+            "condition": "end"
+        },
+        "actions":
+        [
+            {
+                "position": [900, 1000]
+            },
+            "restart_recording"
         ]
     },
     {

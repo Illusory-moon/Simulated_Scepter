@@ -183,14 +183,18 @@ class SimulatedUniverse(UniverseUtils):
             CUS_LOGGER.info('已完成上限，准备停止运行')
             self.end = 1
         self.update_floor(1)
+        self.update_state("end")
+    def restart_recording(self):
         #是否把视频每轮裁剪一次
         if self.record and self.cut_video:
             self.recorder.stop_recording()
             time.sleep(0.8)
-            self.recorder.start_recording(datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
-        else:
-            time.sleep(0.8)
-        self.update_state("end")
+            self.recorder.start_recording(self.count)
+            self.update_state("re_start")
+    def setting_exit(self):
+        if self.state != "end":
+            key_mouse_manager.click(1359, 811)
+            key_mouse_manager.wait()
     def map_data_load(self):
         self.big_map_init = True
         # 寻路模式，匹配最接近的地图
@@ -207,7 +211,7 @@ class SimulatedUniverse(UniverseUtils):
                     self.now_map, self.now_map_sim = self.match_scr(get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True))
                     # 地图匹配超时或找到相似匹配
                     CUS_LOGGER.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
-                    if (self.debug and self.now_map_sim < 0.8) or self.now_map_sim < 0.35:
+                    if (self.debug and self.now_map_sim < 0.5) or self.now_map_sim < 0.35:
                         CUS_LOGGER.warning(f"相似度过低,疑似未找到匹配地图,当前层数{self.floor},匹配地图{self.now_map}")
                         self.find = False
                         self.map_file =PATHS["image"]+ "/nmaps/my_" + str(random.randint(0, 99999)) + "/"
@@ -605,6 +609,12 @@ class SimulatedUniverse(UniverseUtils):
                     file.close()
         else:
             new_cnt = self.count + 1
+            try:
+                with open(file_name, "w", encoding="utf-8") as file:
+                    file.write(str(new_cnt))
+                    file.close()
+            except  Exception as e:
+                CUS_LOGGER.error(f"写入文件失败{e}")
         self.count = new_cnt
 
     def del_pt(self, img, A, S, f):
@@ -1121,7 +1131,7 @@ class SimulatedUniverse(UniverseUtils):
         self._stop = False
         key_mouse_manager.start()
         if self.record:
-            self.recorder.start_recording(datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+            self.recorder.start_recording(self.count)
         if self._show_map:
             self.map_thread = ThreadWithException(target=self.show_map,name="地图")
             self.map_thread.start()

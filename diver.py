@@ -1222,7 +1222,7 @@ class DivergentUniverse(UniverseUtils):
         self.keys = KeyController(self)
         key_mouse_manager.start()
         if self.record:
-            self.recorder.start_recording(datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+            self.recorder.start_recording(self.count)
         try:
             self.route()
         except KeyboardInterrupt:

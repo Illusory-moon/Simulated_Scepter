@@ -136,13 +136,14 @@ class WindowRecorder:
             gc.collect()
             return None
 
-    def start_recording(self,timestamp):
+    def start_recording(self,count=0):
         """开始录制指定窗口"""
-        CUS_LOGGER.debug(f"启动录制{timestamp}")
+        CUS_LOGGER.debug(f"启动录制第{count}次")
         if self.recording:
             CUS_LOGGER.info("Already recording")
             return
-        self.output_file = self.output_path + f"{timestamp}轮回.mp4"
+        timestamp=datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.output_file = self.output_path + f"第{count}次轮回-{timestamp}.mp4"
         # 查找目标窗口
         if not self.hwnd:
             self.hwnd = win32gui.FindWindow(self.window_class_name, self.window_title)

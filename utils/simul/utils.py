@@ -329,9 +329,7 @@ class UniverseUtils:
 
     # 由click_target调用，返回图片匹配结果
     def scan_screenshot(self, prepared):
-        temp = pyautogui.screenshot()
-        screenshot = np.array(temp)
-        screenshot = cv.cvtColor(screenshot, cv.COLOR_BGR2RGB)
+        screenshot = self.get_screen()
         result = cv.matchTemplate(screenshot, prepared, cv.TM_CCOEFF_NORMED)
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
         return {
