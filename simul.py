@@ -1,3 +1,4 @@
+import datetime
 import json
 
 import pyautogui
@@ -89,8 +90,6 @@ class SimulatedUniverse(UniverseUtils):
         self.end = 0
         #是否初始化层数
         self.floor_init = 0
-        #上次点击确认时间
-        self.confirm_time = 0
         # 添加用于计算FPS的变量
         self.last_get_screen_time = None
         self.fps_list = []
@@ -135,7 +134,7 @@ class SimulatedUniverse(UniverseUtils):
         self.record = data.get("recording_state", True)
         # 根据self._show_map决定是否叠加地图到录制视频上
         self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",window_class_name="UnityWndClass",see_time=True, offsets=[10, 50, 10, 10], overlay_map=self._show_map)
-
+        self.cut_video=True
 
     def route(self):
         self.init_map()
@@ -159,12 +158,13 @@ class SimulatedUniverse(UniverseUtils):
             if self._stop:
                 break
             res = self.normal()
-            # 未匹配到图片，降低匹配阈值，若一直无法匹配则乱点
             if not res:
                 if self.last_update_time is not None and time.time()-self.last_update_time>7 and self.state=="battle":
                     if self.ts.nothing:
                         self.update_state("battle")
                         CUS_LOGGER.info("匹配不到任何图标，可能位于战斗中")
+                else:
+                    CUS_LOGGER.warning("匹配不到任何图标")
             # 匹配到图片 res=1时等待一段时间
         CUS_LOGGER.info("停止运行")
 
@@ -183,7 +183,14 @@ class SimulatedUniverse(UniverseUtils):
             CUS_LOGGER.info('已完成上限，准备停止运行')
             self.end = 1
         self.update_floor(1)
-        self.update_state("exit")
+        #是否把视频每轮裁剪一次
+        if self.record and self.cut_video:
+            self.recorder.stop_recording()
+            time.sleep(0.8)
+            self.recorder.start_recording(datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+        else:
+            time.sleep(0.8)
+        self.update_state("end")
     def map_data_load(self):
         self.big_map_init = True
         # 寻路模式，匹配最接近的地图
@@ -207,6 +214,8 @@ class SimulatedUniverse(UniverseUtils):
                         if self.find == 0 and not os.path.exists(self.map_file):
                             os.mkdir(self.map_file)
                         no_find = True
+                        if self.now_map_sim > 0.35:
+                            self.mini_state = 0
                     elif self.now_map !=-1 and "m" in str(self.now_map):
                         CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
                         self.map_file = PATHS["image"] + "/nmaps/" + self.now_map + "/"
@@ -297,15 +306,13 @@ class SimulatedUniverse(UniverseUtils):
                 self.init_map()
                 self.floor_init = 0
                 if self.floor == 13:
-                    self.end_of_university()
-                    # key_mouse_manager.click(0.2708, 0.1324)
+                    self.update_state("exit")
                     CUS_LOGGER.info(f"通关！当前层数:{self.floor}")
                     return 1
                 elif self.fail_count <= 1:
                     CUS_LOGGER.error(f"地图{self.now_map}未发现目标，当前层数:{self.floor},相似度{self.now_map_sim}，尝试暂离")
                     key_mouse_manager.click(0.2708, 0.2324)
                     key_mouse_manager.keyUp("w")
-                    self.re_enter()
                     self.fail_count += 1
                 else:
                     if self.debug == 0:
@@ -320,7 +327,6 @@ class SimulatedUniverse(UniverseUtils):
                             f"地图{self.now_map}多次未发现目标,相似度{self.now_map_sim}，尝试暂离 DEBUG"
                         )
                         key_mouse_manager.click(0.2708, 0.2324)
-                        self.re_enter()
                 self.last_interact_time = time.time()
                 return 1
             # 寻路
@@ -348,6 +354,8 @@ class SimulatedUniverse(UniverseUtils):
         if time.time() - self.f_time < 20:
             self.f_time = 0
             self.restore_map()
+        if self.mini_state==3:
+            self.mini_state=5
         if self.fate == "丰饶":
             if random.randint(0, 6) == 3:
                 key_mouse_manager.press("r")
@@ -359,8 +367,7 @@ class SimulatedUniverse(UniverseUtils):
         if self.click_text(text="重置祝福",box=[1268, 1444, 929, 1025],click=False,warning=False):
             for _ in range(4):
                 img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
-                if (self.ts.split_and_find(self.tk.fates, img_down, mode="bless")[1]
-                        or self._stop):
+                if self.ts.split_and_find(self.tk.fates, img_down, mode="bless")[1] or self._stop:
                     break
                 if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                     return 1
@@ -395,20 +402,19 @@ class SimulatedUniverse(UniverseUtils):
                 self.tk.secondary, img_down, mode="bless"
             )
             if res_up[1] == 2:
+                CUS_LOGGER.debug("识别到具体祝福")
                 key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
                 key_mouse_manager.wait()
             elif res_down[1] >= 2:
+                CUS_LOGGER.debug("识别到匹配命途")
                 key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
                 key_mouse_manager.wait()
-            else:
+            elif self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False,allow_fail=True):
+                CUS_LOGGER.debug("未识别到具体祝福,随便选一个")
                 key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
                 key_mouse_manager.wait()
-        key_mouse_manager.click(0.1203, 0.1093)
+        self.click_text(text="确认",box=[1663, 1719, 949, 979],need_fresh=False,ocr_line=True,warning=True)
         key_mouse_manager.wait()
-        tm = time.time()
-        while time.time() - tm < 1.6 and self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
-            time.sleep(0.1)
-        self.confirm_time = time.time()
         if self.quan:
             self.use_e()
         return 1
@@ -482,7 +488,6 @@ class SimulatedUniverse(UniverseUtils):
         key_mouse_manager.click(0.1635, 0.1056)
     def confirm_fate(self):
         key_mouse_manager.click(0.1182, 0.0926)
-        self.confirm_time = time.time()
     def select_fate(self):
         click_x = [0.02, 0.98]
         n = 4  # 重试次数
@@ -500,7 +505,7 @@ class SimulatedUniverse(UniverseUtils):
                 break
         key_mouse_manager.click(*self.calc_point((0.4969, 0.3750), res[0]))
     def select_bless(self):
-        if not self.click_text(['2星祝福', '奇物']):
+        if not self.click_text('奇物'):
             key_mouse_manager.click(0.5047, 0.4917)
         key_mouse_manager.click(0.5062, 0.1065)
     # 事件界面
@@ -546,10 +551,8 @@ class SimulatedUniverse(UniverseUtils):
         if not clicked:
             key_mouse_manager.click(0.4714, 0.5500)
         key_mouse_manager.click(0.1203, 0.1093)
-        self.confirm_time = time.time()
     def setting(self):
         key_mouse_manager.click(0.2708, 0.2324)
-        self.re_enter()
     def enhance(self):
         self.quit = time.time()
         for i in [None, (0.7984, 0.6824), (0.6859, 0.6824)]:
@@ -562,7 +565,6 @@ class SimulatedUniverse(UniverseUtils):
             while not self.click_text(text="祝福强化",box=[70, 236, 9, 125],click=False,ocr_line=False,warning=False) and time.time() - tm < 7:
                 key_mouse_manager.click(0.2062, 0.2054)
         key_mouse_manager.press("esc")
-        self.confirm_time = time.time()
         if self.floor >= 13:
             self.update_floor(12)
     def confirm_yes(self):
@@ -745,22 +747,6 @@ class SimulatedUniverse(UniverseUtils):
         except:
             pass
 
-    def re_enter(self):
-        """
-        重新进入游戏场景
-        
-        当检测到需要重新进入当前场景时调用此函数，通过连续按下'f'键
-        来完成重新进入操作。通常用于处理角色卡住或其他需要重新加载场景的情况。
-        
-        函数会在10秒内持续检测特定画面元素，一旦检测到就执行三次'f'键按下操作，
-        每次按下间隔0.5秒，然后退出函数。
-        """
-        tm = time.time()
-        while time.time() - tm < 10:
-            self.get_screen()
-            if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                key_mouse_manager.press('f')
-                break
 
 
 
@@ -818,12 +804,13 @@ class SimulatedUniverse(UniverseUtils):
             else:
                 json_file = load_actions(json_path)
         # 查找指定项或者默认项
-        #等待黑屏消散
         tm=time.time()
         while time.time()-tm<2:
             men = np.mean(self.get_screen())
             if men > 12:
                 break
+            else:
+                CUS_LOGGER.debug("等待黑屏消散")
         for j in action_list if len(action_list) else json_file:
             for i in json_file[j]:
                 trigger = i["trigger"]
@@ -1134,7 +1121,7 @@ class SimulatedUniverse(UniverseUtils):
         self._stop = False
         key_mouse_manager.start()
         if self.record:
-            self.recorder.start_recording()
+            self.recorder.start_recording(datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
         if self._show_map:
             self.map_thread = ThreadWithException(target=self.show_map,name="地图")
             self.map_thread.start()

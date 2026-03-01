@@ -18,10 +18,9 @@ from utils.thread import ThreadWithException
 
 
 class WindowRecorder:
-    def __init__(self, output_file="window_recording.mp4", handle=None, fps=30.0, window_title=None, window_class_name=None, see_time=False,
-                 is_show=False, offsets=None, overlay_map=False):
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.output_file = output_file + f"{timestamp}.mp4"
+    def __init__(self, output_path="window_recording.mp4", handle=None, fps=30.0, window_title=None, window_class_name=None, see_time=False,
+                 is_show=False, offsets=None, overlay_map=False, map_alpha=0.7):
+        self.output_path=output_path
         self.fps = fps
         self.window_title = window_title
         self.window_class_name = window_class_name
@@ -43,6 +42,8 @@ class WindowRecorder:
         self.bottom_offset = offsets[3]
         # 是否叠加地图窗口
         self.overlay_map = overlay_map
+        # 地图透明度 (0.0-1.0，1.0为完全不透明)
+        self.map_alpha = map_alpha
         
     def capture_window_background(self, hwnd):
         """使用 PrintWindow API 后台截图指定窗口"""
@@ -135,12 +136,13 @@ class WindowRecorder:
             gc.collect()
             return None
 
-    def start_recording(self):
+    def start_recording(self,timestamp):
         """开始录制指定窗口"""
+        CUS_LOGGER.debug(f"启动录制{timestamp}")
         if self.recording:
             CUS_LOGGER.info("Already recording")
             return
-            
+        self.output_file = self.output_path + f"{timestamp}轮回.mp4"
         # 查找目标窗口
         if not self.hwnd:
             self.hwnd = win32gui.FindWindow(self.window_class_name, self.window_title)
@@ -247,7 +249,7 @@ class WindowRecorder:
                                     map_resized_height = int(map_resized_width * (map_img_cv.shape[0] / map_img_cv.shape[1]))  # 保持比例
                                     map_img_resized = cv2.resize(map_img_cv, (map_resized_width, map_resized_height))
                                     
-                                    # 将调整后的地图图像叠加到主图像的左下角上方
+                                    # 将调整后的地图图像叠加到主图像的左下角上方（带透明度）
                                     margin = 10
                                     # 计算时间戳区域的高度
                                     # 预先计算时间戳尺寸，以便地图放置在时间戳上方
@@ -283,15 +285,30 @@ class WindowRecorder:
                                         
                                         # 确保地图在窗口范围内
                                         if map_top_y > margin:  # 如果地图放置在时间戳上方后仍在窗口内
-                                            img_cv[map_top_y:map_bottom_y, 
-                                                   margin:margin+map_resized_width] = map_img_resized
+                                            # 实现透明度叠加
+                                            roi = img_cv[map_top_y:map_bottom_y, margin:margin+map_resized_width]
+                                            # 将地图图像转换为相同数据类型
+                                            map_img_resized = map_img_resized.astype(np.float32)
+                                            roi = roi.astype(np.float32)
+                                            # 使用加权叠加实现透明效果
+                                            cv2.addWeighted(map_img_resized, self.map_alpha, roi, 1-self.map_alpha, 0, roi)
+                                            # 转换回uint8并更新原图像
+                                            img_cv[map_top_y:map_bottom_y, margin:margin+map_resized_width] = roi.astype(np.uint8)
                                         else:
                                             # 如果放不下，则不叠加地图
                                             pass
                                     else:
-                                        # 如果不需要时间戳，将地图放在左下角
+                                        # 如果不需要时间戳，将地图放在左下角（带透明度）
+                                        roi = img_cv[img_cv.shape[0]-map_resized_height-margin:img_cv.shape[0]-margin, 
+                                                    margin:margin+map_resized_width]
+                                        # 将地图图像转换为相同数据类型
+                                        map_img_resized = map_img_resized.astype(np.float32)
+                                        roi = roi.astype(np.float32)
+                                        # 使用加权叠加实现透明效果
+                                        cv2.addWeighted(map_img_resized, self.map_alpha, roi, 1-self.map_alpha, 0, roi)
+                                        # 转换回uint8并更新原图像
                                         img_cv[img_cv.shape[0]-map_resized_height-margin:img_cv.shape[0]-margin, 
-                                               margin:margin+map_resized_width] = map_img_resized
+                                              margin:margin+map_resized_width] = roi.astype(np.uint8)
                                 else:
                                     CUS_LOGGER.warning("后台获取地图窗口失败，跳过叠加")
                             except Exception as e:
@@ -388,29 +405,46 @@ class WindowRecorder:
         if self.out:
             self.out.release()
             self.out = None
-        CUS_LOGGER.info("视频写入器已释放")
+        CUS_LOGGER.debug(f"停止录制{self.output_file}")
 
 
 if __name__ == "__main__":
     try:
         window_title = "崩坏：星穹铁道"
-        output_file = "../logs/video/"
+        output_file = "../logs/video/test_recording_"
         fps = 10
 
+        CUS_LOGGER.info("=== 窗口录制器测试 (带透明度地图叠加) ===")
         CUS_LOGGER.info("准备开始录制（5秒后自动停止）...")
         CUS_LOGGER.info(f"请在5秒内打开窗口：{window_title}")
+        CUS_LOGGER.info("地图将以60%透明度叠加显示在左下角")
         time.sleep(2)
 
-        recorder = WindowRecorder(output_file, fps=fps, window_title=window_title,window_class_name="UnityWndClass", offsets=[10, 50, 10, 10])
+        # 创建带透明度的地图叠加录制器
+        recorder = WindowRecorder(
+            output_file=output_file, 
+            fps=fps, 
+            window_title=window_title,
+            window_class_name="UnityWndClass", 
+            offsets=[10, 50, 10, 10],
+            overlay_map=True,      # 启用地图叠加
+            map_alpha=0.6,         # 60%透明度
+            see_time=True          # 显示时间戳
+        )
+        
         recorder.start_recording()
         CUS_LOGGER.info(f"正在录制窗口：{window_title}")
         CUS_LOGGER.info("录制将持续5秒，请在目标窗口中进行一些操作")
+        CUS_LOGGER.info("地图窗口会以半透明形式显示在录制画面左下角")
 
         time.sleep(5)
 
         recorder.stop_recording()
         CUS_LOGGER.info("录制已完成！")
-        CUS_LOGGER.info(f"视频已保存为：{output_file}")
+        CUS_LOGGER.info(f"视频已保存为：{recorder.output_file}")
+        CUS_LOGGER.info("请检查生成的视频文件，确认透明度叠加效果正常")
 
     except Exception as e:
         CUS_LOGGER.error(f"发生错误: {str(e)}")
+        import traceback
+        traceback.print_exc()

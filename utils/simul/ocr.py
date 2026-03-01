@@ -56,7 +56,7 @@ class My_TS:
         for i in range(len(stext)-length):
             #滑动窗口检测所有长度为length的子串
             res |= is_edit_distance_at_most_one(text,stext[i:i+length],stext[i+length])
-        CUS_LOGGER.debug(f"是否相似：{res}")
+        CUS_LOGGER.debug(f"{self.text}与{ text}是否相似：{res}")
         return res
 
     def ocr_one_row(self, img, box=None):
@@ -140,7 +140,7 @@ class My_TS:
                     rcx,rcy,find=cx,cy,2
                     text_res=text+'!'
                     prior=i
-        print('识别结果：',res+'|',' 识别到：',text_res)
+        CUS_LOGGER.debug(f'识别结果：{res}+ 识别到：{text_res}')
         if black and find==1:
             find=3
         return (rcx-img.shape[1]//2,rcy-img.shape[0]//2),find+black
@@ -201,11 +201,6 @@ class My_TS:
         """
         if forward and box is not None:
             self.forward(filter_non_white(self.father.get_screen()[box[2]:box[3], box[0]:box[1]], mode=mode))
-            if box[3]==540 or box[3] == 350 and self.father.debug:
-                tm = str(int(time.time()*100)%1000000)
-                cv.imwrite('img/'+tm+'.jpg',self.father.screen[box[2]:box[3],box[0]:box[1]])
-                cv.imwrite('img/' + tm +'w.jpg',
-                           filter_non_white(self.father.screen[box[2]:box[3], box[0]:box[1]], mode=mode))
         ans = []
         for res in self.res:
             if box is None:

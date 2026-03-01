@@ -339,7 +339,7 @@
             {
                 "position": [1393, 948]
             },
-            "re_enter"
+            "end_of_university"
         ]
     },
     {
@@ -353,8 +353,7 @@
         [
             {
                 "position": [1359, 811]
-            },
-            "re_enter"
+            }
         ]
     },
     {
