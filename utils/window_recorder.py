@@ -19,7 +19,7 @@ from utils.thread import ThreadWithException
 
 class WindowRecorder:
     def __init__(self, output_path="window_recording.mp4", handle=None, fps=30.0, window_title=None, window_class_name=None, see_time=False,
-                 is_show=False, offsets=None, overlay_map=False, map_alpha=0.7):
+                 is_show=False, offsets=None, overlay_map=False, map_alpha=0.7, simul_instance=None):
         self.output_path=output_path
         self.fps = fps
         self.window_title = window_title
@@ -44,6 +44,8 @@ class WindowRecorder:
         self.overlay_map = overlay_map
         # 地图透明度 (0.0-1.0，1.0为完全不透明)
         self.map_alpha = map_alpha
+        # SimulatedUniverse实例引用
+        self.simul_instance = simul_instance
         
     def capture_window_background(self, hwnd):
         """使用 PrintWindow API 后台截图指定窗口"""
@@ -245,10 +247,29 @@ class WindowRecorder:
                                 
                                 if map_img_cv is not None:
                                     # 进一步缩小地图图像尺寸
-                                    map_scale = 0.3  # 缩放到原图的10%，更小一些
+                                    map_scale = 0.3  # 缩放到原图的30%
                                     map_resized_width = int(img_cv.shape[1] * map_scale)  # 基于主窗口宽度计算
                                     map_resized_height = int(map_resized_width * (map_img_cv.shape[0] / map_img_cv.shape[1]))  # 保持比例
                                     map_img_resized = cv2.resize(map_img_cv, (map_resized_width, map_resized_height))
+                                    
+                                    # 动态读取SimulatedUniverse的state属性并绘制到地图图像上
+                                    if self.simul_instance is not None and self.simul_instance.state is not None:
+                                        try:
+                                            state_text = "state:" + str(self.simul_instance.state)
+                                            font = cv2.FONT_HERSHEY_SIMPLEX
+                                            font_scale = 0.8
+                                            font_thickness = 1
+                                            text_color = (0, 255, 0)
+                                            cv2.putText(map_img_resized, 
+                                                      state_text,
+                                                      (5, 15),  # 固定位置，避免计算文本尺寸
+                                                      font, 
+                                                      font_scale, 
+                                                      text_color, 
+                                                      font_thickness)
+                                        except Exception as e:
+                                            CUS_LOGGER.warning(f"绘制状态信息失败: {e}")
+                                            pass
                                     
                                     # 将调整后的地图图像叠加到主图像的左下角上方（带透明度）
                                     margin = 10

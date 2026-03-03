@@ -104,7 +104,7 @@ class UniverseUtils:
         self.first_mini = 1
         self.ts = ocr.My_TS(father=self)
         self.last_info = ''
-        self.mini_target = 0
+        self.target_type = -1
         self.f_time = 0
         self.slow = 0
         self.init_ang = 0
@@ -127,7 +127,7 @@ class UniverseUtils:
         self.quit = 0
         # 用于存储tmp地图
         self.pos_map = None
-        self.target_type=0
+        self.target_type=-1
         #当前层数
         self.floor = -1
         #最佳匹配地图编号
@@ -801,10 +801,10 @@ class UniverseUtils:
                 target = (nearest, 3)
                 if self.floor == 12:
                     self.update_floor(13)
-        if self.mini_target == 0:
-            self.mini_target = target[1]
         if target[1] >= 1:
             CUS_LOGGER.info(f"交互点类型{target[1]}，位置{target[0][0]},{target[0][1]}")
+            self.target_type = target[1]
+            self.has_target=True
             self.update_direction_data(mode=2,target=target)
             return True
         else:
@@ -816,11 +816,13 @@ class UniverseUtils:
         if self.mini_state > 2:
             CUS_LOGGER.info("移动方向前往终点")
             self.is_find_end = self.move_to_end(mode=2)
+            self.has_target=bool(self.is_find_end)
+            if self.has_target:
+                self.target_type=4
         else:
-            CUS_LOGGER.info("移动方向前往交互点(大图)")
-            if not self.move_to_interact(2):
-                CUS_LOGGER.info("移动方向前往交互点文本")
-                self.move_direct_to_text()
+            self.has_target=self.move_direct_to_text()
+            if self.has_target:
+                self.target_type=1
         self.ready = 1
         now_time = time.time()
         if self.is_find_end == 0:
@@ -830,6 +832,9 @@ class UniverseUtils:
                 continue
             if self.mini_state > 2:
                 self.is_find_end = max(self.move_to_end(self.is_find_end,mode=3), self.is_find_end)
+                if self.is_find_end!=0.5 and self.is_find_end!=0:
+                    self.has_target=True
+                    self.target_type=4
         CUS_LOGGER.info("停止移动方向线程")
 
 
@@ -1436,12 +1441,23 @@ class UniverseUtils:
             key_mouse_manager.press('s',0.4)
         self.stop_move=0
         self.ready=0
-        self.mini_target=0
         self.is_target = 0
         self.moving_direct=False
+        self.has_target=True
         self.get_screen()
         first = self.first_mini
-        if not self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95,fresh=True):
+        CUS_LOGGER.info("移动方向前往交互点(大图)")
+        self.target_type = -1
+        if not self.move_to_interact(2):
+            CUS_LOGGER.info("未在小地图找到交互")
+            self.has_target=False
+            if self.floor==13 and self.mini_state>=5:
+                key_mouse_manager.press('esc')
+                key_mouse_manager.wait()
+                self.update_state("exit")
+                self.should_update_map=False
+                return
+        if not self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95,fresh=True) and not self.has_target or (self.target_type==2 and self.has_target and self.mini_state>2):
             ThreadWithException(target=self.move_direct_thread, name="移动").start()
         else:
             self.ready = 1
@@ -1458,7 +1474,7 @@ class UniverseUtils:
             sprint()
             self.is_sprinting = 1
             #事件
-            if self.mini_target==1:
+            if self.target_type!=3:
                 run_wait_time += 0.8
         need_confirm=0
         init_time = time.time()
@@ -1475,7 +1491,7 @@ class UniverseUtils:
             if not have_f:
                 CUS_LOGGER.info("未检测到f交互")
                 key_mouse_manager.keyDown("w")
-            if have_f and self.mini_target==1:
+            if have_f and self.target_type==1:
                 key_mouse_manager.press('f')
                 CUS_LOGGER.info('发现事件交互')
                 self.stop_move=1
@@ -1625,7 +1641,7 @@ class UniverseUtils:
                 CUS_LOGGER.info("检测到其它界面，退出循环")
                 return
             if time.time()-init_time>run_wait_time:
-                CUS_LOGGER.info("等待时间超时")
+                CUS_LOGGER.info(f"等待时间超时,是否有目标{self.has_target}")
                 self.stop_move=1
                 key_mouse_manager.keyUp("w")
                 self.mini_state+=2
@@ -1639,11 +1655,15 @@ class UniverseUtils:
                     else:
                         self.update_state("ui")
                     return
-                key_mouse_manager.press('s',0.3)
-                key_mouse_manager.press('a',0.7)
-                key_mouse_manager.press('d',0.45)
-                key_mouse_manager.press('w',0.5)
-                key_mouse_manager.wait()
+                if self.has_target and self.target_type!=3:
+                    key_mouse_manager.press('s',0.3)
+                    key_mouse_manager.press('a',0.7)
+                    key_mouse_manager.press('d',0.45)
+                    key_mouse_manager.press('w',0.5)
+                    if self.mini_state==3:
+                        key_mouse_manager.click(0.5,0.5)
+                    key_mouse_manager.wait()
+
                 break
         self.stop_move=1
         key_mouse_manager.keyUp("w")
@@ -1651,14 +1671,14 @@ class UniverseUtils:
         if self.fresh_state()==1:
             self.should_update_map = False
             return
-        if self.state=="run" and (need_confirm or (first and self.mini_target!=2)):
+        if self.state=="run" and (need_confirm or (first and self.target_type!=2)):
             CUS_LOGGER.info("尝试乱转找到交互点")
             for i in "sasddwwaa":
                 if self._stop:
                     self.should_update_map = False
                     return
                 self.get_screen()
-                if self.mini_target==1:
+                if self.target_type==1:
                     CUS_LOGGER.info(f"必须找到交互点，尝试寻找")
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
                         key_mouse_manager.press('f',force= True)
@@ -1722,17 +1742,20 @@ class UniverseUtils:
             else:
                 key_mouse_manager.press('s')
                 key_mouse_manager.press('e')
+                key_mouse_manager.wait()
                 time.sleep(1.6)
-                key_mouse_manager.press('d')
-                time.sleep(0.5)
-                key_mouse_manager.press('e')
                 key_mouse_manager.press('w')
+                key_mouse_manager.press('e')
         else:
             key_mouse_manager.press('e')
         key_mouse_manager.wait()
         if self.click_text(text="快速恢复", box=[864, 1058, 224, 318], click=False, ocr_line=False, warning=False):
             self.solve_snack()
             CUS_LOGGER.debug("检测到快速恢复")
+            key_mouse_manager.wait()
+            if self.quan or self.bai_e:
+                key_mouse_manager.press('e')
+                key_mouse_manager.wait()
 
     def click_box(self, box):
         """

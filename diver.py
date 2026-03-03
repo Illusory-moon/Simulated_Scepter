@@ -108,7 +108,7 @@ class DivergentUniverse(UniverseUtils):
         self.record = data.get("recording_state", True)
         # 根据self._show_map决定是否叠加地图到录制视频上
         self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",
-                                       window_class_name="UnityWndClass", see_time=True, offsets=[10, 50, 10, 10])
+                                       window_class_name="UnityWndClass", see_time=True, offsets=[10, 50, 10, 10], simul_instance=self)
 
     def route(self):
         self.goto_diver_universe()

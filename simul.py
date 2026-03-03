@@ -133,7 +133,7 @@ class SimulatedUniverse(UniverseUtils):
             self.event_prior = yaml.safe_load(f)["prior"]["事件"]
         self.record = data.get("recording_state", True)
         # 根据self._show_map决定是否叠加地图到录制视频上
-        self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",window_class_name="UnityWndClass",see_time=True, offsets=[10, 50, 10, 10], overlay_map=self._show_map)
+        self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",window_class_name="UnityWndClass",see_time=True, offsets=[10, 50, 10, 10], overlay_map=self._show_map, simul_instance=self)
         self.cut_video=True
 
     def route(self):
@@ -192,7 +192,7 @@ class SimulatedUniverse(UniverseUtils):
             self.recorder.start_recording(self.count)
             self.update_state("re_start")
     def setting_exit(self):
-        if self.state != "end":
+        if self.state != "end" and self.state!="exit":
             key_mouse_manager.click(1359, 811)
             key_mouse_manager.wait()
     def map_data_load(self):
@@ -986,7 +986,7 @@ class SimulatedUniverse(UniverseUtils):
                 last_ang = current_ang
                 # 只在需要时才拷贝图像
                 if self.debug_map is not None:
-                    updated_image = self.debug_map
+                    updated_image = self.debug_map.copy()
                 else:
                     updated_image = self.pos_predictor.draw_position_on_map(show=False)
                     current_target_loc = re_get_position(current_target_loc)
@@ -1088,14 +1088,6 @@ class SimulatedUniverse(UniverseUtils):
                             tipLength=0.4
                         )
 
-                color = (255, 0, 0)  # 蓝色
-                angle_text = f"state: {self.state}"
-                cv.putText(updated_image, angle_text, (x_offset, 10),
-                          cv.FONT_HERSHEY_SIMPLEX, 0.25, color, 1)
-
-
-
-                # cv.resizeWindow("Map", win_width, win_height)
                 cv.imshow("Map", updated_image)
                 # 使用cv.pollKey()替代cv.waitKey()以避免阻塞
                 key = cv.pollKey()
