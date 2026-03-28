@@ -192,6 +192,7 @@ class PositionPredict:
         self.set_now_map(1)
         self.rotation=None
         self.direction=None
+        self.scale=1.00
     def _predict_position(self,image, scale=1.0):
         """
         Args:
@@ -281,12 +282,11 @@ class PositionPredict:
         position_similarity_local = round(best_state.local_sim, 3)
         if update:
             self.position = tuple(np.round(best_state.global_loca, 1))
+            self.scale=round(best_scale, 3)
             position=self.position
-            CUS_LOGGER.debug(f"更新位置: {position}")
+            CUS_LOGGER.debug(f"更新位置: {position}最佳缩放{self.scale}")
         else:
             position = tuple(np.round(best_state.global_loca, 1))
-        position_scale = round(best_scale, 3)
-        print(position_scale)
         return position, position_similarity
 
     def draw_position_on_map(self, raidus=90.0,show=True):
@@ -354,7 +354,7 @@ class PositionPredict:
             'position': None,
             'map_name': None
         }
-        for i in range(1, 42):
+        for i in range(1, 43):
             CUS_LOGGER.debug(f"  正在匹配地图{i}")
             self.set_now_map(i)
             pos, sim = self.update_position(image.copy(),[1.00],update=False)

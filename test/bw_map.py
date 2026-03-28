@@ -3,8 +3,9 @@ from copy import deepcopy
 import cv2 as cv
 import numpy as np
 
+from importing import load_img
 from utils.utils.image_tool import find_image_by_name
-from utils.utils.minimap_util import rotate_minimap, mask_minimap_center, crop, area_offset, MINIMAP_CENTER
+from utils.utils.minimap_util import rotate_minimap, mask_minimap_center, crop, area_offset, get_minimap
 
 MINIMAP_RADIUS = 93
 #(138,149)精准中心点
@@ -20,24 +21,6 @@ def get_local(x, y, size,screen, large=True):
            :,
            ]
 
-def get_minimap(image, radius,copy=False,rotation=False,center_radius=80):
-    """
-    Crop the minimap area on image.
-    """
-    area = area_offset((-radius, -radius, radius, radius), offset=MINIMAP_CENTER)
-    image = crop(image, area, copy=copy)
-    if rotation:
-        from utils.utils.mminimap import update_rotation
-        # 获取输入图片的视角角度
-        input_rotation = update_rotation(minimap=image)
-        # 读取0度视角纹理图
-        zero_texture = find_image_by_name("only_rotated.png")
-        # 根据输入图片的视角旋转0度视角纹理图
-        rotated_texture = rotate_minimap(zero_texture, input_rotation)
-        # 将输入图片的小地图与旋转后的视角纹理相减
-        image = cv.subtract(image, rotated_texture)
-        #掩膜掩盖非中心区域避免遇敌红色圈干扰敌人追踪
-        image = mask_minimap_center(image, center_radius=center_radius)
     return image
 def get_bw_map(local_screen=None,screen=None):
     """
@@ -78,15 +61,34 @@ def get_bw_map(local_screen=None,screen=None):
             & (grey_map > 200)
             ] = 255
         # 排除半径90以外的像素点
-        for i in range(bw_map.shape[0]):
-            for j in range(bw_map.shape[1]):
-                if ((i - 93) ** 2 + (j - 93) ** 2) > 90 ** 2:
-                    bw_map[i, j] = 0
+        # for i in range(bw_map.shape[0]):
+        #     for j in range(bw_map.shape[1]):
+        #         if ((i - 93) ** 2 + (j - 93) ** 2) > 90 ** 2:
+        #             bw_map[i, j] = 0
         cv.imwrite("bwmap.jpg", bw_map)
-        return bw_map
+        
+        # 统计非黑像素点数量
+        non_black_pixels = np.count_nonzero(bw_map)
+        print(f"bw_map 中非黑像素点数量：{non_black_pixels}")
+        
+        return bw_map, non_black_pixels
     except Exception as e:
         print(f"get_bw_map函数执行出错: {str(e)}")
         return None
+
+
+def get_blank_state(screen=None):
+    local_screen = get_minimap(screen, radius=MINIMAP_RADIUS, copy=True, rotation=True, center_radius=95)
+    local_screen = local_screen - cv.bitwise_and(local_screen, local_screen, mask=cv.inRange(cv.cvtColor(local_screen, cv.COLOR_BGR2HSV), np.array([80, 0, 0]) , np.array([110, 255, 255])))
+    bw_map = np.zeros(local_screen.shape[:2], dtype=np.uint8)
+    grey_map = deepcopy(bw_map)
+    grey_map[np.sum((local_screen - np.array([55, 55, 55])) ** 2, axis=-1) <= 4800] = 255
+    grey_map = cv.dilate(grey_map, np.ones((5, 5), np.uint8), iterations=1)
+    bw_map[(np.sum((local_screen - np.array([210, 210, 210])) ** 2, axis=-1) <= 9000)& (grey_map > 200)] = 255
+    non_black_pixels = np.count_nonzero(bw_map)
+    print(f"bw_map 中非黑像素点数量：{non_black_pixels}")
+    return bw_map, non_black_pixels
 if __name__ == "__main__":
-    my_screen=cv.imread("20251230_190837.png")
-    get_bw_map(screen=my_screen)
+    load_img()
+    my_screen=cv.imread("20251021_224505.png")
+    get_blank_state(screen=my_screen)

@@ -40,6 +40,7 @@ class LogEmitter(QObject):
     """用于跨线程发送日志信号的Qt对象"""
     show_error_signal = pyqtSignal(str, str)  # (标题, 内容)
     find_path_state_signal = pyqtSignal(str)  # (路径状态文本)
+    kill_num_signal = pyqtSignal(str)  # (路径状态文本)
     fps_update_signal = pyqtSignal(float)  # (FPS值)
 
 

@@ -1,8 +1,7 @@
 from datetime import datetime
 
-from importimg import load_img
 from utils.utils.image_tool import find_image_by_name
-
+from importing import load_img
 load_img()
 import cv2
 import numpy as np
@@ -12,8 +11,7 @@ from utils.utils.minimap_util import rgb2yuv, RotationRemapData, peak_confidence
     DIRECTION_ROTATION_SCALE, crop, DIRECTION_SEARCH_SCALE, subtract_blur, POSITION_SEARCH_SCALE, cubic_find_maximum, \
     ArrowRotateMap, ArrowRotateMapAll, area_offset, MINIMAP_RADIUS, map_image_preprocess
 
-import matplotlib
-matplotlib.use('Qt5Agg')
+# matplotlib.use('Qt5Agg')
 
 
 def detect_minimap_center(image):
@@ -186,7 +184,7 @@ def update_rotation(or_image=None,minimap=None):
 
     return degree
 
-def update_direction(or_image=None,minimap=None):
+def update_direction(or_image=None, minimap=None):
     """
     获取角色方向，耗时约0.64ms。
 
@@ -203,82 +201,33 @@ def update_direction(or_image=None,minimap=None):
         area = area_pad(get_bbox(image, threshold=128), pad=-1)
         area = area_limit(area, (0, 0, *image_size(image)))
     except IndexError:
-        # IndexError: index 0 is out of bounds for axis 0 with size 0
-        # log.warning('小地图上没有方向箭头')
         print('小地图上没有方向箭头')
         return None
 
     image = crop(image, area=area, copy=False)
-    # cv2.imshow("minimap", image)
-    # cv2.waitKey(0)
-
     scale = DIRECTION_ROTATION_SCALE * DIRECTION_SEARCH_SCALE
     mapping = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
-    print(mapping.shape)
+
     result = cv2.matchTemplate(ArrowRotateMap, mapping, cv2.TM_CCOEFF_NORMED)
     result = subtract_blur(result, 5)
     _, sim, _, loca = cv2.minMaxLoc(result)
-    
-    # 在ArrowRotateMap上绘制匹配位置（使用白色框）
-    arrow_map_copy = ArrowRotateMap.copy()
-    # 将ArrowRotateMap转换为BGR格式以便绘制彩色框
-    if len(arrow_map_copy.shape) == 2:  # 灰度图
-        arrow_map_copy = cv2.cvtColor(arrow_map_copy, cv2.COLOR_GRAY2BGR)
-    
-    # 将匹配位置转换为ArrowRotateMap上的坐标
-    match_x, match_y = loca
-    cv2.rectangle(arrow_map_copy, 
-                  (match_x, match_y), 
-                  (match_x + mapping.shape[1], match_y + mapping.shape[0]),
-                  (0, 0, 255), 2)  # 红色框
-    print("匹配位置:", loca)
-    loca=(match_x + mapping.shape[1]/2, match_y + mapping.shape[0]/2)
-    print("匹配位置:", loca)
     loca = np.array(loca) / DIRECTION_SEARCH_SCALE // (DIRECTION_RADIUS * 2)
-    cv2.imshow("ArrowRotateMap with match", arrow_map_copy)
-    cv2.waitKey(0)
+
     degree = int((loca[0] + loca[1] * 8) * 5)
+
     def to_map(x):
         return int((x * DIRECTION_RADIUS * 2 + DIRECTION_RADIUS) * 0.5)
 
-    # ArrowRotateMapAll上的行
     row = int(degree // 8) + 45
-    # 计算+-1行以获得精度为1的结果
-    row = (row-2 , row + 3)
-    # 转换为ArrowRotateMapAll并放大5px
+    row = (row - 2, row + 3)
     row = (to_map(row[0]) - 5, to_map(row[1]) + 5)
     precise_map = ArrowRotateMapAll[row[0]:row[1], :].copy()
-    
-    # 在精确匹配区域上绘制匹配结果
-    if len(precise_map.shape) == 2:  # 灰度图
-        precise_display = cv2.cvtColor(precise_map, cv2.COLOR_GRAY2BGR)
-    else:
-        precise_display = precise_map.copy()
-        
+
     result = cv2.matchTemplate(precise_map, mapping, cv2.TM_CCOEFF_NORMED)
     result = subtract_blur(result, 5)
-    
-    # 在精确匹配区域上找到最佳匹配位置并绘制框
+
     _, _, _, precise_loc = cv2.minMaxLoc(result)
-    cv2.rectangle(precise_display,
-                  (precise_loc[0], precise_loc[1]),
-                  (precise_loc[0] + mapping.shape[1], precise_loc[1] + mapping.shape[0]),
-                  (0, 255, 0), 0)  # 绿色框
-    
-    # 将原始图像叠加到匹配区域
-    resized_image = cv2.resize(image, (mapping.shape[1], mapping.shape[0]))
-    if len(resized_image.shape) == 2:  # 灰度图转BGR
-        resized_image = cv2.cvtColor(resized_image, cv2.COLOR_GRAY2BGR)
-    
-    # 在匹配位置叠加原始图像
-    x, y = precise_loc
-    h, w = resized_image.shape[:2]
-    if y + h <= precise_display.shape[0] and x + w <= precise_display.shape[1]:
-        precise_display[y:y+h, x:x+w] = cv2.addWeighted(
-            precise_display[y:y+h, x:x+w], -0.5, resized_image, 0.5, 0)
-    cv2.resize(precise_display, (precise_display.shape[1] * 5, precise_display.shape[0] * 5), 0)
-    cv2.imshow("Precise matching area with match", precise_display)
-    cv2.waitKey(0)
+
 
     def to_map(x):
         return int((x * DIRECTION_RADIUS * 2) * 0.5)
@@ -457,30 +406,29 @@ def mask_minimap_center(minimap, center_radius=40):
     
     return masked_minimap
 
-def mask_minimap_outside(minimap, center_radius=40):
+def mask_minimap_outside(minimap, center_radius=40, outer_radius=None):
     """
-    保留小地图非圆心区域（圆环区域），圆心部分用黑色遮蔽
+    保留小地图圆环区域（环形区域），圆心和外围部分用黑色遮蔽
     
     Args:
         minimap: 小地图图像数组
-        center_radius: 圆心区域的半径，默认为40
+        center_radius: 圆心区域的半径，默认为 40
+        outer_radius: 外圆半径，默认为 None（使用图像最大半径减 5）
         
     Returns:
-        处理后的小地图图像，仅保留非中心圆形区域
+        处理后的小地图图像，仅保留圆环区域
     """
     # 获取图像尺寸
     height, width = minimap.shape[:2]
-    
-    # 定义中心点（根据代码中的信息，小地图中心为(93,93)）
     center = (93, 93)
-    
-    # 创建一个全白掩码
-    mask = np.ones((height, width), dtype=np.uint8) * 255
-    
-    # 在掩码中心绘制一个黑色圆形区域（即遮蔽中心区域）
-    cv2.circle(mask, center, center_radius, (0), -1)
-    
-    # 将掩码应用到原图像
+    max_radius = min(width, height) // 2
+    if outer_radius is None:
+        outer_radius = max_radius - 5
+    else:
+        outer_radius = min(outer_radius, max_radius)
+    mask = np.zeros((height, width), dtype=np.uint8)
+    cv2.circle(mask, center, outer_radius, (255), -1)
+    cv2.circle(mask, center, min(center_radius, outer_radius - 5), (0), -1)
     masked_minimap = cv2.bitwise_and(minimap, minimap, mask=mask)
     
     return masked_minimap
@@ -578,7 +526,7 @@ def test_mask_minimap_center(image_path, center_radius=40):
     
     return masked_minimap
 
-def test_mask_minimap_outside(image_path, center_radius=40):
+def test_mask_minimap_outside(image_path):
     """
     测试函数：传入完整图片，提取小地图，应用非圆心区域掩码（圆环区域），并保存结果
     
@@ -626,7 +574,8 @@ def test_mask_minimap_outside(image_path, center_radius=40):
     return masked_minimap
 
 if __name__ == "__main__":
-    pth="./20260223_162719.png"
+    pth="./20260322_002336.png"
+    # test_mask_minimap_outside(pth)
     image = cv2.imread(pth)
     # # analyze_red(image)
     rotation_minimap = get_minimap(image, radius=MINIMAP_RADIUS,copy=True)

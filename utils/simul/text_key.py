@@ -1,7 +1,7 @@
 class text_keys:
     def __init__(self,fate=4):
         self.fate=fate
-        self.interacts = ['黑塔', '区域', '事件', '退出', '沉浸', '紧锁', '复活', '下载', '模拟']
+        self.interacts = ['黑塔', '区域', '事件', '退出', '沉浸', '紧锁', '复活', '下载', '模拟', '觐见', '挑战']
         self.fates = ["存护", "记忆", "虚无", "丰饶", "巡猎", "毁灭", "欢愉", "繁育", "智识"]
         self.prior_bless = ['火堆外的夜']
         self.strange = []

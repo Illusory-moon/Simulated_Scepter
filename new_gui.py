@@ -24,7 +24,6 @@ from logger_printer import QMainWindowLog
 from PyQt5.QtWidgets import (
     QApplication, QLineEdit, QMessageBox)
 from PyQt5.QtCore import pyqtSignal, Qt
-from pathlib import Path
 from simul import SimulatedUniverse
 from diver import DivergentUniverse
 from iron_blood import IronBloodUniverse
@@ -45,8 +44,12 @@ class MainWindow(QMainWindowLog):
         # 任务管理相关属性
         self.current_task = None
         self.task_thread = None
-        self._last_key_time = {}  # 合并f5,f6,f7时间记录
-
+        self._last_key_time = {}
+            
+        # 加载快捷键配置并注册监听器
+        self.hotkey_config = self.load_hotkey_config()
+        self.registered_hotkeys = []
+    
         self.init_ui()
         self.setup_keyboard_listener()
         # 连接F5/F6/F7按键信号到处理函数
@@ -55,6 +58,7 @@ class MainWindow(QMainWindowLog):
         self.f7_pressed.connect(lambda: self.handle_key_pressed("f7"))
         log_emitter.show_error_signal.connect(self.show_error_message)
         log_emitter.find_path_state_signal.connect(self.set_find_path_state)
+        log_emitter.kill_num_signal.connect(self.set_kill_num)
         log_emitter.fps_update_signal.connect(self.set_FPS)
     
     def start_task(self, task_func):
@@ -149,77 +153,160 @@ class MainWindow(QMainWindowLog):
 
         # 连接配置保存按钮
         self.config_save_btn.clicked.connect(self.save_config)
-        
-        # 初始化recording_checkBox状态
+        self.Iron_blood_save_btn.clicked.connect(self.save_iron_config)
+
         with EXTRA.FILE_LOCK:
             with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
                 data = json.load(file)
+        self.recording_checkBox.setChecked(data.get("recording_state", True))
+        self.recording_checkBox2.setChecked(data.get("recording_iron_blood", True))
+        self.recording_label_checkbox.setChecked(data.get("record_add_label", True))
+        self.early_stop_checkbox.setChecked(data.get("early_stop", False))
+        self.recording_time_input.setText(str(data.get("del_record_time", 31)))
+        self.Iron_blood_max_run_input.setText(str(int(data.get("max_run_time", 0))))
+        self.Iron_blood_first_plane_input.setText(str(data.get("first_plane", 14)))
+        self.Iron_blood_second_plane_input.setText(str(data.get("second_plane", 31)))
+        self.debug_checkox2.setChecked(data.get("debug", True))
         
-        recording_state = data.get("recording_state", True)
-        self.recording_checkBox.setChecked(recording_state)
-
-        self.calibration_finished.connect(self.show_calibration_result)
-
-
-
+        # 初始化快捷键配置输入框
+        hotkey_config = data.get("hotkeys", {})
+        self.stop_hotkey_input.setText(hotkey_config.get("stop", "f5"))
+        self.test_hotkey_input.setText(hotkey_config.get("test", "f6"))
+        self.print_hotkey_input.setText(hotkey_config.get("print", "f7"))
+        
+        # 更新按钮文本显示当前快捷键
+        self.update_button_hotkey_text(hotkey_config)
+        
+        # 设置控件的启用/禁用状态
+        self.update_dependent_controls_state()
+        
+        # 连接信号以实现动态更新
+        self.connect_dependency_signals()
+    
+    def load_hotkey_config(self):
+        """从 settings.json 加载快捷键配置"""
+        default_config = {
+            "stop": "f5",
+            "test": "f6",
+            "print": "f7"      
+        }
+            
+        try:
+            with EXTRA.FILE_LOCK:
+                with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
+                    data = json.load(file)
+                
+            hotkey_config = data.get("hotkeys", default_config)
+                
+            # 确保所有必需的快捷键都存在
+            for key in ["stop", "test", "print"]:
+                if key not in hotkey_config:
+                    hotkey_config[key] = default_config[key]
+                
+            return hotkey_config
+        except Exception as e:
+            print(f"加载快捷键配置失败：{e}，使用默认配置")
+            return default_config
+        
     def setup_keyboard_listener(self):
         """
-        设置键盘监听器，监听F5/F6/F7按键
+        设置键盘监听器，根据 UI 配置监听自定义快捷键
         """
-        keyboard.on_press_key("f5", self._on_key_pressed)
-        keyboard.on_press_key("f6", self._on_key_pressed)
-        keyboard.on_press_key("f7", self._on_key_pressed)
+        # 使用当前 hotkey_config 注册快捷键监听
+        for action, key in self.hotkey_config.items():
+            if key and key.lower() != "none":
+                keyboard.on_press_key(key.lower(), lambda event, act=action: self._on_hotkey_pressed(event, act))
+                self.registered_hotkeys.append(key.lower())
 
-    def save_recording_checkbox_state_to_settings(self):
-        """保存recording_checkBox的状态到settings.json"""
-        
+    def save_ui_settings(self):
+        """保存 ui 的状态到 settings.json"""
+            
         with EXTRA.FILE_LOCK:
             with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
                 data = json.load(file)
-        
+            
         data["recording_state"] = self.recording_checkBox.isChecked()
-        
+        data["recording_iron_blood"] = self.recording_checkBox2.isChecked()
+        data["record_add_label"] = self.recording_label_checkbox.isChecked()
+        data["early_stop"] = self.early_stop_checkbox.isChecked()
+        data["del_record_time"] = int(self.recording_time_input.text())
+        data["max_run_time"] = int(self.Iron_blood_max_run_input.text())
+        data["first_plane"] = int(self.Iron_blood_first_plane_input.text())
+        data["second_plane"] = int(self.Iron_blood_second_plane_input.text())
+        data["debug"] = self.debug_checkox2.isChecked()
+            
+        # 保存快捷键配置
+        data["hotkeys"] = {
+            "stop": self.stop_hotkey_input.text().strip(),
+            "test": self.test_hotkey_input.text().strip(),
+            "print": self.print_hotkey_input.text().strip()
+        }
+    
         with EXTRA.FILE_LOCK:
             with open(PATHS["root"] + "\\config\\config\\settings.json", mode="w", encoding="UTF-8") as file:
                 json.dump(data, file, ensure_ascii=False, indent=4)
+        self.hotkey_config = data["hotkeys"]
+        self.refresh_keyboard_listener()
+        self.update_button_hotkey_text(self.hotkey_config)
 
-    def _on_key_pressed(self, event):
+    def _on_hotkey_pressed(self, event, action):
         """
-        当F5/F6/F7按键被按下时的回调函数
+        当自定义快捷键被按下时的回调函数
         """
         current_time = time.time()
         key = event.name.lower()
-        
-        # 只处理F5/F6/F7按键
-        if key in ["f5", "f6", "f7"]:
-            last_time = self._last_key_time.get(key, 0)
-            if current_time - last_time > 1:  # 1秒防重复
-                self._last_key_time[key] = current_time
-                if key == "f5":
-                    self.f5_pressed.emit()
-                elif key == "f6":
-                    self.f6_pressed.emit()
-                elif key == "f7":
-                    self.f7_pressed.emit()
             
-    def handle_key_pressed(self, key):
-        """
-        统一处理F5/F6/F7按键事件
-        """
-        if key == "f5":
-            if self.is_task_running():
-                self.stop_btn.click()
-        elif key == "f6":
-            if self.is_task_running():
-                QMessageBox.warning(self, "警告", "已有任务正在运行")
-            else:
-                self.test_btn.click()
-        elif key == "f7":
-            if self.is_task_running():
-                QMessageBox.warning(self, "警告", "已有任务正在运行")
-            else:
-                self.print_btn.click()
+        # 防重复触发
+        last_time = self._last_key_time.get(key, 0)
+        if current_time - last_time > 1:
+            self._last_key_time[key] = current_time
+                
+            # 根据动作类型处理
+            if action == "stop":
+                if self.is_task_running():
+                    self.stop_btn.click()
+            elif action == "test":
+                if self.is_task_running():
+                    QMessageBox.warning(self, "警告", "已有任务正在运行")
+                else:
+                    self.test_btn.click()
+            elif action == "print":
+                if self.is_task_running():
+                    QMessageBox.warning(self, "警告", "已有任务正在运行")
+                else:
+                    self.print_btn.click()
         
+    def update_button_hotkey_text(self, hotkey_config):
+        stop_key = hotkey_config.get("stop", "f5").upper()
+        test_key = hotkey_config.get("test", "f6").upper()
+        print_key = hotkey_config.get("print", "f7").upper()
+        
+        self.stop_btn.setText(f"停止任务 {stop_key}")
+        self.test_btn.setText(f"截图测试 {test_key}")
+        self.print_btn.setText(f"打印坐标 {print_key}")
+    
+    def refresh_keyboard_listener(self):
+        keyboard.unhook_all()
+        self.registered_hotkeys.clear()
+        for action, key in self.hotkey_config.items():
+            if key and key.lower() != "none":
+                keyboard.on_press_key(key.lower(), lambda event, act=action: self._on_hotkey_pressed(event, act))
+                self.registered_hotkeys.append(key.lower())
+    
+    def update_dependent_controls_state(self):
+        debug_and_recording = self.debug_checkox2.isChecked() and self.recording_checkBox2.isChecked()
+        self.recording_label_checkbox.setEnabled(debug_and_recording)
+        self.recording_time_input.setEnabled(self.recording_checkBox2.isChecked())
+        early_stop_enabled = self.early_stop_checkbox.isChecked()
+        self.Iron_blood_first_plane_input.setEnabled(early_stop_enabled)
+        self.Iron_blood_second_plane_input.setEnabled(early_stop_enabled)
+    
+    def connect_dependency_signals(self):
+        self.debug_checkox2.stateChanged.connect(lambda: self.update_dependent_controls_state())
+        self.recording_checkBox2.stateChanged.connect(lambda: self.update_dependent_controls_state())
+        self.recording_checkBox2.stateChanged.connect(lambda: self.update_dependent_controls_state())
+        self.early_stop_checkbox.stateChanged.connect(lambda: self.update_dependent_controls_state())
+    
     def closeEvent(self, event):
         """
         窗口关闭事件，清理键盘监听器
@@ -297,7 +384,7 @@ class MainWindow(QMainWindowLog):
             if self.PrintPhoto.isChecked():
                 su.click_target(find_image_by_name(print_text), 0.9, True, use_binary=False)
             elif self.PrintText.isChecked():
-                su.click_text(print_text,click=0)
+                su.click_text(print_text,click=0,find_all=True)
             else:
                 su.click_text(print_text,click=1)
 
@@ -349,15 +436,7 @@ class MainWindow(QMainWindowLog):
 
     def run_iron_blood(self):
         def task():
-            su = IronBloodUniverse(
-                1,
-                int(config_simul.debug_mode),
-                int(config_simul.speed_mode),
-                int(config_simul.use_consumable),
-                int(config_simul.slow_mode),
-                int(config_simul.max_run),
-                bonus=config_simul.bonus
-            )
+            su = IronBloodUniverse()
             self.current_task = su
             su.start()
 
@@ -421,12 +500,13 @@ class MainWindow(QMainWindowLog):
         # 保存配置到文件
         config_simul.save()
         config_diver.save()
-        
-        # 保存recording_checkBox状态到settings.json
-        self.save_recording_checkbox_state_to_settings()
+
+        self.save_ui_settings()
         
         QMessageBox.information(self, "提示", "配置已保存")
-
+    def save_iron_config(self):
+        self.save_ui_settings()
+        QMessageBox.information(self, "提示", "配置已保存")
     def set_FPS(self,TimePerFrame):
         Fps = 1.0 / float(TimePerFrame)
         Fps = round(Fps, 2)
@@ -434,6 +514,8 @@ class MainWindow(QMainWindowLog):
 
     def set_find_path_state(self, text:str):
         self.state_text.setText(text)
+    def set_kill_num(self, num:str):
+        self.kill_num_text.setText(num)
 def main(show):
     def is_admin():
         try:

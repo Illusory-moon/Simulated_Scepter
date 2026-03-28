@@ -159,14 +159,13 @@ def find_image_in_folder(folder_path: str, image_identifier: str, search_subfold
     elif not folder_path.endswith('/'):
         folder_path = folder_path + '/'
     
-    # 移除可能的.jpg后缀用于标准化比较
-    clean_identifier = image_identifier.replace('.jpg', '')
+    # 移除可能的扩展名用于标准化比较
+    clean_identifier = os.path.splitext(image_identifier)[0]
     
     # 在指定文件夹中查找
     if folder_path:
         folder_parts = folder_path.strip('/').split('/')
         current_dict = _image_cache
-        
         # 导航到指定文件夹
         for part in folder_parts:
             if part and part in current_dict:
@@ -191,7 +190,7 @@ def find_image_in_folder(folder_path: str, image_identifier: str, search_subfold
                             return result
                     elif isinstance(value, np.ndarray):
                         # 检查图像匹配
-                        key_without_ext = key.replace('.jpg', '')
+                        key_without_ext = os.path.splitext(key)[0]
                         if key == image_identifier or key_without_ext == clean_identifier:
                             return value.copy()
                 return None
@@ -216,7 +215,7 @@ def find_image_in_folder(folder_path: str, image_identifier: str, search_subfold
             # 查找部分匹配（文件名前缀）
             for key, value in current_dict.items():
                 if isinstance(value, np.ndarray):  # 确保是图像数据
-                    key_without_ext = key.replace('.jpg', '')
+                    key_without_ext = os.path.splitext(key)[0]
                     if key_without_ext == clean_identifier:
                         return value.copy()
     

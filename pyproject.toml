@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "colorlog>=6.10.1",
+    "ipykernel>=7.2.0",
     "keyboard>=0.13.5",
     "onnxruntime-directml==1.20.1",
     "opencv-python>=4.13.0.92",

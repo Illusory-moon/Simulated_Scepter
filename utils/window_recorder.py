@@ -251,25 +251,29 @@ class WindowRecorder:
                                     map_resized_width = int(img_cv.shape[1] * map_scale)  # 基于主窗口宽度计算
                                     map_resized_height = int(map_resized_width * (map_img_cv.shape[0] / map_img_cv.shape[1]))  # 保持比例
                                     map_img_resized = cv2.resize(map_img_cv, (map_resized_width, map_resized_height))
-                                    
                                     # 动态读取SimulatedUniverse的state属性并绘制到地图图像上
                                     if self.simul_instance is not None and self.simul_instance.state is not None:
-                                        try:
-                                            state_text = "state:" + str(self.simul_instance.state)
-                                            font = cv2.FONT_HERSHEY_SIMPLEX
-                                            font_scale = 0.8
-                                            font_thickness = 1
-                                            text_color = (0, 255, 0)
-                                            cv2.putText(map_img_resized, 
-                                                      state_text,
-                                                      (5, 15),  # 固定位置，避免计算文本尺寸
-                                                      font, 
-                                                      font_scale, 
-                                                      text_color, 
-                                                      font_thickness)
-                                        except Exception as e:
-                                            CUS_LOGGER.warning(f"绘制状态信息失败: {e}")
-                                            pass
+                                        state_text = "state:" + str(self.simul_instance.state)
+                                        font = cv2.FONT_HERSHEY_SIMPLEX
+                                        font_scale = 0.8
+                                        font_thickness = 1
+                                        text_color = (0, 255, 0)
+                                        cv2.putText(map_img_resized,
+                                                  state_text,
+                                                  (5, 15),  # 固定位置，避免计算文本尺寸
+                                                  font,
+                                                  font_scale,
+                                                  text_color,
+                                                  font_thickness)
+                                        if self.simul_instance.now_map is not None:
+                                            state_text = "map:" + str(self.simul_instance.now_map)
+                                            cv2.putText(map_img_resized,
+                                                        state_text,
+                                                        (5, 40),
+                                                        font,
+                                                        font_scale,
+                                                        (0, 0, 255),
+                                                        font_thickness)
                                     
                                     # 将调整后的地图图像叠加到主图像的左下角上方（带透明度）
                                     margin = 10
@@ -433,7 +437,7 @@ class WindowRecorder:
 if __name__ == "__main__":
     try:
         window_title = "崩坏：星穹铁道"
-        output_file = "../logs/video/test_recording_"
+        output_file = "../logs/video/"
         fps = 10
 
         CUS_LOGGER.info("=== 窗口录制器测试 (带透明度地图叠加) ===")
@@ -444,7 +448,7 @@ if __name__ == "__main__":
 
         # 创建带透明度的地图叠加录制器
         recorder = WindowRecorder(
-            output_file=output_file, 
+            output_path=output_file,
             fps=fps, 
             window_title=window_title,
             window_class_name="UnityWndClass", 

@@ -85,7 +85,7 @@ class My_TS:
                     continue
         return None
 
-    def find_with_box(self, box=None, redundancy=10, forward=0, mode=0):
+    def find_with_box(self, box=None, redundancy=10, forward=0, mode=0,re_screen=1):
         """
         在指定文本框内
         Args:
@@ -97,13 +97,10 @@ class My_TS:
         return:
             指定区域提取的排序文字
         """
-        if forward and box is not None:
+        if re_screen and forward and box is not None:
             self.forward(filter_non_white(self.father.get_screen()[box[2]:box[3], box[0]:box[1]], mode=mode))
-            if box[3]==540 or box[3] == 350 and self.father.debug:
-                tm = str(int(time.time()*100)%1000000)
-                cv.imwrite('img/'+tm+'.jpg',self.father.screen[box[2]:box[3],box[0]:box[1]])
-                cv.imwrite('img/' + tm +'w.jpg',
-                           filter_non_white(self.father.screen[box[2]:box[3], box[0]:box[1]], mode=mode))
+        elif forward and box is not None:
+            self.forward(filter_non_white(self.father.screen.copy()[box[2]:box[3], box[0]:box[1]], mode=mode))
         ans = []
         for res in self.res:
             if box is None:
@@ -123,7 +120,6 @@ class text_keys:
         self.interacts = ['造物调试台', '复活装置']
         self.fates = ["存护", "记忆", "虚无", "丰饶", "巡猎", "毁灭", "欢愉", "繁育", "智识"]
         self.prior_bless = ['火堆外的夜']
-        self.strange = []
         self.blesses = [[] for _ in range(9)]
         self.strange = ['福灵胶', '博士之袍', '陨石球', '降维骰子', '信仰债券', '时空棱镜', '朋克洛德', '香涎干酪',
                         '龋齿星系']

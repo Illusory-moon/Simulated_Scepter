@@ -15,6 +15,7 @@ DIRECTION_ARROW_COLOR = (255, 199, 2)
 DIRECTION_ROTATION_SCALE = 1.0
 DIRECTION_SEARCH_SCALE = 0.5
 POSITION_SEARCH_SCALE = 0.425
+POSITION_MINIMAP_SCALE= 0.27625
 POSITION_RADIUS = 90
 POSITION_MOVE_PATCH = (0.5, 0.5)
 POSITION_FEATURE_PAD = 155
@@ -472,22 +473,31 @@ def mask_minimap_center(minimap, center_radius=80):
     return masked_minimap
 
 
-def mask_minimap_outside(minimap, center_radius=80):
+def mask_minimap_outside(minimap, center_radius=40, outer_radius=None):
     """
-    保留小地图非圆心区域（圆环区域），圆心部分用黑色遮蔽
+    保留小地图圆环区域（环形区域），圆心和外围部分用黑色遮蔽
 
     Args:
         minimap: 小地图图像数组
-        center_radius: 圆心区域的半径，默认为40
+        center_radius: 圆心区域的半径，默认为 40
+        outer_radius: 外圆半径，默认为 None（使用图像最大半径减 5）
 
     Returns:
-        处理后的小地图图像，仅保留非中心圆形区域
+        处理后的小地图图像，仅保留圆环区域
     """
+    # 获取图像尺寸
     height, width = minimap.shape[:2]
     center = (93, 93)
-    mask = np.ones((height, width), dtype=np.uint8) * 255
-    cv2.circle(mask, center, center_radius, (0), -1)
+    max_radius = min(width, height) // 2
+    if outer_radius is None:
+        outer_radius = max_radius - 5
+    else:
+        outer_radius = min(outer_radius, max_radius)
+    mask = np.zeros((height, width), dtype=np.uint8)
+    cv2.circle(mask, center, outer_radius, (255), -1)
+    cv2.circle(mask, center, min(center_radius, outer_radius - 5), (0), -1)
     masked_minimap = cv2.bitwise_and(minimap, minimap, mask=mask)
+
     return masked_minimap
 def detect_minimap_center(image):
     """
@@ -672,6 +682,7 @@ def remove_border(image, radius):
     image[:, :radius + 1] = 0
     image[:, width - radius:] = 0
     image[:radius + 1, :] = 0
+
     image[height - radius:, :] = 0
 def deal_minimap(image,is_minimap=False):
     if not is_minimap:

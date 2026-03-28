@@ -39,6 +39,7 @@ class My_TS:
         self.father = father
         self.forward_img = None
         self.res=[]
+        self.nothing=1
 
     def similar(self, text, img=None):
         """
@@ -56,7 +57,7 @@ class My_TS:
         for i in range(len(stext)-length):
             #滑动窗口检测所有长度为length的子串
             res |= is_edit_distance_at_most_one(text,stext[i:i+length],stext[i+length])
-        CUS_LOGGER.debug(f"{self.text}与{ text}是否相似：{res}")
+        # CUS_LOGGER.debug(f"{self.text}与{ text}是否相似：{res}")
         return res
 
     def ocr_one_row(self, img, box=None):
@@ -85,7 +86,7 @@ class My_TS:
                 return t
         return None
 
-    def split_and_find(self,key_list,img,mode=None,bless_skip=1):
+    def split_and_find(self,key_list,img,mode=None,bless_skip=1,black_list=[]):
         white=[255,255,255]
         yellow=[126,162,180]
         binary_image = np.zeros_like(img[:, :, 0])
@@ -113,7 +114,7 @@ class My_TS:
         prior = len(key_list)
         rcx,rcy,find,black=-1,-1,0,0
         res=''
-        text_res='.'
+        text_res='无'
         for c,contour in enumerate(contours):
             x, y, w, h = cv.boundingRect(contour)
             if h==binary_image.shape[0] or w<55:
@@ -127,7 +128,7 @@ class My_TS:
             if find == 0:
                 rcx,rcy,find,text_res = cx,cy,1,self.text+';'
             res+='|'+self.text
-            if (self.similar('回归不等式') and bless_skip) or self.similar_list(['银河大乐透', '普通八卦', '愚者面具', '机械齿轮']) is not None:
+            if (self.similar('回归不等式') and bless_skip) or self.similar_list(black_list) is not None:
                 black = 1
                 res+='x'
                 continue
@@ -144,11 +145,38 @@ class My_TS:
         if black and find==1:
             find=3
         return (rcx-img.shape[1]//2,rcy-img.shape[0]//2),find+black
-    
+    def split_strange(self,img):
+        yellow=[126,162,180]
+        binary_image = np.zeros_like(img[:, :, 0])
+        enhance_image = np.zeros_like(img)
+        binary_image[np.sum((img - yellow) ** 2, axis=-1) <= 512]=255
+        enhance_image[np.sum((img - yellow) ** 2, axis=-1) <= 3200]=[255,255,255]
+        kernel = np.zeros((5,9),np.uint8) + 1
+        for i in range(2):
+            binary_image = cv.dilate(binary_image,kernel,iterations=3)
+            binary_image = cv.erode(binary_image,kernel,iterations=2)
+        contours, _ = cv.findContours(binary_image, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+        res=[]
+        point_list=[]
+        for c,contour in enumerate(contours):
+            x, y, w, h = cv.boundingRect(contour)
+            if h==binary_image.shape[0] or w<55:
+                continue
+            roi = enhance_image[y:y+h, x:x+w]
+            cx = x + w // 2
+            cy = y + h // 2
+            self.ocr_one_row_and_save(roi)
+            if len(self.text.strip())<=1:
+                continue
+            point_list.append((cx-img.shape[1]//2,cy-img.shape[0]//2))
+            res.append(self.text)
+        CUS_LOGGER.debug(f'识别奇物结果：{res}')
+        return point_list,res
     def find_text(self, img, text,find_all=False):
         self.nothing = 1
         results = self.ts.ocr(img)
         # log.debug(f"识别到文本：{results}")
+        find_all_return = None
         for res in results:
             res = {'raw_text': res[1][0], 'box': np.array(res[0]), 'score': res[1][1]}
             self.text = res['raw_text']
@@ -171,12 +199,16 @@ class My_TS:
                 if not find_all:
                     return res['box']
                 else:
+                    find_all_return = res['box']
                     continue
+        if find_all_return is not None:
+            return find_all_return
         return None
     def forward(self, img):
         """
         识别传入图像的文本并保存在self.res中
         """
+        self.nothing = 1
         if self.forward_img is not None and self.forward_img.shape == img.shape and np.sum(np.abs(self.forward_img-img))<1e-6:
             return
         self.forward_img = img
@@ -186,8 +218,10 @@ class My_TS:
             res = {'raw_text': res[1][0], 'box': np.array(res[0]), 'score': res[1][1]}
             res['box'] = [int(np.min(res['box'][:,0])),int(np.max(res['box'][:,0])),int(np.min(res['box'][:,1])),int(np.max(res['box'][:,1]))]
             self.res.append(res)
+        if len(self.res):
+            self.nothing = 0
         self.res = merge(self.res)
-    def find_with_box(self, box=None, redundancy=10, forward=0, mode=0):
+    def find_with_box(self, box=None, redundancy=10, forward=0, mode=0,re_screen=False):
         """
         在指定文本框内
         Args:
@@ -199,8 +233,11 @@ class My_TS:
         return:
             指定区域提取的排序文字
         """
-        if forward and box is not None:
+        if re_screen and forward and box is not None:
             self.forward(filter_non_white(self.father.get_screen()[box[2]:box[3], box[0]:box[1]], mode=mode))
+        elif forward and box is not None:
+            self.forward(filter_non_white(self.father.screen.copy()[box[2]:box[3], box[0]:box[1]], mode=mode))
+
         ans = []
         for res in self.res:
             if box is None:

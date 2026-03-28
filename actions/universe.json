@@ -164,7 +164,9 @@
         },
         "actions":
         [
-            "confirm_fate"
+            {
+                "position": [1693, 979]
+            }
         ]
     },
     {

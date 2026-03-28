@@ -14,7 +14,6 @@ from config.GLOBAL import key_mouse_manager
 from config import EXTRA
 from diver import load_actions, merge_text
 from utils.log import CUS_LOGGER, set_debug
-from utils.simul.update_map import update_map
 from utils.simul.utils import UniverseUtils, set_forground, sprint, get_dis
 import os
 from utils.simul.config import config
@@ -28,7 +27,7 @@ from route import PATHS
 
 
 class SimulatedUniverse(UniverseUtils):
-    def __init__(self, find, debug, speed, consumable, slow, nums=-1, bonus=False, update=0):
+    def __init__(self, find, debug, speed, consumable, slow, nums=-1, bonus=False):
         """
         初始化模拟宇宙类实例
         
@@ -101,6 +100,8 @@ class SimulatedUniverse(UniverseUtils):
         self.first_save_map = True
         #目标小地图左上角偏移
         self.upx, self.upy=0,0
+        #上次执行操作时间
+        self.action_time=time.time()
         #事件与行为存储路径
         self.default_json_path = "actions/universe.json"
         self.default_json = load_actions(self.default_json_path)
@@ -111,9 +112,6 @@ class SimulatedUniverse(UniverseUtils):
         self.update_debug_map()
         self.update_count()
         CUS_LOGGER.info(f"开始运行,初始计数：{self.count}")
-        # set_debug(debug > 0)
-        if update and find:
-            update_map()
         self.last_interact_time = time.time()
         CUS_LOGGER.info("加载地图")
         for file in os.listdir(PATHS["image"]+"/nmaps"):
@@ -135,7 +133,6 @@ class SimulatedUniverse(UniverseUtils):
         # 根据self._show_map决定是否叠加地图到录制视频上
         self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",window_class_name="UnityWndClass",see_time=True, offsets=[10, 50, 10, 10], overlay_map=self._show_map, simul_instance=self)
         self.cut_video=True
-
     def route(self):
         self.init_map()
         set_forground()
@@ -177,9 +174,9 @@ class SimulatedUniverse(UniverseUtils):
             remain = int(remain_round * (time.time() - self.init_time) / self.my_cnt / 60)
         else:
             remain = 0
-            remain_round = -1
-        CUS_LOGGER.info(f"已完成计数:{self.count} 剩余:{remain_round} 已使用：{tm // 60}小时{tm % 60}分钟  平均{tm // self.my_cnt}分钟一次  预计剩余{remain // 60}小时{remain % 60}分钟")
-        if self.debug == 0 and self.check_bonus == 0 and self.my_cnt >= self.nums >= 0:
+            remain_round = "∞"
+        CUS_LOGGER.info(f"本轮已运行计数：{self.my_cnt},总计已完成计数:{self.count} 剩余:{remain_round}次, 已使用：{tm // 60}小时{tm % 60}分钟  平均{tm // self.my_cnt}分钟一次  预计剩余{remain // 60}小时{remain % 60}分钟")
+        if self.check_bonus == 0 and self.my_cnt >= self.nums > 0:
             CUS_LOGGER.info('已完成上限，准备停止运行')
             self.end = 1
         self.update_floor(1)
@@ -481,7 +478,6 @@ class SimulatedUniverse(UniverseUtils):
             self.update_floor(1)
     def pre_start(self):
         self.fail_count = 0
-        self.allow_e = 1
         if self.check("team4", 0.5797, 0.2389):
             dx = 0.9266 - 0.8552
             dy = 0.8194 - 0.6741
@@ -490,8 +486,6 @@ class SimulatedUniverse(UniverseUtils):
                     0.9266 - dx * ((i - 1) % 3), 0.8194 - dy * ((i - 1) // 3)
                 )
         key_mouse_manager.click(0.1635, 0.1056)
-    def confirm_fate(self):
-        key_mouse_manager.click(0.1182, 0.0926)
     def select_fate(self):
         click_x = [0.02, 0.98]
         n = 4  # 重试次数
@@ -509,8 +503,8 @@ class SimulatedUniverse(UniverseUtils):
                 break
         key_mouse_manager.click(*self.calc_point((0.4969, 0.3750), res[0]))
     def select_bless(self):
-        if not self.click_text('奇物'):
-            key_mouse_manager.click(0.5047, 0.4917)
+        if not (self.click_text('神奇宇宙') or self.click_text('巨胃宇宙')):
+            key_mouse_manager.click(0.5, 0.5)
         key_mouse_manager.click(0.5062, 0.1065)
     # 事件界面
     def select_event(self):
@@ -520,10 +514,13 @@ class SimulatedUniverse(UniverseUtils):
         key_mouse_manager.wait()
         self.get_screen()
         if success and self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
+            CUS_LOGGER.debug("成功匹配到相应事件")
             key_mouse_manager.click(self.tx, self.ty)
         elif self.click_text(text="休息区",box=[187, 289, 903, 941],click=False,warning=False):
+            CUS_LOGGER.debug("休息区特别点击")
             key_mouse_manager.click(0.1667, 0.2592)
         else:
+            CUS_LOGGER.debug("未匹配到合适事件")
             key_mouse_manager.click(tx, ty)
             key_mouse_manager.click(0.1167, ty - 0.1139)
     # 选取奇物
@@ -831,11 +828,17 @@ class SimulatedUniverse(UniverseUtils):
                     #强制跳过或者检查是否存在子串
                     if (condition==self.state if condition is not None else True) and (len(text) and trigger["text"] in merge_text(text)):
                         CUS_LOGGER.info(f"触发文本 {i['name']}:{trigger['text']}")
+                        if trigger.get("interval", None) and len(self.action_history) and self.action_history[-1] == i['name']:
+                            tm=time.time()-self.action_time
+                            if tm<trigger["interval"]:
+                                CUS_LOGGER.warning(f"触发时间限制，距离上次触发{tm}秒，默认配置间隔为{trigger["interval"]}")
+                                return i['name'], 1
                         for j in i["actions"]:
                             self.do_action(j)
                         self.action_history.append(i["name"])
                         #记录最近10个动作
                         self.action_history = self.action_history[-10:]
+                        self.action_time=time.time()
                         #返回触发的名字
                         return i['name'],1
                 elif trigger.get("photo", None):
@@ -844,23 +847,39 @@ class SimulatedUniverse(UniverseUtils):
                         if "pos" in trigger:
                             if self.check(trigger["photo"], trigger["pos"]["x"], trigger["pos"]["y"], mask=trigger.get("mask", None), threshold=trigger.get("threshold", None),use_binary=trigger.get("binary", False)):
                                 CUS_LOGGER.info(f"触发图像 {i['name']}:{trigger['photo']}")
+                                if trigger.get("interval", None) and len(self.action_history) and self.action_history[
+                                    -1] == i['name']:
+                                    tm = time.time() - self.action_time
+                                    if tm < trigger["interval"]:
+                                        CUS_LOGGER.warning(
+                                            f"触发时间限制，距离上次触发{tm}秒，默认配置间隔为{trigger["interval"]}")
+                                        return i['name'], 1
                                 for j in i["actions"]:
                                     re=self.do_action(j)
                                 resu=re if re is not None else resu
                                 self.action_history.append(i["name"])
                                 #记录最近10个动作
                                 self.action_history = self.action_history[-10:]
+                                self.action_time = time.time()
                                 #返回触发的名字
                                 return i['name'],resu
                         else:
                             if self.click_target(find_image_by_name(trigger["photo"]), threshold=trigger.get("threshold", 0.9), flag=False,click=False):
                                 CUS_LOGGER.info(f"触发全局图像 {i['name']}:{trigger['photo']}")
+                                if trigger.get("interval", None) and len(self.action_history) and self.action_history[
+                                    -1] == i['name']:
+                                    tm = time.time() - self.action_time
+                                    if tm < trigger["interval"]:
+                                        CUS_LOGGER.warning(
+                                            f"触发时间限制，距离上次触发{tm}秒，默认配置间隔为{trigger["interval"]}")
+                                        return i['name'], 1
                                 for j in i["actions"]:
                                     re=self.do_action(j)
                                 resu=re if re is not None else resu
                                 self.action_history.append(i["name"])
                                 #记录最近10个动作
                                 self.action_history = self.action_history[-10:]
+                                self.action_time = time.time()
                                 #返回触发的名字
                                 return i['name'],resu
         return '',0

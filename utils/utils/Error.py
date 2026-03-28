@@ -7,3 +7,5 @@ class FloorError(Exception):
 
 class NormalEndError(Exception):
     pass
+class NoMatchError(Exception):
+    pass

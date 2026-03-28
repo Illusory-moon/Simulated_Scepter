@@ -1,7 +1,531 @@
+import os
+import random
+from config import EXTRA
+import time
+import cv2 as cv
+import yaml
+import json
+from config.GLOBAL import key_mouse_manager
+from route import PATHS
 from simul import SimulatedUniverse
+from utils.log import CUS_LOGGER, log_emitter
+from utils.public_ocr import load_actions, merge_text
+from utils.utils.Error import NoMatchError
+from utils.utils.analysis_map import match_multiple_targets, build_rightward_graph, compute_start_point_from_crop, \
+    max_weight_path, display_matches, evaluate_best_single_replacement, compute_all_max_steps
+from utils.utils.image_tool import find_image_by_name
+from utils.utils.minimap_util import MINIMAP_RADIUS, get_minimap, re_get_position
+from utils.utils.ocr_num import match_numbers_in_region, extract_number
+from utils.utils.tool import find_latest_modified_file
+from utils.window_recorder import WindowRecorder
 
 
 class IronBloodUniverse(SimulatedUniverse):
     def __init__(
-            self, find, debug, speed, consumable, slow, nums=-1, bonus=False, update=0):
-        super().__init__(find, debug, speed, consumable, slow, nums, bonus, update)
+            self):
+        with EXTRA.FILE_LOCK:
+            with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
+                self.opt = json.load(file)
+        super().__init__(find=True,speed=False,consumable=False, slow=False,debug=self.opt.get("debug", True), nums=self.opt.get("max_run_time", 0))
+        self.plane_floor = -1
+        self.need_record = False
+        self.default_json_path = "actions/insect.json"
+        self.default_json = load_actions(self.default_json_path)
+        with open("config/config/event_info.yml", "r", encoding="utf-8", errors="ignore") as f:
+            self.event_prior = yaml.safe_load(f)["event"]
+        self.action_history = []
+        self.steps=None
+        self.nodes=None
+        self.replace_idx=None
+        self.next_node = None
+        self.kill_count =0
+        self.need_end=False
+        self.record = self.opt.get("recording_iron_blood", True)
+        self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",window_class_name="UnityWndClass",see_time=self.opt.get("record_add_label", True), offsets=[10, 50, 10, 10], overlay_map=self.opt.get("record_add_label", True) and self._show_map, simul_instance=self)
+        self.early_stop=self.opt.get("early_stop", False)
+        self.first_plane_count=self.opt.get("first_plane", 14)
+        self.second_plane_count=self.opt.get("second_plane", 31)
+    def end_of_university(self):
+        super().end_of_university()
+        self.need_end=False
+    def normal(self):
+        bk_lst_changed = self.last_interact_time
+        self.last_interact_time = time.time()
+        self.ts.forward(self.get_screen())
+        res,state = self.run_static()
+        if self.state=="run":
+            CUS_LOGGER.info("开始匹配地图")
+            #检查黄泉
+            if not self.quan and self.check("huangquan", 0.0578,0.7083):
+                key_mouse_manager.press("1")
+                self.quan = 1
+            if not self.bai_e and self.check("bai_e", 0.0625,0.7092):
+                key_mouse_manager.press("1")
+                self.bai_e = 1
+            #上次交互时间
+            self.last_interact_time = bk_lst_changed
+            # 刚进图，初始化一些数据
+            if not self.need_end:
+                ocr_text = self.ts.find_with_box(box=[55, 164, 12, 40],forward=True,re_screen=False)
+                text=merge_text(ocr_text) if len(ocr_text) else ""
+                CUS_LOGGER.info(f"当前区域{text}")
+                if "战斗" in text:
+                    if not self.big_map_init:
+                        key_mouse_manager.clean()
+                        key_mouse_manager.keyUp("w")
+                        key_mouse_manager.wait()
+                        if self._stop:
+                            return 1
+                        self.find,self.need_record=self.map_data_load()
+                        CUS_LOGGER.info("开始战斗寻路")
+                        if self._stop:
+                            return 1
+                    if self.need_record:
+                        self.recording_map()
+                    elif self.find:
+                        # 有先验寻路
+                        self.get_path_with_big_map()
+                    else:
+                        # 无先验寻路
+                        self.get_path_only_minimap()
+                elif "精英" in text or "首领" in text:
+                    if not self.big_map_init:
+                        key_mouse_manager.clean()
+                        key_mouse_manager.keyUp("w")
+                        key_mouse_manager.wait()
+                        if self._stop:
+                            return 1
+                        self.find, self.need_record = self.map_data_load()
+                        CUS_LOGGER.info("开始固定怪战斗寻路")
+                        if self._stop:
+                            return 1
+                    if self.need_record:
+                        self.recording_map()
+                    elif self.find:
+                        # 有先验寻路
+                        self.get_path_with_big_map(True)
+                    else:
+                        # 无先验寻路
+                        self.get_path_only_minimap(True)
+                elif "事件" in text or "奖励" in text:
+                    self.get_event_only_minimap()
+                elif "休整" in text:
+                    self.get_rest_only_minimap()
+                elif "交易" in text:
+                    self.get_shop_only_minimap()
+                elif "冒险" in text:
+                    # if not self.big_map_init:
+                    #     self.map_data_load()
+                    # self.recording_map()
+                    self.get_adventure()
+                else:
+                    #背景有光污染，字都认不出来
+                    key_mouse_manager.mouse_move(1)
+                    key_mouse_manager.wait()
+            # 长时间未交互/战斗，暂离或重开
+            if ((time.time() - self.last_interact_time >= 40-self.debug*10) and not self.need_record )or self.need_end:
+                key_mouse_manager.clean()
+                key_mouse_manager.wait()
+                key_mouse_manager.keyUp("w")
+                key_mouse_manager.press("esc")
+                self.update_state("ui")
+                self.init_map()
+                self.floor_init = 0
+                if self.need_end:
+                    self.update_state("exit")
+                    CUS_LOGGER.info(f"提前结束本轮！当前击杀数:{self.kill_count}")
+                    return 1
+                elif self.fail_count <= 1:
+                    CUS_LOGGER.error(f"地图{self.now_map}未发现目标,相似度{self.now_map_sim}，尝试暂离")
+                    self.fail_count += 1
+                else:
+                    CUS_LOGGER.error(
+                        f"地图{self.now_map}多次未发现目标,相似度{self.now_map_sim},尝试退出重进"
+                    )
+                    if self.debug == 0:
+                        self.fail_count = 0
+                self.last_interact_time = time.time()
+                return 1
+            return 2
+        key_mouse_manager.wait()
+        if res != '':
+            return state
+        else:
+            return 0
+    def map_data_load(self):
+        self.big_map_init = True
+        # 寻路模式，匹配最接近的地图
+        self.stop_move = False
+        find = True
+        record=False
+        #参考线太少毫无定位价值，则直接采用无地图寻路
+        if self.get_blank_state()>150:
+            self.now_map, self.now_map_sim = self.match_scr(get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True))
+            CUS_LOGGER.info(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
+            if (self.debug and self.now_map_sim < 0.5) or self.now_map_sim < 0.35:
+                CUS_LOGGER.warning(f"相似度过低,疑似未找到匹配地图,匹配地图{self.now_map}")
+                self.map_file =PATHS["image"]+ "/nmaps/my_" + str(random.randint(0, 99999)) + "/"
+                if not os.path.exists(self.map_file):
+                    os.mkdir(self.map_file)
+                find = False
+                record=True
+            elif self.now_map !=-1 and "m" in str(self.now_map):
+                CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
+                self.map_file = PATHS["image"] + "/nmaps/" + self.now_map + "/"
+                record = True
+            if find:
+                files,x,y,map_num,self.upx,self.upy,target_path = find_latest_modified_file(f"{PATHS['image']}/nmaps/{self.now_map}/")
+                self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
+                self.debug_map =None
+                self.now_loc = (x, y)
+                self.start_pos =(x, y)
+                self.pos_predictor.position=self.now_loc
+                self.pos_predictor.set_now_map(map_num)
+                if target_path is not None:
+                    self.target = self.get_target(target_path,self.upx,self.upy)
+                    self.pos_map=cv.imread(target_path)
+                    CUS_LOGGER.info("已从地图获取目标路径点%s" % self.target)
+                self.rotation, d = self.pos_predictor.update_minimap_data(self.screen)
+                self.init_ang = 270 + d
+            elif (not find) and self.first_save_map:
+                # 录制模式，保存初始小地图
+                self.first_save_map=False
+                CUS_LOGGER.warning("未找到匹配地图")
+                cv.imwrite(self.map_file + "init.jpg", get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True))
+                self.best_match=self.pos_predictor.match_multiple_maps(self.screen,0)
+                self.start_pos=self.best_match['position']
+            if record:
+                key_mouse_manager.press("s")
+                key_mouse_manager.wait()
+                key_mouse_manager.keyDown("w")
+        else:
+            find = False
+            self.mini_state = 1
+            CUS_LOGGER.warning("非常规地图，将进行无地图寻路")
+        return find,record
+    def recording_map(self):
+        CUS_LOGGER.info("开始录制地图")
+        self.get_loc(False)
+        # 录图模式，将对应编号大地图裁剪成指定大小小地图
+        CUS_LOGGER.debug("尝试裁剪地图中")
+        self.cut_map(re_get_position(self.now_loc,need_int=False), self.pos_predictor.assets_floor_feat)
+        CUS_LOGGER.debug("尝试写入地图中")
+        self.write_map(self.pos_predictor.assets_floor_feat, self.pos_predictor.map_num)
+
+    def begin_universe(self):
+        con = self.click_text(text="继续进度",box=[1610, 1762, 937, 1023],click=False,ocr_line=False,warning=False)
+        if not con:
+            #点击最低难度
+            key_mouse_manager.click(0.9375, 0.8565)
+        key_mouse_manager.click(0.1083, 0.1009)
+        if con:
+            CUS_LOGGER.info(f"继续游戏附带初始化层数,更新前{self.floor}")
+            self.get_level()
+            return
+        else:
+            self.update_floor(1)
+    def select_fate(self):
+        self.click_text(text="毁灭",box=[1263, 1317, 791, 821])
+    def select_head(self):
+        self.click_text(text="击败该首领",box=[1108, 1385, 267, 290])
+        self.click_text(text="确认选择",box=[1633, 1733, 961, 990])
+    def try_analysis_map(self,mode=1):
+        if self.debug:
+            self.save_screen(not_now=True)
+        image = self.screen
+        matches = match_multiple_targets(image, mode)
+        CUS_LOGGER.debug(f"找到 {len(matches)} 个匹配:")
+        if len(matches)==0:
+            CUS_LOGGER.warning("未匹配到任何图标，可能是误识别")
+            raise NoMatchError
+        if mode==2:
+            start=compute_start_point_from_crop(image)
+            if start is None:
+                start = compute_start_point_from_crop(image,[1003,929,1035,965])
+        else:
+            start=None
+        for i, m in enumerate(matches):
+            CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}")
+        self.nodes, self.edges, start_idx = build_rightward_graph(
+            matches,
+            start=start,
+        )
+        CUS_LOGGER.debug('构建图后的节点 (索引，类型，相似度，中心 x, 中心 y):')
+        for n in self.nodes:
+            CUS_LOGGER.debug(f"  {n['idx']}: {n['name']} sim={n.get('similarity', 0):.3f} center=({n['cx']:.1f},{n['cy']:.1f})")
+        CUS_LOGGER.debug(f'起点索引 ={start_idx}名称 ={next((n['name'] for n in self.nodes if n['idx'] == start_idx), None)}')
+        path, total_weight, end_idx = max_weight_path(self.nodes, self.edges, start_idx)
+        self.start_nodes=path[0]
+        if path:
+            weight_ranges = {
+                'event': (0, 1), 'wait': (0, 0), 'trade': (0, 0), 'trade2': (0, 0), 'adventure': (0, 0),
+                'reward': (0, 1),'reward2': (0, 1), 'battle': (1, 3), 'elite': (1, 1), 'bugevent': (0, 1),
+                'bugbattle': (1, 1), 'head': (1, 1), 'boss': (1, 1), 'blank': (0, 0)
+            }
+            if len(path)>1:
+                self.next_node=path[1]
+            CUS_LOGGER.debug(f'路径理论期望值：total_weight={total_weight:.3f}')
+            CUS_LOGGER.debug(f'路径理论最小值：{sum(weight_ranges.get(n['name'], (0, 0))[0] for n in path)}')
+            CUS_LOGGER.debug(f'路径理论最大值：{sum(weight_ranges.get(n['name'], (0, 0))[1] for n in path)}')
+            self.max_limited=0
+            self.max_change_count=0
+            best_path, _, _, _, _, _ = evaluate_best_single_replacement(
+                self.nodes, self.edges, start_idx, t=0.3 if self.plane_floor == 3 else 0.2)
+            for i,n in enumerate(best_path):
+                #下一个注定无法改变
+                if i==1:
+                    self.max_limited +=weight_ranges.get(n['name'], (0, 0))[1]
+                else:
+                    if n['name']!='battle' and n['name']!='start' and n['name']!='boss' and n['name']!='head' :
+                        self.max_change_count+=1
+                    if n['name']!='start'and n['name']!='boss' and n['name']!='head':
+                        self.max_limited+=3
+                    elif n['name']=='head' or n['name']=='boss':
+                        self.max_limited+=1
+            CUS_LOGGER.debug(f'路径极限最大值：{self.max_limited}')
+        if self.debug:
+            # 评估最佳单节点替换
+            best_path, best_weight, best_end_idx, self.replace_idx, delta, discounted_delta = evaluate_best_single_replacement(
+                self.nodes, self.edges, start_idx, t=0.3 if self.plane_floor == 3 else 0.2)
+            self.steps = compute_all_max_steps(self.nodes, self.edges, start_idx)
+            if self.replace_idx is None or discounted_delta <= 0:
+                CUS_LOGGER.info('\n替换评估：未找到有益的单节点替换')
+                highlight = None
+                alt_path = None
+            else:
+                b = self.replace_idx
+                k = self.steps.get(b, -1)
+                CUS_LOGGER.debug(f"\n最佳单节点替换：索引={b}, 名称={self.nodes[b]['name']}")
+                CUS_LOGGER.debug(
+                    f'  原类型权重 -> 新类型权重：{self.nodes[b]["weight"]:.3f} -> {delta + self.nodes[b]["weight"]:.3f} (+{delta:.3f})')
+                CUS_LOGGER.debug(f'  距离起点的最长步数 k={k}')
+                CUS_LOGGER.debug(f'  原始增量 delta={delta:.3f}')
+                CUS_LOGGER.debug(f'  期权调整后增量 (1-0.2)^{k} × {delta:.3f} = {discounted_delta:.3f}')
+                CUS_LOGGER.debug(f'替换后路径总权重：{best_weight:.3f} (原权重：{total_weight:.3f})')
+                highlight = b
+                alt_path = best_path
+                baseline_ids = [n["idx"] for n in path]
+                new_ids = [n["idx"] for n in best_path]
+                if baseline_ids == new_ids:
+                    CUS_LOGGER.debug('提示：新旧路径节点相同')
+                    CUS_LOGGER.debug(f'  被替换节点：{b}({self.nodes[b]["name"]})')
+                else:
+                    CUS_LOGGER.debug(f'Baseline 路径：{baseline_ids}')
+                    CUS_LOGGER.debug(f'New 路径：{new_ids}')
+                    CUS_LOGGER.info('改变更优路径！')
+                # 计算并打印原路径的理论范围
+                weight_ranges = {
+                    'event': (0, 1), 'wait': (0, 0), 'trade': (0, 0), 'trade2': (0, 0), 'adventure': (0, 0),
+                    'reward': (0, 1),'reward2': (0, 1), 'battle': (1, 3), 'elite': (1, 1), 'bugevent': (0, 1),
+                    'bugbattle': (1, 1), 'head': (1, 1), 'boss': (1, 1), 'blank': (0, 0)
+                }
+                orig_min = sum(weight_ranges.get(n['name'], (0, 0))[0] for n in path)
+                orig_max = sum(weight_ranges.get(n['name'], (0, 0))[1] for n in path)
+                CUS_LOGGER.debug(f'\n原路径理论期望值：{total_weight:.3f} (min={orig_min}, max={orig_max})')
+                if baseline_ids == new_ids and b is not None:
+                    if next((node for node in self.nodes if node['idx'] == b), None):
+                        # 获取目标类型的权重范围
+                        target_range = (1, 3)
+                        old_range = weight_ranges.get(self.nodes[b]['name'], (0, 0))
+                        orig_min = orig_min - old_range[0] + target_range[0]
+                        orig_max = orig_max - old_range[1] + target_range[1]
+                else:
+                    # 路径节点发生变化，直接计算新路径的范围
+                    orig_min = sum(weight_ranges.get(n['name'], (0, 0))[0] for n in best_path)
+                    orig_max = sum(weight_ranges.get(n['name'], (0, 0))[1] for n in best_path)
+
+                CUS_LOGGER.debug(f'新路径理论期望值：{best_weight:.3f} (min={orig_min}, max={orig_max})')
+            display_matches(image, matches, path=path, highlight_idx=highlight, save_path=True,
+                         font_size_override=14, alt_path=alt_path)
+    def initing_map(self):
+        key_mouse_manager.keyUp("w")
+        if self.click_text(text="振翅",box=[10, 220, 0, 112],click=False,warning=False):
+            self.plane_floor=1
+        elif self.click_text(text="浪潮",box=[10, 220, 0, 112],click=False,warning=False):
+            self.plane_floor=2
+        elif self.click_text(text="消褪",box=[10, 220, 0, 112],click=False,warning=False):
+            self.plane_floor=3
+        else:
+            CUS_LOGGER.warning("未知的地图")
+            return
+        self.try_analysis_map(1)
+        for _ in range(5):
+            self.click_text(text="进入位面", box=[907, 1009, 857, 891])
+        key_mouse_manager.wait()
+        return
+    def initing_map2(self):
+        key_mouse_manager.keyUp("w")
+        if self.click_text(text="振翅",box=[385, 449, 548, 583],click=False,warning=False):
+            self.plane_floor=1
+        elif self.click_text(text="浪潮",box=[385, 449, 548, 583],click=False,warning=False):
+            self.plane_floor=2
+        elif self.click_text(text="消褪",box=[385, 449, 548, 583],click=False,warning=False):
+            self.plane_floor=3
+        else:
+            CUS_LOGGER.warning("未知的地图")
+            return
+        CUS_LOGGER.debug(f"当前地图位面{self.plane_floor}")
+        self.try_analysis_map(2)
+        key_mouse_manager.press("esc")
+        key_mouse_manager.wait()
+        return
+    def select_strange(self):
+        img = self.get_small_interaction_img(x=0.5000, y=0.7333, mask="mask_strange", fresh=True)
+        res = self.ts.split_strange(img)
+        value =-1
+        strange_index = -1
+        black_index_list = []
+        black_first=-1
+        for i, strange in enumerate(res[1]):
+            if '胡须火药' in strange or '纯美骑士' in strange:
+                strange_index = i
+                break
+            elif '三八面骰' in strange or '银河大乐透' in strange:
+                if value<2:
+                    strange_index=i
+                    value=2
+            elif '普通八卦' in strange or '万识囊' in strange or '混沌特效' in strange or '羊皮卷' in strange:
+                if value < 1:
+                    strange_index = i
+                    value = 1
+            elif '分裂咕咕钟' in strange or '血锦之纪' in strange or '星际大乐透' in strange or '机械齿轮' in strange:
+                black_index_list.append(i)
+                if '机械齿轮' in strange:
+                    black_first=i
+                elif '星际大乐透' in strange and black_first==-1:
+                    black_first = i
+        if strange_index!=-1:
+            CUS_LOGGER.debug(f"优先选择第{strange_index}个奇物")
+            key_mouse_manager.click(*self.calc_point((0.5000, 0.7333), res[0][strange_index]))
+            key_mouse_manager.click(0.1365, 0.1093)
+            key_mouse_manager.wait()
+        else:
+            can_use_list=list({0, 1, 2} - set(black_index_list))
+            if len(can_use_list)>0:
+                CUS_LOGGER.debug(f"任意选择第{can_use_list[0]}个奇物")
+                key_mouse_manager.click(*self.calc_point((0.5000, 0.7333), res[0][can_use_list[0]]))
+                key_mouse_manager.click(0.1365, 0.1093)
+                key_mouse_manager.wait()
+            else:
+                CUS_LOGGER.warning(f"极差情况，选择第{black_first}个奇物,齿轮或大乐透")
+                key_mouse_manager.click(*self.calc_point((0.5000, 0.7333), res[0][black_first]))
+                key_mouse_manager.click(0.1365, 0.1093)
+                key_mouse_manager.wait()
+    def cheat(self):
+        key_mouse_manager.drag(0.5,0.4,0.5,0.8)
+        key_mouse_manager.click(571,622)
+        self.click_text("确认",box=[1168, 1223, 811, 841],allow_fail=True)
+    def select_doing(self):
+        text = self.ts.find_with_box(box=[557, 747, 447, 474], forward=True, re_screen=False)
+        text = merge_text(text) if len(text) else ""
+        CUS_LOGGER.info(f"当前效果{text}")
+        if "肉体" in text:
+            try:
+                self.try_analysis_map(mode=2)
+            except NoMatchError:
+                return
+            if self.replace_idx is not None:
+                x,y=int(self.nodes[self.replace_idx]["cx"]),int(self.nodes[self.replace_idx]["cy"])
+                key_mouse_manager.click(x,y)
+                key_mouse_manager.wait()
+                self.click_text(text="确认目标", box=[1635, 1735, 968, 996])
+            else:
+                CUS_LOGGER.info("放弃了肉体帝候")
+                self.click_text(text="放弃", box=[1221, 1276, 967, 998])
+        else:
+            #不是肉体帝候一律放弃
+            self.click_text(text="放弃", box=[1221, 1276, 967, 998])
+    def select_go(self):
+        num = extract_number(match_numbers_in_region(self.screen))
+        retry=True
+        if num is not None:
+            num=int(num)
+            if num%8==0:
+                self.kill_count=num//8
+                retry=False
+            else:
+                CUS_LOGGER.warning("异常的被动效果参数")
+        if retry:
+            time.sleep(2)
+            num = extract_number(match_numbers_in_region(self.get_screen()))
+            if num is None or int(num)%8!=0:
+                return
+            else:
+                num = int(num)
+                self.kill_count = num // 8
+        CUS_LOGGER.info(f"当前击杀数{self.kill_count}")
+        self.set_kill_num(str(self.kill_count))
+        if self.click_text(text="选择移动目标", box=[1609, 1759, 965, 996],click=False):
+            self.try_analysis_map(mode=2)
+            if self.next_node is not None:
+                self.start_node=self.next_node
+                x,y=int(self.next_node["cx"]),int(self.next_node["cy"])
+                key_mouse_manager.click(x,y)
+                key_mouse_manager.wait()
+                self.click_text(text="确认移动", box=[1611, 1759, 964, 998])
+            else:
+                CUS_LOGGER.error("未找到下一步路径点")
+            if self.early_stop:
+                if self.plane_floor==1 and self.kill_count+self.max_limited<self.first_plane_count:
+                    self.need_end=True
+                    CUS_LOGGER.info(f"当前极限值{self.kill_count+self.max_limited}无法达到第一位面推荐值{self.first_plane_count},触发早停")
+                elif self.plane_floor==2 and self.kill_count+self.max_limited<self.second_plane_count:
+                    self.need_end=True
+                    CUS_LOGGER.info(f"当前极限值{self.kill_count + self.max_limited}无法达到第二位面推荐值{self.second_plane_count},触发早停")
+        else:
+            self.click_text(text="确认移动", box=[1611, 1759, 964, 998])
+    def calculated_roll(self):
+        if self.nodes is None or self.plane_floor==-1:
+            self.click_target(find_image_by_name("inmap"), 0.9, flag=False, click=True)
+            key_mouse_manager.wait()
+            return
+        if not self.check("fast_roll", 0.1281,0.9074, threshold=0.9):
+            self.click_text(text="快速投掷", box=[1700, 1823, 80, 117])
+        if self.plane_floor in [2,3]:
+            text = self.ts.find_with_box(box=[1339, 1576, 429, 464], forward=True, re_screen=False)
+            text = merge_text(text) if len(text) else ""
+            CUS_LOGGER.info(f"当前效果{text}")
+            if "肉体" not in text:
+                cheating =not self.check("zero", 0.3046,0.3324, threshold=0.95)
+                redo=not self.check("zero", 0.1297,0.3315, threshold=0.95)
+                CUS_LOGGER.debug(f"决策可用动作{cheating},{redo}")
+                if cheating or redo:
+                    best_path, best_weight, best_end_idx, self.replace_idx, delta, discounted_delta = evaluate_best_single_replacement(
+                        self.nodes, self.edges, self.start_nodes['idx'], t=0.3 if self.plane_floor == 3 else 0.2)
+                    if len(best_path)>1:
+                        if best_path[1]['idx'] == self.replace_idx:
+                            CUS_LOGGER.debug(f"期权最佳代替节点{self.replace_idx},替换后最佳路径{best_path}")
+                            if cheating:
+                                self.click_text(text="作弊", box=[1261, 1321, 761, 792])
+                                return
+                            elif redo:
+                                self.click_text(text="重投", box=[1599, 1657, 760, 795])
+                                return
+        self.click_text(text="确认效果", box=[1584, 1687, 961, 994])
+        self.init_map()
+        self.mini_state = 1
+
+    def strange_shop(self):
+        img = self.get_small_interaction_img(x=0.5000, y=0.7333, mask="mask_strange", fresh=True)
+        res=self.ts.split_strange(img)
+        strange_index_list=[]
+        black_index_list=[]
+        for i,strange in enumerate(res[1]):
+            if '胡须火药'in strange or '纯美骑士' in strange:
+                strange_index_list.append(i)
+            elif '三八面骰' in strange or '银河大乐透' in strange:
+                strange_index_list.append(i)
+            elif '普通八卦' in strange or '万识囊' in strange or '混沌特效' in strange or '羊皮卷' in strange:
+                strange_index_list.append(i)
+            elif '分裂咕咕钟' in strange or '血锦之纪' in strange or '星际大乐透' in strange or '机械齿轮' in strange:
+                black_index_list.append(i)
+        for i in strange_index_list:
+            key_mouse_manager.click(*self.calc_point((0.5000, 0.7333), res[0][i]))
+            key_mouse_manager.click(0.1365, 0.1093)
+            key_mouse_manager.wait()
+            for _ in range(5):
+                self.click_text(text="点击空白", box=[872, 1048, 729, 1015],warning=False)
+        key_mouse_manager.press("esc")
+    @staticmethod
+    def set_kill_num(num):
+        log_emitter.kill_num_signal.emit(num)
