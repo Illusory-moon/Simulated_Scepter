@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 
+from config.GLOBAL import factor
 from utils.log import CUS_LOGGER
 from utils.utils.image_tool import find_image_in_folder
 from utils.utils.minimap_util import image_size, subtract_blur, group_points, inrange, remove_border, draw_circle, \
@@ -147,7 +148,7 @@ def predict(image, enemy=True, item=True, debug=False):
         draw_item,points_item =predict_item(v.copy())
     kv = {'enemy': aimed_enemy(points_enemy), 'item': aimed_item(points_item)}
     if kv['enemy'] is not None or kv['item'] is not None:
-        CUS_LOGGER.info(f'预测到打击目标: {kv}')
+        CUS_LOGGER.info(f'{factor}恍惚间看见了宇宙的「毁灭」: {kv}')
     if debug:
         show_aim(draw_enemy,draw_item)
     return kv
@@ -169,7 +170,7 @@ def show_aim(draw_enemy,draw_item):
     cv2.imshow('AimDetector', image)
     cv2.waitKey(0)
 def get_text_position(image):
-    CUS_LOGGER.debug('查找一次视觉文本')
+    CUS_LOGGER.info('「众人将与一人离别，惟其人将觐见奇迹」')
     scr = image[:497]
     mask = np.zeros((497, scr.shape[1]), dtype=np.uint8)
     mask_zero = np.zeros((497, scr.shape[1]), dtype=np.uint8)
@@ -186,7 +187,6 @@ def get_text_position(image):
     # cv.imshow("mask", mask)
     # cv.waitKey(0)
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    print(contours)
     mx_area, mx_cnt = 0, None
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)

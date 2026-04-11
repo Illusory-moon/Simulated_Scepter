@@ -51,14 +51,14 @@ def main(ang=[1,1,3], su=None):
             lst_ang = now_ang
         ang_list = np.array(ang_list)
         # 十/3次转身的角度
-        print(f"基本角度变化: {ang_list}")
+        CUS_LOGGER.deubg(f"基本角度变化: {ang_list}")
         ax = 0
         ay = 0
         for j in ang_list:
             if abs(j - np.median(ang_list)) <= 3:
                 ax += 60
                 ay += j
-        print(f"原始倍率：{key_mouse_manager.multi}倍率变化: {ax}/{ay}")
+        CUS_LOGGER.debug(f"原始倍率：{key_mouse_manager.multi}倍率变化: {ax}/{ay}")
         key_mouse_manager.multi *= ax / ay
     key_mouse_manager.multi += 1e-9
     try:
@@ -69,7 +69,6 @@ def main(ang=[1,1,3], su=None):
     
     # 打印基本校准后的角度校准值
     CUS_LOGGER.info(f"基本角度校准值: {key_mouse_manager.multi}")
-    print(f"基本角度校准值: {key_mouse_manager.multi}")
 
     
     CUS_LOGGER.info("所有校准完成")

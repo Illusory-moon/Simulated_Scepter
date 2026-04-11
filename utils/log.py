@@ -18,11 +18,11 @@ from datetime import datetime
 
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QApplication
-
 # 延迟导入 GLOBAL，避免循环导入
 def get_GLOBAL():
     try:
         from config import GLOBAL
+        from config.GLOBAL import factor
         return GLOBAL
     except ImportError:
         # 如果直接运行此文件，可能无法导入config模块
@@ -55,16 +55,15 @@ class UILogHandler(StreamHandler):
         self.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
 
     def emit(self, record):
-        GLOBAL = get_GLOBAL()  # 延迟导入
+        GLOBAL = get_GLOBAL()
+        # 非调试模式下过滤 DEBUG 日志
+        if not getattr(GLOBAL, 'DEBUG_MODE', True) and record.levelno < logging.INFO:
+            return
+        
         if GLOBAL.PRINT_TO_UI is not None:
             msg = self.format(record)
-            # 根据日志级别设置颜色
             level_colors = {
-                'DEBUG': 4,
-                'INFO': 5,
-                'WARNING': 2,
-                'ERROR': 1,
-                'CRITICAL': 1
+                'DEBUG': 4, 'INFO': 5, 'WARNING': 2, 'ERROR': 1, 'CRITICAL': 1
             }
             color_level = level_colors.get(record.levelname, 5)
             GLOBAL.PRINT_TO_UI.emit(text=msg, color_level=color_level, time=True)
@@ -165,11 +164,11 @@ class CusLogger(logging.Logger):
     def __init__(self, name):
         super().__init__(name)
 
-        set_debug(self, False)
+        # 固定 Logger 级别为 DEBUG，让所有日志都能产生
+        set_debug(self, True)
 
         # 其他原有处理器配置...
-        # keywords = ["property", "widget", "push", "layout"]
-        keywords = ["property"]
+        keywords = ["property", "widget", "push", "layout"]
         keyword_filter = KeywordFilter(keywords)
 
         logging_format = "%(levelname)s [%(asctime)s] [%(filename)s:%(lineno)d] %(message)s"
@@ -177,10 +176,10 @@ class CusLogger(logging.Logger):
 
         # --------- 常规日志文件处理器 ---------
 
-        file_handler = FileHandler(filename=logs_path / "log.txt", mode="a", encoding="utf-8")
-        file_handler.setFormatter(formatter)
-        file_handler.addFilter(keyword_filter)
-        self.addHandler(file_handler)
+        # file_handler = FileHandler(filename=logs_path / "log.txt", mode="a", encoding="utf-8")
+        # file_handler.setFormatter(formatter)
+        # file_handler.addFilter(keyword_filter)
+        # self.addHandler(file_handler)
 
         timestamped_file_handler = FileHandler(filename=logs_path / f"log_{current_time_str}.txt", mode="a",
                                                encoding="utf-8")
@@ -254,18 +253,10 @@ app = QApplication.instance() or QApplication(sys.argv)
 logging.setLoggerClass(CusLogger)
 CUS_LOGGER = logging.getLogger('my customize logger')
 
+# 禁用 PyQt5 的 DEBUG 日志
+logging.getLogger('PyQt5').setLevel(logging.WARNING)
+logging.getLogger('PyQt5.uic').setLevel(logging.WARNING)
 
-
-
-
-
-
-
-
-
-
-
-basicConfig(level=INFO)
 
 
 

@@ -1,3 +1,4 @@
+import os
 import traceback
 import pyautogui
 import cv2 as cv
@@ -15,7 +16,7 @@ from utils.log import print_exc
 from utils.diver.args import args
 from utils.diver.utils import UniverseUtils, set_forground
 from config.GLOBAL import key_mouse_manager
-import os
+from config import GLOBAL, EXTRA
 from utils.diver.config import config
 import datetime
 import csv
@@ -61,8 +62,8 @@ class DivergentUniverse(UniverseUtils):
 
         self.count = self.my_cnt = 0
         self.debug = debug
-        if self.debug:
-            set_debug(CUS_LOGGER,True)
+        # 设置全局调试模式标志，供 UILogHandler 使用
+        GLOBAL.DEBUG_MODE = bool(self.debug)
         self.nums = nums
         self.speed = speed
         self.init_tm = time.time()

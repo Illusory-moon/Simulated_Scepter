@@ -352,17 +352,18 @@ class MainWindow(QMainWindowLog):
             QMessageBox.critical(self, "错误", f"清除日志失败: {str(e)}")
 
     def test(self):
-        from utils.diver.args import args
-        
         def task():
-            args.cpu = int(config_diver.cpu_mode)
-            su = DivergentUniverse(
-                int(config_diver.debug_mode),
-                int(config_diver.max_run),
-                int(config_diver.speed_mode)
+            su = SimulatedUniverse(
+                1,
+                int(config_simul.debug_mode),
+                int(config_simul.speed_mode),
+                int(config_simul.use_consumable),
+                int(config_simul.slow_mode),
+                int(config_simul.max_run),
+                bonus=config_simul.bonus
             )
             self.current_task = su
-            su.screen_test()
+            su.save_screen()
             
         try:
             self.start_task(task)
@@ -370,14 +371,16 @@ class MainWindow(QMainWindowLog):
             QMessageBox.warning(self, "警告", str(e))
 
     def test_2(self):
-        from utils.diver.args import args
 
         def task():
-            args.cpu = int(config_diver.cpu_mode)
-            su = DivergentUniverse(
-                int(config_diver.debug_mode),
-                int(config_diver.max_run),
-                int(config_diver.speed_mode)
+            su = SimulatedUniverse(
+                1,
+                int(config_simul.debug_mode),
+                int(config_simul.speed_mode),
+                int(config_simul.use_consumable),
+                int(config_simul.slow_mode),
+                int(config_simul.max_run),
+                bonus=config_simul.bonus
             )
             self.current_task = su
             print_text = self.PrintEdit.text()

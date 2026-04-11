@@ -276,7 +276,7 @@ def evaluate_best_single_replacement(nodes, edges, start_idx, t=0.2):
     return best_path, best_weight, best_end_idx, best_replace_idx, float(best_delta), float(best_discounted_delta)
 
 
-def compute_start_point_from_crop(image, crop_coords=(50, 63, 92, 104)):
+def compute_start_point_from_crop(image, crop_coords=(55, 63, 92, 104)):
     """通过裁剪图像并将裁剪区域与完整图像进行模板匹配来计算起点。
 
     Args:
@@ -304,7 +304,7 @@ def compute_start_point_from_crop(image, crop_coords=(50, 63, 92, 104)):
     cx = mx + tpl.shape[1] / 2.0
     cy = my + tpl.shape[0] / 2.0
     print(f'(匹配得分={max_val:.3f})')
-    if max_val>0.65:
+    if max_val>0.6:
         return float(cx), float(cy)
     else:
         return None
@@ -382,7 +382,7 @@ def display_matches(image, matches, path=None, highlight_idx=None, save_path=Non
 
 if __name__ == '__main__':
     load_img()
-    test_image = cv2.imread('20260327_203824.png')
+    test_image = cv2.imread('20260405_002318.png')
     mode=2
     start=compute_start_point_from_crop(test_image)
     if start is None:

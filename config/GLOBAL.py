@@ -4,7 +4,7 @@ IMAGE_TO_UI = None
 
 # 延迟初始化，仅在需要时才创建实例
 _key_mouse_manager_instance = None
-
+factor="Neikos496"
 def get_key_mouse_manager():
     global _key_mouse_manager_instance
     if _key_mouse_manager_instance is None:

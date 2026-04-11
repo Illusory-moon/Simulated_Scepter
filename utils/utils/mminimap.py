@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from scipy import signal
 
+from config.GLOBAL import factor
 from utils.log import CUS_LOGGER
 from utils.utils.image_tool import find_image_in_folder
 from utils.utils.minimap_util import MINIMAP_RADIUS, get_minimap, rgb2yuv, RotationRemapData, peak_confidence, convolve, \
@@ -330,7 +331,7 @@ class PositionPredict:
             cv2.destroyAllWindows()
         return map_color
     def set_now_map(self,map_num):
-        CUS_LOGGER.debug(f"设置当前地图为{map_num}")
+        CUS_LOGGER.info(f"{factor}设置当前地图为{map_num}号大地图")
         self.map_num=map_num
         feat_name = f'map_{map_num}f.png'
         mask_img_name = f'map_{map_num}a.png'
@@ -348,7 +349,7 @@ class PositionPredict:
             dict: 包含最佳匹配信息的字典
         """
 
-        CUS_LOGGER.debug(f"开始多地图匹配...")
+        CUS_LOGGER.info(f"{factor}正在回忆相似的命运抉择...")
         best_match = {
             'similarity': 0.0,
             'position': None,
@@ -367,14 +368,14 @@ class PositionPredict:
                 })
                 CUS_LOGGER.debug(f"更新最佳匹配: {sim:.3f}")
 
-        if best_match['similarity'] > 0:
+        if best_match['similarity'] > 0.01:
             CUS_LOGGER.debug(f"最佳匹配地图: {best_match['map_name']} ,相似度: {best_match['similarity']:.3f} ,位置坐标: {best_match['position']}")
             self.set_now_map(best_match['map_name'])
             self.position = best_match['position']
             if show_result:
                 self.draw_position_on_map()
         else:
-            CUS_LOGGER.warning("未找到匹配的地图")
+            CUS_LOGGER.warning(f"{factor}未想起任何相似的命运抉择...（未找到匹配的大地图）")
 
         return best_match
     def update_minimap_data(self,image=None,rotation_minimap=None, direction_minimap=None):
@@ -385,7 +386,7 @@ class PositionPredict:
         try:
             self.direction = update_direction(minimap=direction_minimap)
         except Exception as e:
-            CUS_LOGGER.error(f"更新方向失败: {e}")
+            CUS_LOGGER.error(f"{factor}无法更新当前方向: {e}")
             self.direction = None
             return self.rotation, self.direction
         if self.direction is None:

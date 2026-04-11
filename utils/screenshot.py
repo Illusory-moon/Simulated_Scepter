@@ -50,13 +50,13 @@ class Screen():
                     self.gdi.BitBlt(self.memdc, 0, 0, self.width, self.height, self.srcdc, x, y, 0x40CC0020)
                     bits = self.gdi.GetDIBits(self.memdc, self.bmp, 0, self.height, self.data, self.bmi, 0)
                     if bits != self.height:
-                        CUS_LOGGER.info(f'截图失败！第{attempt + 1}次尝试')
+                        CUS_LOGGER.warning(f'截图失败！第{attempt + 1}次尝试')
                         time.sleep(0.05)
                         continue
                     return np.frombuffer(bytearray(self.data), dtype=np.uint8).reshape((self.height,self.width,4))[:,:,:3]
                 except Exception as e:
-                    CUS_LOGGER.info(f'截图过程中发生异常: {e}, 第{attempt + 1}次尝试')
+                    CUS_LOGGER.warning(f'截图过程中发生异常: {e}, 第{attempt + 1}次尝试')
                     time.sleep(0.05)
                     continue
-        CUS_LOGGER.info('截图失败！已达到最大重试次数')
+        CUS_LOGGER.error('截图失败！已达到最大重试次数')
         return np.zeros((self.height,self.width,3), dtype=np.uint8)

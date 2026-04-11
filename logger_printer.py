@@ -129,9 +129,12 @@ class QMainWindowLog(QMainWindowLoadUI):
         """打印默认输出提示"""
 
         GLOBAL.PRINT_TO_UI.emit(
-            text="欢迎使用ADA-自动困难成就达成器~",
+            text="欢迎使用ADA-本项目将用于求解铁血战士计算的终点,一道完美的「毁灭」方程式……",
             time=False)
 
+        GLOBAL.PRINT_TO_UI.emit(
+            text="如果认为本项目对您践行「毁灭」有帮助,请为开发者于github点star,或是赞助一下,请开发者喝杯咖啡~",
+            time=False)
 
     # 用于展示弹窗信息的方法
     @QtCore.pyqtSlot(str, str)
@@ -187,7 +190,18 @@ class QMainWindowLog(QMainWindowLoadUI):
 
         # 颜色文本
         text_all = f'<span style="color:#{color};">{text_time}{text}</span>'
-
+    
+        # 限制最大行数为1000行，避免内存爆炸
+        max_lines = 1000
+        document = self.TextBrowser.document()
+        if document.blockCount() > max_lines:
+            # 删除最旧的日志块
+            cursor = self.TextBrowser.textCursor()
+            cursor.movePosition(cursor.Start)
+            cursor.select(cursor.BlockUnderCursor)
+            cursor.removeSelectedText()
+            cursor.deleteChar()  # 删除换行符
+    
         # 输出到输出框
         self.TextBrowser.append(text_all)
 

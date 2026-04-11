@@ -77,7 +77,7 @@ def load_all_images_from_directory(directory_path: str = None) -> Dict[str, bool
         return count
     
     total_files = count_files(_image_cache)
-    CUS_LOGGER.info(f"发现 {total_files} 个图像文件，开始加载...")
+    CUS_LOGGER.info(f"发现 {total_files} 个记忆图像切片，正在载入缓冲区...")
     
     # 递归加载所有图像
     def load_images_recursive(structure, results_dict):
@@ -99,7 +99,6 @@ def load_all_images_from_directory(directory_path: str = None) -> Dict[str, bool
                     # 根据文件夹决定读取模式
                     if is_gray_image:
                         image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-                        CUS_LOGGER.debug(f"使用灰度模式加载: {key}")
                     else:
                         image = cv2.imread(image_path, cv2.IMREAD_COLOR)
                     if image is None:
@@ -115,19 +114,18 @@ def load_all_images_from_directory(directory_path: str = None) -> Dict[str, bool
                         structure[key] = image  # 替换路径为图像数据
                         results_dict[key] = True
                         success_count += 1
-                        CUS_LOGGER.debug(f"成功加载: {key} (尺寸: {image.shape}, 灰度: {is_gray_image})")
                     else:
                         results_dict[key] = False
-                        CUS_LOGGER.warning(f"无法加载图像: {key}")
+                        CUS_LOGGER.warning(f"无法加载图像记忆切片: {key}")
                 except Exception as e:
                     results_dict[key] = False
-                    CUS_LOGGER.error(f"加载图像时出错 {key}: {str(e)}")
+                    CUS_LOGGER.error(f"加载图像记忆切片时出错 {key}: {str(e)}")
         return success_count
     
     results = {}
     success_count = load_images_recursive(_image_cache, results)
     
-    CUS_LOGGER.info(f"图像加载完成: {success_count}/{total_files} 成功")
+    CUS_LOGGER.info(f"图像记忆切片载入完成: {success_count}/{total_files} 成功")
     return results
 
 
@@ -171,7 +169,7 @@ def find_image_in_folder(folder_path: str, image_identifier: str, search_subfold
             if part and part in current_dict:
                 current_dict = current_dict[part]
             else:
-                CUS_LOGGER.warning(f"指定的文件夹不存在: {folder_path}")
+                CUS_LOGGER.warning(f"指定的图像记忆切片文件夹不存在: {folder_path}")
                 return None
     else:
         # 空路径，使用根目录
@@ -219,7 +217,7 @@ def find_image_in_folder(folder_path: str, image_identifier: str, search_subfold
                     if key_without_ext == clean_identifier:
                         return value.copy()
     
-    warning_msg = f"在文件夹 '{folder_path}'"
+    warning_msg = f"在图像记忆切片文件夹 '{folder_path}'"
     if search_subfolders:
         warning_msg += "及其子文件夹"
     warning_msg += f"中未找到图像: {image_identifier}"
@@ -269,10 +267,10 @@ def find_image_by_name(image_identifier: str) -> Optional[np.ndarray]:
     result = search_image(_image_cache)
     if result is None:
         # 缓存中未找到，尝试从磁盘加载
-        CUS_LOGGER.warning(f"缓存中未找到 {image_identifier}，尝试从磁盘加载...")
+        CUS_LOGGER.warning(f"未在记忆切片缓存中找到 {image_identifier}，尝试从磁盘加载...")
         result = _load_image_from_disk(image_identifier)
         if result is None:
-            CUS_LOGGER.error(f"磁盘中未找到图像: {image_identifier}")
+            CUS_LOGGER.error(f"磁盘中未找到图像记忆切片: {image_identifier}")
     
     return result
 
@@ -290,7 +288,7 @@ def _load_image_from_disk(image_identifier: str) -> Optional[np.ndarray]:
     global _image_cache, _image_directory
     
     if not _image_directory:
-        CUS_LOGGER.error("图像目录未初始化")
+        CUS_LOGGER.error("记忆切片查询失败，图像目录未初始化")
         return None
     
     # 分离文件名和扩展名
@@ -360,12 +358,12 @@ def _load_image_from_disk(image_identifier: str) -> Optional[np.ndarray]:
                 
                 # 添加图像数据
                 current_dict[path_parts[-1]] = image
-                CUS_LOGGER.info(f"成功从磁盘加载图像: {image_identifier} -> {relative_path}")
+                CUS_LOGGER.info(f"成功从磁盘加载图像记忆切片: {image_identifier} -> {relative_path}")
                 return image.copy()
             else:
-                CUS_LOGGER.error(f"无法加载图像文件: {file_path}")
+                CUS_LOGGER.error(f"无法加载图像记忆切片: {file_path}")
         except Exception as e:
-            CUS_LOGGER.error(f"加载图像文件时出错 {file_path}: {str(e)}")
+            CUS_LOGGER.error(f"加载图像记忆切片时出错 {file_path}: {str(e)}")
     
     return None
 
@@ -378,7 +376,7 @@ def clear_image_cache():
     global _image_cache
     cache_size = len(_image_cache)
     _image_cache.clear()
-    CUS_LOGGER.info(f"已清空图像缓存，释放了 {cache_size} 个图像")
+    CUS_LOGGER.info(f"已焚化图像记忆切片缓存，释放了 {cache_size} 个图像记忆切片")
 
 
 def get_cache_size() -> int:

@@ -10,8 +10,8 @@ from copy import deepcopy
 
 import yaml
 
-from config.GLOBAL import key_mouse_manager
-from config import EXTRA
+from config.GLOBAL import key_mouse_manager, factor
+from config import GLOBAL, EXTRA
 from diver import load_actions, merge_text
 from utils.log import CUS_LOGGER, set_debug
 from utils.simul.utils import UniverseUtils, set_forground, sprint, get_dis
@@ -52,7 +52,7 @@ class SimulatedUniverse(UniverseUtils):
             无返回值
         """
         super().__init__(speed)
-        CUS_LOGGER.info("当前命途：" + self.fate)
+        CUS_LOGGER.debug("当前命途：" + self.fate)
         key_mouse_manager.set_config(config)
         # 设置屏幕参数以支持坐标转换
         key_mouse_manager.set_screen_params(self.x1, self.y1, self.xx, self.yy, self.full)
@@ -63,8 +63,8 @@ class SimulatedUniverse(UniverseUtils):
         self.find = find
         #调试级别
         self.debug = debug
-        if self.debug:
-            set_debug(CUS_LOGGER,True)
+        # 设置全局调试模式标志，供 UILogHandler 使用
+        GLOBAL.DEBUG_MODE = bool(self.debug)
         #是否使用消耗品
         self.consumable = consumable
         #是否慢速模式
@@ -111,9 +111,9 @@ class SimulatedUniverse(UniverseUtils):
             pyautogui.FAILSAFE = False
         self.update_debug_map()
         self.update_count()
-        CUS_LOGGER.info(f"开始运行,初始计数：{self.count}")
+        CUS_LOGGER.debug(f"开始运行,初始计数：{self.count}")
         self.last_interact_time = time.time()
-        CUS_LOGGER.info("加载地图")
+        CUS_LOGGER.info(f"无数的记忆…在涌向{factor}。无数个{factor}…曾站在相同的地方，面对相同的抉择。")
         for file in os.listdir(PATHS["image"]+"/nmaps"):
             pth = PATHS["image"]+"/nmaps/" + file + "/init.jpg"
             if os.path.exists(pth):
@@ -121,7 +121,7 @@ class SimulatedUniverse(UniverseUtils):
                 image=cv.resize(image, None, fx=0.5, fy=0.5, interpolation=cv.INTER_CUBIC)
                 self.img_map[file]= image
 
-        CUS_LOGGER.info("加载地图完成，共 %d 张" % len(self.img_map))
+        CUS_LOGGER.debug("加载地图完成，共 %d 张" % len(self.img_map))
         # 从settings.json获取录制状态
         with EXTRA.FILE_LOCK:
             with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
@@ -159,11 +159,11 @@ class SimulatedUniverse(UniverseUtils):
                 if self.last_update_time is not None and time.time()-self.last_update_time>7 and self.state=="battle":
                     if self.ts.nothing:
                         self.update_state("battle")
-                        CUS_LOGGER.info("匹配不到任何图标，可能位于战斗中")
+                        CUS_LOGGER.info("「救世主」…我愿你…常战常胜。")
                 else:
                     CUS_LOGGER.warning("匹配不到任何图标")
             # 匹配到图片 res=1时等待一段时间
-        CUS_LOGGER.info("停止运行")
+        CUS_LOGGER.info("演算世界：翁法罗斯已从缓冲区销毁。")
 
     def end_of_university(self):
         self.update_count(False)
@@ -175,9 +175,9 @@ class SimulatedUniverse(UniverseUtils):
         else:
             remain = 0
             remain_round = "∞"
-        CUS_LOGGER.info(f"本轮已运行计数：{self.my_cnt},总计已完成计数:{self.count} 剩余:{remain_round}次, 已使用：{tm // 60}小时{tm % 60}分钟  平均{tm // self.my_cnt}分钟一次  预计剩余{remain // 60}小时{remain % 60}分钟")
+        CUS_LOGGER.info(f"世界演算模拟完成！本轮已迭代次数：{self.my_cnt},总计已迭代次数:{self.count} 剩余:{remain_round}次, 已执行：{tm // 60}小时{tm % 60}分钟  平均{tm // self.my_cnt}分钟一次"+ (f"预计剩余{remain // 60}小时{remain % 60}分钟" if remain!=0 else ""))
         if self.check_bonus == 0 and self.my_cnt >= self.nums > 0:
-            CUS_LOGGER.info('已完成上限，准备停止运行')
+            CUS_LOGGER.info(f'当仁不让。{factor}将肩负世界，直至此身焚灭。')
             self.end = 1
         self.update_floor(1)
         self.update_state("end")
@@ -399,9 +399,7 @@ class SimulatedUniverse(UniverseUtils):
             img_up = self.get_small_interaction_img(x=0.5047, y=0.5491, mask="mask_bless", fresh=True)
             res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
             img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
-            res_down = self.ts.split_and_find(
-                self.tk.secondary, img_down, mode="bless"
-            )
+            res_down = self.ts.split_and_find(self.tk.secondary, img_down, mode="bless")
             if res_up[1] == 2:
                 CUS_LOGGER.debug("识别到具体祝福")
                 key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
@@ -444,7 +442,7 @@ class SimulatedUniverse(UniverseUtils):
             else:
                 if self.ts.similar("区域"):
                     # tele：区域-xx  exit：离开模拟宇宙
-                    CUS_LOGGER.info(f"识别到传送点")
+                    CUS_LOGGER.info(f"「众人将与一人离别，惟其人将觐见奇迹」")
                     key_mouse_manager.press('f', force=True)
                     return self.nof()
                 is_killed = text in ["沉浸", "紧锁", "复活", "下载"]
@@ -459,7 +457,7 @@ class SimulatedUniverse(UniverseUtils):
         if self.end:
             key_mouse_manager.press('esc')
             self._stop = 1
-            CUS_LOGGER.info('已退出模拟宇宙，自动化结束')
+            CUS_LOGGER.info('燃烧，聚变，然后湮灭。若想迎接新生，就必先投身终结。')
             return 1
         key_mouse_manager.click(0.3448, 0.4926)
         self.init_map()
@@ -471,7 +469,7 @@ class SimulatedUniverse(UniverseUtils):
             key_mouse_manager.click(0.9375, 0.8565 - 0.1 * (self.diffi - 1))
         key_mouse_manager.click(0.1083, 0.1009)
         if con:
-            CUS_LOGGER.info(f"继续游戏附带初始化层数,更新前{self.floor}")
+            CUS_LOGGER.debug(f"继续游戏附带初始化层数,更新前{self.floor}")
             self.get_level()
             return
         else:
@@ -495,7 +493,7 @@ class SimulatedUniverse(UniverseUtils):
             res = self.ts.split_and_find([self.fate], img)
             if res[1] == 1 and n:
                 # 没有找到命途
-                CUS_LOGGER.info(f"未找到 {self.fate} 命途，尝试翻页")
+                CUS_LOGGER.warning(f"未找到 {self.fate} 命途，尝试翻页")
                 key_mouse_manager.click(click_x[n % len(click_x)], 0.5)
                 n -= 1
                 continue
@@ -513,14 +511,21 @@ class SimulatedUniverse(UniverseUtils):
         success = self.click_text(event_prior)
         key_mouse_manager.wait()
         self.get_screen()
-        if success and self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965):
-            CUS_LOGGER.debug("成功匹配到相应事件")
+        tm=time.time()
+        if success:
+            success=False
+            while time.time()-tm<1.5:
+                if self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965,fresh=True):
+                    success = True
+                    break
+        if success:
+            CUS_LOGGER.info("原来那浑身着火的恶魔，满脑子幻想的都是要成为「救世主」哪！")
             key_mouse_manager.click(self.tx, self.ty)
         elif self.click_text(text="休息区",box=[187, 289, 903, 941],click=False,warning=False):
-            CUS_LOGGER.debug("休息区特别点击")
+            CUS_LOGGER.info("事已至此，我只想知道，当他们以凡人的身躯在黑潮中消散时……你为何连一滴眼泪都没有流下？")
             key_mouse_manager.click(0.1667, 0.2592)
         else:
-            CUS_LOGGER.debug("未匹配到合适事件")
+            CUS_LOGGER.info("「救世主」…在命运三相神谕的语境下，这张牌意味着谐调和完美无缺。")
             key_mouse_manager.click(tx, ty)
             key_mouse_manager.click(0.1167, ty - 0.1139)
     # 选取奇物
@@ -816,8 +821,9 @@ class SimulatedUniverse(UniverseUtils):
             men = np.mean(self.get_screen())
             if men > 12:
                 break
-            else:
-                CUS_LOGGER.debug("等待黑屏消散")
+            elif self.state!="black":
+                CUS_LOGGER.info("无边的黑暗中，没有来由地，一道声音始终在耳边萦绕……")
+                self.update_state("black")
         for j in action_list if len(action_list) else json_file:
             for i in json_file[j]:
                 trigger = i["trigger"]
@@ -827,7 +833,7 @@ class SimulatedUniverse(UniverseUtils):
                     text = self.ts.find_with_box(trigger["box"], redundancy=trigger.get("redundancy", 30))
                     #强制跳过或者检查是否存在子串
                     if (condition==self.state if condition is not None else True) and (len(text) and trigger["text"] in merge_text(text)):
-                        CUS_LOGGER.info(f"触发文本 {i['name']}:{trigger['text']}")
+                        CUS_LOGGER.info(f"{factor}触发并执行指令{i['name']},条件：{trigger['text']}")
                         if trigger.get("interval", None) and len(self.action_history) and self.action_history[-1] == i['name']:
                             tm=time.time()-self.action_time
                             if tm<trigger["interval"]:
@@ -846,13 +852,12 @@ class SimulatedUniverse(UniverseUtils):
                     if condition==self.state if condition is not None else True:
                         if "pos" in trigger:
                             if self.check(trigger["photo"], trigger["pos"]["x"], trigger["pos"]["y"], mask=trigger.get("mask", None), threshold=trigger.get("threshold", None),use_binary=trigger.get("binary", False)):
-                                CUS_LOGGER.info(f"触发图像 {i['name']}:{trigger['photo']}")
+                                CUS_LOGGER.info(f"{factor}触发并执行图像记忆切片指令,{i['name']}条件：{trigger['photo']}")
                                 if trigger.get("interval", None) and len(self.action_history) and self.action_history[
                                     -1] == i['name']:
                                     tm = time.time() - self.action_time
                                     if tm < trigger["interval"]:
-                                        CUS_LOGGER.warning(
-                                            f"触发时间限制，距离上次触发{tm}秒，默认配置间隔为{trigger["interval"]}")
+                                        CUS_LOGGER.warning(f"触发时间限制，距离上次触发{tm}秒，默认配置间隔为{trigger["interval"]}")
                                         return i['name'], 1
                                 for j in i["actions"]:
                                     re=self.do_action(j)
@@ -865,13 +870,12 @@ class SimulatedUniverse(UniverseUtils):
                                 return i['name'],resu
                         else:
                             if self.click_target(find_image_by_name(trigger["photo"]), threshold=trigger.get("threshold", 0.9), flag=False,click=False):
-                                CUS_LOGGER.info(f"触发全局图像 {i['name']}:{trigger['photo']}")
+                                CUS_LOGGER.info(f"{factor}触发并执行世界全局图像记忆切片指令, {i['name']}条件:{trigger['photo']}")
                                 if trigger.get("interval", None) and len(self.action_history) and self.action_history[
                                     -1] == i['name']:
                                     tm = time.time() - self.action_time
                                     if tm < trigger["interval"]:
-                                        CUS_LOGGER.warning(
-                                            f"触发时间限制，距离上次触发{tm}秒，默认配置间隔为{trigger["interval"]}")
+                                        CUS_LOGGER.warning( f"触发时间限制，距离上次触发{tm}秒，默认配置间隔为{trigger["interval"]}")
                                         return i['name'], 1
                                 for j in i["actions"]:
                                     re=self.do_action(j)
@@ -912,14 +916,14 @@ class SimulatedUniverse(UniverseUtils):
             text = self.ts.find_with_box(box, redundancy=action.get("redundancy", 30))
             for i in text:
                 if action["text"] in i["raw_text"]:
-                    CUS_LOGGER.info(f"点击 {action['text']}:{i['box']}")
+                    CUS_LOGGER.debug(f"点击 {action['text']}:{i['box']}")
                     self.click_box(i["box"])
                     return 1
         if "photo" in action:
             self.click_target(find_image_by_name(action["photo"]), action.get("threshold", 0.9), flag=False,click=True)
             return 1
         elif "position" in action:
-            CUS_LOGGER.info(f"点击 {action['position']}")
+            CUS_LOGGER.debug(f"点击 {action['position']}")
             self.click_position(action["position"])
             return 1
         elif "sleep" in action:
@@ -1120,13 +1124,10 @@ class SimulatedUniverse(UniverseUtils):
         finally:
             # 无论如何都要确保窗口被关闭
             try:
-                CUS_LOGGER.info(f'开始销毁窗口')
                 cv.destroyAllWindows()
-                CUS_LOGGER.info(f'正在销毁中')
                 cv.waitKey(1)
-                CUS_LOGGER.info(f'完成窗口关闭')
             except Exception as e:
-                CUS_LOGGER.info(f'异常关闭窗口{e}')
+                CUS_LOGGER.error(f'异常关闭窗口{e}')
     def start(self):
         """
         启动模拟宇宙自动化程序
@@ -1149,10 +1150,10 @@ class SimulatedUniverse(UniverseUtils):
         try:
             self.route()
         except NormalEndError as e:
-            CUS_LOGGER.info(f'离开游戏界面，正常终止进程{e}')
+            CUS_LOGGER.warning(f'离开游戏界面，正常终止进程{e}')
             raise
         except Exception as e:
-            CUS_LOGGER.info(f'异常终止进程{e}')
+            CUS_LOGGER.error(f'异常终止进程{e}')
             if not self._stop:
                 self.stop()
             # 重新抛出异常，以便上层能够捕获
@@ -1171,11 +1172,11 @@ class SimulatedUniverse(UniverseUtils):
             *_: 忽略的位置参数
             **__: 忽略的关键字参数
         """
-        CUS_LOGGER.info("尝试停止运行")
+        CUS_LOGGER.info("翁法罗斯已经等待了这一刻太久……还可以等待更久……只要祂还曾燃烧……")
         self._stop = 1
         key_mouse_manager.stop()
         if self.record:
-            CUS_LOGGER.info("尝试停止录制")
+            CUS_LOGGER.info("以「爱」名义，她将逝去的一切尽数珍藏……直到世间的尽头……")
             try:
                 self.recorder.stop_recording()
             except Exception as e:

@@ -7,49 +7,88 @@ from route import PATHS
 from utils.utils.image_tool import find_image_in_folder
 
 
-def match_multiple_targets(processed_image, mode=1, threshold=0.5, max_per_template=10):
-    """对一组模板在单张灰度图上做多目标匹配，并做简单的非极大值抑制。
+def match_multiple_targets(processed_image, mode=1, threshold=0.5):
+    """对一组模板在单张灰度图上做多目标匹配，并使用 cv2.dnn.NMSBoxes 进行非极大值抑制。
 
     返回列表：{'name','location','size','similarity'}。
     """
-    results = []
     if processed_image is None:
-        return results
-    else:
-        processed_image = cv2.GaussianBlur(processed_image.copy(), (5, 5), 0)
-        processed_image = cv2.Canny(processed_image, 100, 200)
+        return []
+    
+    # 预处理图像
+    processed_image = cv2.GaussianBlur(processed_image.copy(), (5, 5), 0)
+    processed_image = cv2.Canny(processed_image, 100, 200)
+    
     if mode == 1:
         kind_list = ['event', 'wait', 'trade', 'adventure', 'reward', 'battle', 'elite', 'bugevent', 'bugbattle',
                      'head', 'boss']
     else:
         kind_list = ['event', 'wait', 'trade', 'trade2', 'adventure', 'reward', 'reward2','battle', 'elite', 'bugevent',
-                     'bugbattle', 'head', 'boss',
-                     'blank']
+                     'bugbattle', 'head', 'boss', 'blank']
+    if mode == 3:
+        mode = 2
+    all_boxes = []      # [x, y, w, h]
+    all_scores = []     # 置信度分数
+    all_names = []      # 对应的模板名称
+    
     for name in kind_list:
         tpl = find_image_in_folder(f'gray_image/node{mode}/', name)
         if tpl is None:
             continue
         th, tw = tpl.shape[:2]
-        min_dist = max(1, min(th, tw) // 2)
         res = cv2.matchTemplate(processed_image, tpl, cv2.TM_CCOEFF_NORMED)
         ys, xs = np.where(res >= threshold)
         if xs.size == 0:
             continue
-        # 候选按得分降序
-        candidates = sorted(((float(res[y, x]), int(x), int(y)) for y, x in zip(ys, xs)), key=lambda t: t[0],
-                            reverse=True)
-        accepted_centers = []
-        added = 0
-        for score, x, y in candidates:
-            cx, cy = x + tw / 2.0, y + th / 2.0
-            if any(((cx - acx) ** 2 + (cy - acy) ** 2) ** 0.5 < min_dist for acx, acy in accepted_centers):
-                continue
-            results.append({'name': name, 'location': (x, y), 'similarity': round(score, 3), 'size': (tw, th)})
-            accepted_centers.append((cx, cy))
-            added += 1
-            if added >= max_per_template:
-                break
-
+        
+        # 收集该模板的所有候选框
+        for x, y in zip(xs, ys):
+            score = float(res[y, x])
+            all_boxes.append([int(x), int(y), tw, th])
+            all_scores.append(score)
+            all_names.append(name)
+    
+    if not all_boxes:
+        return []
+    
+    # 转换为 numpy 数组
+    boxes_np = np.array(all_boxes, dtype=np.float32)  # shape: (N, 4)
+    scores_np = np.array(all_scores, dtype=np.float32)  # shape: (N,)
+    
+    # 使用 cv2.dnn.NMSBoxes 进行非极大值抑制
+    # 参数说明：
+    # - boxes: 检测框列表 [x, y, w, h]
+    # - scores: 置信度分数
+    # - score_threshold: 最低分数阈值（已经过滤过，这里设低一点）
+    # - nms_threshold: NMS IoU 阈值，控制去重强度（0.3-0.5 较合适）
+    nms_threshold = 0.3
+    indices = cv2.dnn.NMSBoxes(
+        bboxes=boxes_np.tolist(),
+        scores=scores_np.tolist(),
+        score_threshold=threshold,
+        nms_threshold=nms_threshold
+    )
+    if isinstance(indices, tuple) and len(indices) == 0:
+        return []
+    if isinstance(indices, (list, tuple)):
+        if len(indices) > 0 and isinstance(indices[0], (list, tuple)):
+            indices = indices[0]
+    elif hasattr(indices, 'flatten'):
+        indices = indices.flatten()  # numpy 数组
+    results = []
+    for idx in indices:
+        idx = int(idx)
+        x, y, w, h = all_boxes[idx]
+        results.append({
+            'name': all_names[idx],
+            'location': (x, y),
+            'size': (w, h),
+            'similarity': round(all_scores[idx], 3)
+        })
+    
+    # 按相似度降序排序
+    results.sort(key=lambda r: r['similarity'], reverse=True)
+    
     return results
 
 
@@ -279,7 +318,7 @@ def evaluate_best_single_replacement(nodes, edges, start_idx, t=0.2):
     return best_path, best_weight, best_end_idx, best_replace_idx, float(best_delta), float(best_discounted_delta)
 
 
-def compute_start_point_from_crop(image, crop_coords=(50, 63, 92, 104)):
+def compute_start_point_from_crop(image, crop_coords=(55, 63, 92, 104)):
     """通过裁剪图像并将裁剪区域与完整图像进行模板匹配来计算起点。
 
     Args:
@@ -306,7 +345,7 @@ def compute_start_point_from_crop(image, crop_coords=(50, 63, 92, 104)):
     cx = mx + tpl.shape[1] / 2.0
     cy = my + tpl.shape[0] / 2.0
     print(f'(匹配得分={max_val:.3f})')
-    if max_val > 0.65:
+    if max_val > 0.6:
         return float(cx), float(cy)
     else:
         return None

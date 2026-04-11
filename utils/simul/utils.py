@@ -22,7 +22,7 @@ from PIL import Image, ImageDraw, ImageFont
 from math import sin, cos
 import traceback
 
-from config.GLOBAL import key_mouse_manager
+from config.GLOBAL import key_mouse_manager, factor
 from diver import merge_text
 from route import PATHS
 from utils.simul.config import config
@@ -30,7 +30,7 @@ from utils.log import CUS_LOGGER, log_emitter
 import utils.simul.ocr as ocr
 from utils.screenshot import Screen
 import threading
-
+from utils.simul.ocr import get_global_my_ts
 from utils.simul.text_key import text_keys
 from utils.thread import ThreadWithException
 from utils.timer import timer
@@ -40,6 +40,7 @@ from utils.utils.image_tool import find_image_by_name, find_image_in_folder
 from utils.utils.minimap_util import get_minimap, MINIMAP_RADIUS, mask_minimap_outside, deal_minimap, image_size, \
     re_get_position, POSITION_SEARCH_SCALE, crop, POSITION_MINIMAP_SCALE
 from utils.utils.mminimap import PositionPredict
+from utils.utils.ocr_num import match_skill_numbers_in_region
 from utils.utils.predict import predict, get_text_position
 
 
@@ -61,7 +62,7 @@ def set_forground():
 
 
 def sprint():
-    CUS_LOGGER.debug("开始冲刺")
+    CUS_LOGGER.debug("「救世主，带领吾等前进吧。」")
     if config.long_press_sprint:
         key_mouse_manager.keyDown('shift')
     else:
@@ -102,7 +103,7 @@ class UniverseUtils:
         self.my_fate = -1
         self.fail_count = 0
         self.first_mini = 1
-        self.ts = ocr.My_TS(father=self)
+        self.ts = get_global_my_ts(father=self)
         self.last_info = ''
         self.target_type = -1
         self.f_time = 0
@@ -127,6 +128,7 @@ class UniverseUtils:
         #是否拥有黄泉
         self.quan = 0
         self.bai_e = 0
+        self.skill_num=5
         #上次交互时间
         self.quit = 0
         # 用于存储tmp地图
@@ -154,12 +156,12 @@ class UniverseUtils:
             if config.fates[i] == self.fate:
                 self.my_fate = i
         if self.my_fate == -1:
-            CUS_LOGGER.info("info有误，自动选择巡猎命途    错误：" + self.fate)
+            CUS_LOGGER.warning("info有误，自动选择巡猎命途    错误：" + self.fate)
             self.my_fate = 4
         self.tk = text_keys(self.my_fate)
         self.debug, self.find = 0, 1
         self.bx, self.by = 1920, 1080
-        CUS_LOGGER.warning("等待游戏窗口")
+        CUS_LOGGER.warning("我会等待那一天的到来。一直等待下去。总有一天……会有人翻开这近乎「永恒」的一页……(等待游戏窗口)")
         while True:
             try:
                 hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
@@ -193,12 +195,12 @@ class UniverseUtils:
                 try:
                     self.scale = ctypes.windll.user32.GetDpiForWindow(hwnd) / 96.0
                 except:
-                    CUS_LOGGER.info('DPI获取失败')
+                    CUS_LOGGER.warning('DPI获取失败')
                     self.scale = 1.0
-                CUS_LOGGER.info(
+                CUS_LOGGER.debug(
                     "DPI: " + str(self.scale) + " A:" + str(int(self.multi * 100) / 100)
                 )
-                CUS_LOGGER.info("TEXT: " + str(Text))
+                CUS_LOGGER.info("当前演算世界: " + str(Text))
                 # 计算出真实分辨率
                 self.real_width = int(self.xx * scale_x)
                 # x01y01:窗口左上右下坐标
@@ -304,7 +306,7 @@ class UniverseUtils:
             img = self.screen
         if box:
             match=self.ts.ocr_one_row(img,box)
-            CUS_LOGGER.info(f"尝试匹配：{text}匹配结果：{match}")
+            CUS_LOGGER.info(f"{factor}请求：{text}响应：{match}")
             # 检查匹配结果是否包含目标文本
             if len(match) and text in match:
                 if click:
@@ -471,7 +473,7 @@ class UniverseUtils:
         self.tm = max_val
         if max_val > threshold:
             if self.last_info != path:
-                CUS_LOGGER.info("匹配到图片 %s 相似度 %f 阈值 %f" % (path, max_val, threshold))
+                CUS_LOGGER.debug("匹配到图片记忆切片 %s 相似度 %f 阈值 %f" % (path, max_val, threshold))
             self.last_info = path
         return max_val > threshold
 
@@ -515,17 +517,17 @@ class UniverseUtils:
                 return -((-dx) ** 0.7)
 
     def move_to_end(self, i=0,mode=0,device=0):
-        CUS_LOGGER.debug(f"正在移动到终点,类型{mode}")
+        CUS_LOGGER.debug(f"一人前往未来……一人留在过去。(类型{mode})")
         dx = self.get_end_point(i,device)
         if dx is None:
             if i:
-                CUS_LOGGER.warning("已找到过终点，现在未找到终点，可能被角色遮挡")
+                CUS_LOGGER.warning("而我将行尽未竟的道路…一如过去无数个我，一如既往。")
                 return 0
             win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, 0, -200)
             dx = self.get_end_point(device=device)
             off = 0
             if dx is None:
-                CUS_LOGGER.debug(f'旋转查找终点')
+                CUS_LOGGER.debug(f'…找到那个新生的「我」…让他延续三千万世的徒劳。')
                 for k in [60,120,60,60,30,30,-60,-60,-60,-60,-60,-60]:
                     key_mouse_manager.mouse_move(-k)
                     key_mouse_manager.wait()
@@ -536,7 +538,7 @@ class UniverseUtils:
                 if dx is None:
                     key_mouse_manager.mouse_move(off*1.03)
                     key_mouse_manager.wait()
-                    CUS_LOGGER.warning("旋转未找到终点")
+                    CUS_LOGGER.warning(f"即便理智随身形一起化作焦炭，{factor}也会记得自己的使命……(旋转未找到终点)")
                     return 0
         CUS_LOGGER.debug(f"移动面向终点 参数{i}移动距离{dx}")
         if i == 0:
@@ -584,9 +586,8 @@ class UniverseUtils:
 
     def get_blank_state(self):
         local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True, rotation=True, center_radius=90)
-        local_screen = local_screen - cv.bitwise_and(local_screen, local_screen,
-                                                     mask=cv.inRange(cv.cvtColor(local_screen, cv.COLOR_BGR2HSV),
-                                                                     np.array([80, 0, 0]), np.array([110, 255, 255])))
+        #作用是筛选掉蓝色，但会意外筛去一些颜色
+        # local_screen = local_screen - cv.bitwise_and(local_screen, local_screen,mask=cv.inRange(cv.cvtColor(local_screen, cv.COLOR_BGR2HSV),np.array([80, 0, 0]), np.array([110, 255, 255])))
         bw_map = np.zeros(local_screen.shape[:2], dtype=np.uint8)
         grey_map = deepcopy(bw_map)
         grey_map[np.sum((local_screen - np.array([55, 55, 55])) ** 2, axis=-1) <= 4800] = 255
@@ -703,7 +704,7 @@ class UniverseUtils:
         """
         不是"沉浸", "紧锁", "复活", "下载"的交互
         """
-        CUS_LOGGER.debug("尝试判断当前交互是否最佳")
+        CUS_LOGGER.info("请求：「开启再创世，去迎接翁法罗斯崭新的黎明。」")
         t_start=time.time()
         img = self.get_small_interaction_img(x=0.3344,y=0.4241,mask="mask_f")
         text = self.ts.similar_list(self.tk.interacts, img)
@@ -713,7 +714,7 @@ class UniverseUtils:
             text = self.ts.similar_list(self.tk.interacts, img)
         is_killed = text in ["沉浸", "紧锁", "复活", "下载"]
         if text is not None:
-            CUS_LOGGER.info('识别到交互信息：' + text)
+            CUS_LOGGER.info(f'响应：「一▇▇▇▇徒劳的▇▇▇{text}▇▇▇。」')
         CUS_LOGGER.debug(f"交互最佳结果判断{text is not None and not is_killed}")
         if not (text is not None and not is_killed):
             key_mouse_manager.keyDown("w")
@@ -747,7 +748,7 @@ class UniverseUtils:
             if rd[0].shape[0] > 0:
                 self.target.remove((recent_loc, 1))
                 new_loc = re_get_position(self.now_loc)
-                CUS_LOGGER.info(f"移除目标{recent_loc},当前状态{self.target},距离{mn_dis},图片全局坐标{new_loc}")
+                CUS_LOGGER.debug(f"移除目标{recent_loc},当前状态{self.target},距离{mn_dis},图片全局坐标{new_loc}")
                 # 创建所有检测到的敌人坐标的列表
                 enemy_coords = []
                 for i in range(len(rd[0])):
@@ -763,11 +764,11 @@ class UniverseUtils:
                 nearest_world_coord, nearest_local_coord = enemy_coords[0]
                 recent_loc = tuple(nearest_world_coord)
                 self.target.add((recent_loc, 1))
-                CUS_LOGGER.info(f"找到新的敌对目标点：{recent_loc}，本地图像坐标{nearest_local_coord }共检测到{len(enemy_coords)}个敌人，按距离排序,最近距离(浮点）{get_dis(recent_loc, self.now_loc)}")
+                CUS_LOGGER.debug(f"找到新的敌对目标点：{recent_loc}，本地图像坐标{nearest_local_coord }共检测到{len(enemy_coords)}个敌人，按距离排序,最近距离(浮点）{get_dis(recent_loc, self.now_loc)}")
             else:
                 self.target.remove((recent_loc, 1))
                 self.target.add((recent_loc, 0))
-                CUS_LOGGER.info(f"未找到敌对目标点，使用当前作为路径点位：{recent_loc}")
+                CUS_LOGGER.info(f"……怒火……在溢出……（使用当前目标作为路径点位：{recent_loc}）")
                 recent_type=0
         return recent_loc, recent_type
 
@@ -775,26 +776,26 @@ class UniverseUtils:
         self.get_screen()
         if not self.is_run():
             return False
-        CUS_LOGGER.info("正在寻找交互点")
+        CUS_LOGGER.info("终于，还是……看来，避免刀剑交锋，果真是天方夜谭。")
         local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True, rotation=True,center_radius=90)
         # 找红色点位（敌人）
         rd = np.where(np.sum((local_screen - [47, 47, 232]) ** 2, axis=-1) <= 5000)
-        CUS_LOGGER.info(f"敌人检测结果{rd[0].shape[0]}")
+        CUS_LOGGER.debug(f"敌人检测结果{rd[0].shape[0]}")
         if rd[0].shape[0] > 0:
             # 仅检测存在性，不需要排序，使用第一个检测到的点
             target = ((rd[1][0], rd[0][0]), 3)
-            CUS_LOGGER.info(f"交互点类型{target[1]}，位置{target[0][0]},{target[0][1]}")
+            CUS_LOGGER.debug(f"交互点类型{target[1]}，位置{target[0][0]},{target[0][1]}")
             self.target_type = target[1]
             self.has_target = True
             self.update_direction_data(mode=2, target=target)
             return True
         else:
             return False
-    def move_to_event(self,threshold = 0.8,rest=False):
+    def move_to_event(self,threshold = 0.85,rest=False):
         self.get_screen()
         if not self.is_run():
             return False
-        CUS_LOGGER.info("正在寻找交互点")
+        CUS_LOGGER.info(f"{factor}总是会如此下定决心。")
         local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True,center_radius=90)
         if not rest:
             icon = find_image_by_name("mini_event")
@@ -814,7 +815,7 @@ class UniverseUtils:
                 target = (nearest, 1)
                 best_scale =scale
         if best_val > threshold:
-            CUS_LOGGER.info(f"交互点最佳相似度{best_val}，位置{nearest},比例{best_scale}")
+            CUS_LOGGER.debug(f"交互点最佳相似度{best_val}，位置{nearest},比例{best_scale}")
             self.target_type = 1 if not rest else 2
             self.has_target=True
             self.update_direction_data(mode=2,target=target)
@@ -825,7 +826,7 @@ class UniverseUtils:
         self.get_screen()
         if not self.is_run():
             return False
-        CUS_LOGGER.info("正在寻找商店交互点")
+        CUS_LOGGER.info(f"暴烈的火焰随时都能将{factor}的身躯崩裂，吞噬这个世界，这座可悲的囚笼…")
         local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True,center_radius=90)
         icon =find_image_by_name("mini_shop")
         best_val=-1
@@ -854,7 +855,7 @@ class UniverseUtils:
             best_points.sort(key=lambda p: p[0])
             nearest = best_points[0]
             target = (nearest, 1)
-            CUS_LOGGER.info(f"交互点最佳相似度{best_val}，位置{nearest},比例{best_scale},候选点位{len(best_points)}")
+            CUS_LOGGER.debug(f"交互点最佳相似度{best_val}，位置{nearest},比例{best_scale},候选点位{len(best_points)}")
             self.target_type = 2 
             self.has_target=True
             self.update_direction_data(mode=2,target=target)
@@ -878,7 +879,7 @@ class UniverseUtils:
         if max_val > threshold:
             nearest = (max_loc[0] + sp[1] // 2, max_loc[1] + sp[0] // 2)
             target = (nearest, 1)
-            CUS_LOGGER.info(f"交互点相似度{max_val}，位置{max_loc[0]},{max_loc[1]},图像序号{ii}")
+            CUS_LOGGER.debug(f"交互点相似度{max_val}，位置{max_loc[0]},{max_loc[1]},图像序号{ii}")
 
             if self.floor >= 13:
                 self.update_floor(12)
@@ -891,7 +892,7 @@ class UniverseUtils:
             if max_val > threshold:  # -0.035*(self.floor in [5,9,12]):
                 nearest = (max_loc[0] + sp[1] // 2, max_loc[1] + sp[0] // 2)
                 target = (nearest, 2)
-                CUS_LOGGER.info(f"黑塔相似度{max_val}，位置{max_loc[0]},{max_loc[1]}")
+                CUS_LOGGER.debug(f"黑塔相似度{max_val}，位置{max_loc[0]},{max_loc[1]}")
                 if self.floor >= 13:
                     self.update_floor(12)
         # 在图像上绘制一个以(120, 128)为中心、半径为90的圆形遮罩，圆形区域外的所有像素都被涂黑
@@ -903,7 +904,7 @@ class UniverseUtils:
         if max_val <= threshold:
             red = [47, 47, 232]
             rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= self.red_threshold)
-            CUS_LOGGER.info(f"敌人检测结果{rd[0].shape[0]}")
+            CUS_LOGGER.debug(f"敌人检测结果{rd[0].shape[0]}")
             if rd[0].shape[0] > 0:
                 # 仅检测存在性，不需要排序，使用第一个检测到的点
                 nearest = (rd[1][0], rd[0][0])
@@ -911,7 +912,7 @@ class UniverseUtils:
                 if self.floor == 12:
                     self.update_floor(13)
         if target[1] >= 1:
-            CUS_LOGGER.info(f"交互点类型{target[1]}，位置{target[0][0]},{target[0][1]}")
+            CUS_LOGGER.debug(f"交互点类型{target[1]}，位置{target[0][0]},{target[0][1]}")
             self.target_type = target[1]
             self.has_target = True
             self.update_direction_data(mode=2, target=target)
@@ -919,10 +920,10 @@ class UniverseUtils:
         else:
             return False
     def move_direct_thread(self,device=0):
-        CUS_LOGGER.info("启动移动线程")
+        CUS_LOGGER.info("「去成为翁法罗斯的黎明吧......」")
         self.is_find_end = 0
         if self.mini_state > 2:
-            CUS_LOGGER.info("移动方向前往终点")
+            CUS_LOGGER.info("直到另一轮太阳在遥远的地平升起，为翁法罗斯带来真正的黎明。")
             self.is_find_end = self.move_to_end(mode=2,device=device)
             self.has_target=bool(self.is_find_end)
             if self.has_target:
@@ -943,7 +944,7 @@ class UniverseUtils:
                 if self.is_find_end!=0.5 and self.is_find_end!=0:
                     self.has_target=True
                     self.target_type=4
-        CUS_LOGGER.info("停止移动方向线程")
+        CUS_LOGGER.info(f"无需再去追逐什么，如今，{factor}已是长夜尽头的烈火……")
 
     def backup_map(self):
         """
@@ -999,19 +1000,24 @@ class UniverseUtils:
         while not ava and time.time()-tm<1.8:
             if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
                 if not self.is_run():
-                    CUS_LOGGER.debug("传送点且不在大地图中")
+                    CUS_LOGGER.info("仿佛连深不见底的最初混沌，也能够烧却。")
                     ava = True
         if self.state=="run":
-            key_mouse_manager.press("s")
-            key_mouse_manager.wait()
-            if not self.is_run():
-                CUS_LOGGER.debug("不在大地图中")
-                ava=True
-            elif (not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True)) and must_be == 'tp':
-                CUS_LOGGER.debug("传送点且没有f交互")
-                ava=True
+            if must_be!='challenge':
+                key_mouse_manager.press("s")
+                key_mouse_manager.wait()
+                if not self.is_run():
+                    CUS_LOGGER.info("…我以为，那就是世间最极致的力量，再无其他。")
+                    ava=True
+                elif (not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True)) and must_be == 'tp':
+                    CUS_LOGGER.info("或许只要短短万年的时光——它便会被烧成哀毁骨立的焦炭盗火行者了吧。")
+                    ava=True
+            else:
+                if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
+                    ava=True
+
         if ava:
-            CUS_LOGGER.debug('交互点生效')
+            CUS_LOGGER.info('这一次，逐火的终点………也并无不同。')
             if must_be == 'event':
                 self.mini_state += 2
             elif must_be== 'tp':
@@ -1025,13 +1031,13 @@ class UniverseUtils:
                         self.floor_init=0
                     self.f_time = time.time()
                     self.last_interact_time = time.time()
-                    CUS_LOGGER.info(f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor}层")
+                    CUS_LOGGER.debug(f"地图{self.now_map}已完成,相似度{self.now_map_sim},进入{self.floor}层")
             else:
                 if self.ts.similar("黑塔"):
                     self.quit = time.time()
                 self.mini_state += 2
         else:
-            CUS_LOGGER.warning('交互点未生效')
+            CUS_LOGGER.warning('……那我偏偏，绝不顺从……')
         return ava
     def save_screen(self, save_path=r"./temp",force=False,not_now=False):
         """
@@ -1067,7 +1073,8 @@ class UniverseUtils:
                 return False
             if 20<abs(self.rotation-d)<340 and mode !=1:
                 # cv.imshow("now", self.screen)
-                self.save_screen(not_now=True)
+                if self.debug:
+                    self.save_screen(not_now=True)
                 CUS_LOGGER.error(f"角度误差过大视角{self.rotation}朝向{d}模式{mode}")
                 # raise BigAngError(f"角度误差过大视角{self.rotation}朝向{d}")
                 d = self.rotation
@@ -1143,7 +1150,13 @@ class UniverseUtils:
             go_time=random.uniform(0.5, 0.75)
             retry_time = 0
             has_not_found_red=False
-            threshold_distance = [13,21 + (self.quan|self.bai_e)*7,11,7]
+            if self.bai_e:
+                add_round=7
+            elif self.quan:
+                add_round=4
+            else:
+                add_round=0
+            threshold_distance = [13,21 + add_round,11,7]
             # 基于距离的位置卡住检测
             last_locs = []
             STUCK_DISTANCE_THRESHOLD = 2.0  # 卡住判定的距离阈值
@@ -1386,14 +1399,14 @@ class UniverseUtils:
         精确匹配获得精确坐标，该坐标并非代表点位在大地图上的像素坐标，而是经过变换缩放而获得的
         """
         
-        CUS_LOGGER.info(f"获取新坐标,当前坐标{self.now_loc}是否刷新{fresh}")
+        CUS_LOGGER.debug(f"获取新坐标,当前坐标{self.now_loc}是否刷新{fresh}")
         if fresh:
             self.get_screen()
             if not self.is_run():
                 return False
         pos,sim=self.pos_predictor.update_position(self.screen)
         self.now_loc= pos
-        CUS_LOGGER.info(f"获取到新坐标{self.now_loc}")
+        CUS_LOGGER.debug(f"获取到新坐标{self.now_loc}")
         return True
     def get_offset(self,delta=1):
         if self.slow:
@@ -1452,11 +1465,11 @@ class UniverseUtils:
         if self.state is not None and self.state!=state:
             self.state = state
             self.last_update_time=time.time()
-            CUS_LOGGER.info(f"当前状态{state}更新时间{self.last_update_time}")
+            CUS_LOGGER.debug(f"当前状态{state}更新时间{self.last_update_time}")
         elif self.state is None:
             self.state = state
             self.last_update_time=time.time()
-            CUS_LOGGER.info(f"当前状态{state}更新时间{self.last_update_time}")
+            CUS_LOGGER.debug(f"当前状态{state}更新时间{self.last_update_time}")
     def update_floor(self,v):
         self.floor = v
         self.floor_change=True
@@ -1496,7 +1509,7 @@ class UniverseUtils:
             return
         self.has_update=True
         while self.should_update_map and not self._stop:
-            CUS_LOGGER.debug("更新一次地图")
+            CUS_LOGGER.info(f"{factor}铭记了此刻，铭记了所有无法亲眼目睹世界尽头的友人们与他们的夙愿……")
             self.update_debug_map()
             time.sleep(2)
         self.has_update=False
@@ -1831,7 +1844,7 @@ class UniverseUtils:
         3: 接近目标点状态
         >=7: 完成一轮寻路
         """
-        CUS_LOGGER.info("开始事件寻路")
+        CUS_LOGGER.info(f"{factor}以「负世」之名向你保证……刻法勒永志不忘。")
         self.should_update_map=True
         ThreadWithException(target=self.auto_update_map,name="更新地图").start()
         if self.debug:
@@ -1843,20 +1856,24 @@ class UniverseUtils:
         self.has_target=True
         self.is_find_end = 0
         self.get_screen()
-        CUS_LOGGER.info("移动方向前往交互点(大图)")
+        CUS_LOGGER.info(f"{factor}决定穿过那道门扉，去拥抱一个更适合「毁灭」的结局.")
         self.target_type = -1
         if not self.move_to_event():
-            CUS_LOGGER.info("未在小地图找到交互")
+            CUS_LOGGER.info("相比一团只懂得燃烧的火焰，她一定能在救世的路上走得更远。")
             self.has_target=False
             if self.mini_state > 2:
-                CUS_LOGGER.info("移动方向前往终点")
+                CUS_LOGGER.info(f"{factor}也会和曾经的他们一样，带着记忆和火焰…走进新生的混沌。")
                 self.is_find_end = self.move_to_end(mode=2,device=1)
                 self.has_target = bool(self.is_find_end)
                 if self.has_target:
                     self.target_type = 4
             else:
-                self.has_target=self.move_direct_to_text()
-            CUS_LOGGER.info("停止移动方向")
+                self.map_data_load()
+                if int(self.now_map)==27793:
+                    key_mouse_manager.mouse_move(15)
+                else:
+                    self.has_target=self.move_direct_to_text()
+            CUS_LOGGER.info(f"{factor}需要在此驻足片刻，消化那千万次循环中沉积的悲伤、痛苦和挣扎。")
         else:
             self.has_target=True
             self.target_type = 1
@@ -1874,7 +1891,7 @@ class UniverseUtils:
         init_time = time.time()
         while True:
             key_mouse_manager.wait()
-            CUS_LOGGER.info("开始检测交互点循环")
+            CUS_LOGGER.info("请求：「救世主，带领吾等前进吧。」")
             if self._stop == 1:
                 key_mouse_manager.keyUp("w")
                 self.stop_move=1
@@ -1885,12 +1902,12 @@ class UniverseUtils:
             self.get_screen()
             have_f=self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96)
             if not have_f:
-                CUS_LOGGER.info("未检测到f交互")
+                CUS_LOGGER.info("「但倘若黎明从一开始就不存在……」")
                 key_mouse_manager.keyDown("w")
             if have_f:
                 key_mouse_manager.keyUp("w")
                 key_mouse_manager.press('f')
-                CUS_LOGGER.info('发现事件交互')
+                CUS_LOGGER.info('「那就让怒火燃尽此身，化作明日的烈阳！」')
                 self.stop_move=1
                 need_confirm = 1
                 if self.nof(must_be='event'):
@@ -1902,10 +1919,10 @@ class UniverseUtils:
                 self.stop_move = 1
                 self.should_update_map = False
                 key_mouse_manager.wait()
-                CUS_LOGGER.info("检测到其它界面，退出循环")
+                CUS_LOGGER.info("响应：「一道无足轻重的伤疤。」")
                 return
             if time.time()-init_time>run_wait_time:
-                CUS_LOGGER.info(f"等待时间超时,是否有目标{self.has_target}")
+                CUS_LOGGER.warning(f"警告：等待时间超时,"+"不" if not self.has_target else ""+"存在「毁灭」目标")
                 self.stop_move=1
                 key_mouse_manager.keyUp("w")
                 self.mini_state+=2
@@ -1932,14 +1949,14 @@ class UniverseUtils:
             self.should_update_map = False
             return
         if need_confirm or self.has_target:
-            CUS_LOGGER.info("尝试乱转找到交互点")
+            CUS_LOGGER.info(f"{factor}会坚守。直到有人前来打破这漫长的轮回，为翁法罗斯的命运添上结尾。")
             for i in "sasddwwaa":
                 if self._stop:
                     self.should_update_map = False
                     return
                 self.get_screen()
                 if self.target_type==1:
-                    CUS_LOGGER.info(f"必须找到交互点，尝试寻找")
+                    CUS_LOGGER.info(f"沿着他们的足迹……写下前所未有的结局。")
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
                         key_mouse_manager.press('f',force= True)
                         if self.nof(must_be='event'):
@@ -1958,8 +1975,18 @@ class UniverseUtils:
                     i="w"
                 elif self.move_direct_to_text():
                     i="w"
+                elif self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
+                    key_mouse_manager.press('f',force= True)
+                    if self.nof(must_be='event'):
+                        self.should_update_map = False
+                        return
+                    else:
+                        key_mouse_manager.press('f')
+                        if self.nof(must_be='event'):
+                            self.should_update_map = False
+                            return
                 key_mouse_manager.press(i, 0.25)
-                CUS_LOGGER.info(f"向{i}走0.25秒")
+                CUS_LOGGER.debug(f"向{i}走0.25秒")
                 key_mouse_manager.wait()
             key_mouse_manager.click(0.5,0.5)
             self.should_update_map = False
@@ -1971,7 +1998,7 @@ class UniverseUtils:
         3: 接近目标点状态
         >=7: 完成一轮寻路
         """
-        CUS_LOGGER.info("开始休整寻路")
+        CUS_LOGGER.info("「那个身影燃烧自己……但也燃尽周围所有的一切……」")
         self.should_update_map=True
         ThreadWithException(target=self.auto_update_map,name="更新地图").start()
         if self.debug:
@@ -1990,18 +2017,18 @@ class UniverseUtils:
         self.is_find_end = 0
         self.get_screen()
         first = self.first_mini
-        CUS_LOGGER.info("移动方向前往交互点(大图)")
+        CUS_LOGGER.info("在一片死寂中，那形如焦炭的熟悉身影踽踽独行，朝着漫无止尽的黑暗走去。")
         self.target_type = -1
         if not self.move_to_event(rest=True):
-            CUS_LOGGER.info("未在小地图找到交互")
+            CUS_LOGGER.info("梦中，太阳坠落，英雄的造像崩塌，融化，碎裂，将世界烧成一片灰烬。")
             self.has_target=False
             if self.mini_state > 2:
-                CUS_LOGGER.info("移动方向前往终点")
+                CUS_LOGGER.info(f"{factor}不会知晓这趟旅程有多遥远，直到成为熊熊燃烧的薪柴，去壮大那徒劳的火焰。")
                 self.is_find_end = self.move_to_end(mode=2,device=1)
                 self.has_target = bool(self.is_find_end)
                 if self.has_target:
                     self.target_type = 4
-            CUS_LOGGER.info("停止移动方向")
+            CUS_LOGGER.info("请回头吧，别将你那荒谬又不公的命运付诸实现。")
         else:
             self.has_target=True
             self.target_type = 2
@@ -2019,7 +2046,7 @@ class UniverseUtils:
         init_time = time.time()
         while True:
             key_mouse_manager.wait()
-            CUS_LOGGER.info("开始检测交互点循环")
+            CUS_LOGGER.info(f"{factor}拒绝了「死亡」：他将灵魂化为烈火…为了将那「毁灭」的神像焚烧殆尽。")
             if self._stop == 1:
                 key_mouse_manager.keyUp("w")
                 self.stop_move=1
@@ -2030,17 +2057,17 @@ class UniverseUtils:
             self.get_screen()
             have_f=self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96)
             if not have_f:
-                CUS_LOGGER.info("未检测到f交互")
+                CUS_LOGGER.info("醒醒…迷途者啊……看清那黑暗中的火光…并非……")
                 key_mouse_manager.keyDown("w")
             if have_f:
                 if self.mini_state <=1:
                     key_mouse_manager.keyUp("w")
-                CUS_LOGGER.info("发现其它交互")
+                CUS_LOGGER.info(" 火焰尚有缺欠。必须…助长火焰。")
                 judge, use_time = self.good_f()
                 if judge and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
-                    CUS_LOGGER.info("不是黑塔或是黑塔但上次交互超过30秒")
+                    CUS_LOGGER.info("哪怕…要将这副身躯焚毁……")
                     if not self.ts.similar("黑塔"):
-                        CUS_LOGGER.info("并非黑塔")
+                        CUS_LOGGER.info("不管付出多少口舌，结局都不会改变。")
                     else:
                         self.quit = time.time()
                         self.mini_state += 2
@@ -2052,18 +2079,18 @@ class UniverseUtils:
                     need_confirm = 1
                     self.should_update_map = False
                     if self.nof():
-                        CUS_LOGGER.info("未检测到f")
+                        CUS_LOGGER.info("做出你们最大的努力抗争，或是接受命运，将火种交给他……")
                         key_mouse_manager.keyUp("w")
                         self.should_update_map = False
                         return
                     break
                 elif self.ts.similar("黑塔") and time.time() - self.quit < 30:
-                    CUS_LOGGER.info("检测到黑塔,但上次交互时间过短")
+                    CUS_LOGGER.info("也许你所行的根本不是拯救的道路，只是单纯地把这世界拖入火海而已。")
                     key_mouse_manager.press("w")
                     self.mini_state += 2
                     self.should_update_map = False
                 else:
-                    CUS_LOGGER.info("未检测到交互界面，其它情况")
+                    CUS_LOGGER.info("你心底的救世主情结，已将你变得与你口中冷眼的神明并无区别。")
                     need_confirm=1
                     break
             if not self.is_run():
@@ -2071,10 +2098,10 @@ class UniverseUtils:
                 self.stop_move = 1
                 self.should_update_map = False
                 key_mouse_manager.wait()
-                CUS_LOGGER.info("检测到其它界面，退出循环")
+                CUS_LOGGER.info("那些你誓言要拯救的人子…如今在你眼里，他们的性命恐怕与蝼蚁无异吧？")
                 return
             if time.time()-init_time>run_wait_time:
-                CUS_LOGGER.info(f"等待时间超时,是否有目标{self.has_target}")
+                CUS_LOGGER.warning(f"警告：等待时间超时,"+"不" if not self.has_target else ""+"存在「毁灭」目标")
                 self.stop_move=1
                 key_mouse_manager.keyUp("w")
                 self.mini_state+=2
@@ -2101,14 +2128,14 @@ class UniverseUtils:
             self.should_update_map = False
             return
         if need_confirm or first:
-            CUS_LOGGER.info("尝试乱转找到交互点")
+            CUS_LOGGER.info("你的冷漠令我心寒。他们对你而言，只是一堆无足轻重的注脚？")
             for i in "sasddwwaa":
                 if self._stop:
                     self.should_update_map = False
                     return
                 self.get_screen()
                 if self.target_type==2:
-                    CUS_LOGGER.info(f"必须找到交互点，尝试寻找")
+                    CUS_LOGGER.info(f"可是，告诉我……若当真如此，我们又为何会步入相同的结局？")
                     if self.good_f()[0]:
                         key_mouse_manager.press('f',force= True)
                         if self.nof(must_be='event'):
@@ -2120,8 +2147,13 @@ class UniverseUtils:
                         key_mouse_manager.wait()
                 elif self.move_to_event(rest=True):
                     i="w"
+                elif self.good_f()[0]:
+                    key_mouse_manager.press('f',force= True)
+                    if self.nof(must_be='event'):
+                        self.should_update_map = False
+                        return
                 key_mouse_manager.press(i, 0.25)
-                CUS_LOGGER.info(f"向{i}走0.25秒")
+                CUS_LOGGER.debug(f"向{i}走0.25秒")
                 key_mouse_manager.wait()
             key_mouse_manager.click(0.5,0.5)
             self.should_update_map = False
@@ -2133,7 +2165,7 @@ class UniverseUtils:
         3: 接近目标点状态
         >=7: 完成一轮寻路
         """
-        CUS_LOGGER.info("开始冒险寻路")
+        CUS_LOGGER.info("「这样的世界……正在呼唤著英雄的到来吧……」")
         self.should_update_map=True
         ThreadWithException(target=self.auto_update_map,name="更新地图").start()
         if self.debug:
@@ -2143,10 +2175,10 @@ class UniverseUtils:
         self.has_target=True
         self.is_find_end = 0
         self.get_screen()
-        CUS_LOGGER.info("移动方向前往交互点(大图)")
+        CUS_LOGGER.info("「哪怕百次，万次，千万次…英雄可以被毁灭，但绝不会被打败……」")
         self.target_type = -1
         if self.mini_state > 2:
-            CUS_LOGGER.info("移动方向前往终点")
+            CUS_LOGGER.info(f"到达终点时，{factor}才会得知自己已行过漫长的路。")
             self.is_find_end = self.move_to_end(mode=2,device=1)
             self.has_target = bool(self.is_find_end)
             if self.has_target:
@@ -2164,7 +2196,7 @@ class UniverseUtils:
         init_time = time.time()
         while True:
             key_mouse_manager.wait()
-            CUS_LOGGER.info("开始检测交互点循环")
+            CUS_LOGGER.info(f"{factor}请求：「成为回应世界期许，背负众人心愿的人。」")
             if self._stop == 1:
                 key_mouse_manager.keyUp("w")
                 break
@@ -2174,39 +2206,37 @@ class UniverseUtils:
             self.get_screen()
             have_f=self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96)
             if not have_f:
-                CUS_LOGGER.info("未检测到f交互")
+                CUS_LOGGER.info("响应：「一个孑然一身的人。」")
                 key_mouse_manager.keyDown("w")
             if have_f:
                 if self.mini_state <=1:
                     key_mouse_manager.keyUp("w")
                 judge, _ = self.good_f()
                 if judge:
-                    CUS_LOGGER.info("挑战交互或觐见交互")
                     key_mouse_manager.keyUp("w")
                     key_mouse_manager.press('f')
                     key_mouse_manager.wait()
                     self.should_update_map = False
-                    if self.nof():
-                        CUS_LOGGER.info("未检测到f，已开始挑战")
+                    if self.nof(must_be="challenge"):
+                        CUS_LOGGER.info(f"最后一次，{factor}回想起那个朝阳初升的时刻，自己曾刻下理想的雏形…")
                         key_mouse_manager.keyUp("w")
                         if self.is_run():
-                            key_mouse_manager.keyUp("esc")
+                            key_mouse_manager.press("esc")
                             key_mouse_manager.wait()
                             self.update_state("ui")
                             self.should_update_map = False
-                            self.mini_state+=2
                             return
                     break
                 else:
-                    CUS_LOGGER.info("未检测到交互界面，其它情况(下载交互）")
+                    CUS_LOGGER.info(f"{factor}为它取另外一个名字——「救世主」。而他自己的名，就此在记忆中零落。")
             if not self.is_run():
                 key_mouse_manager.keyUp("w")
                 self.should_update_map = False
                 key_mouse_manager.wait()
-                CUS_LOGGER.info("检测到其它界面，退出循环")
+                CUS_LOGGER.info("警告：进度无法更新,检测到其它界面,退出循环")
                 return
             if time.time()-init_time>run_wait_time:
-                CUS_LOGGER.info(f"等待时间超时,是否有目标{self.has_target}")
+                CUS_LOGGER.warning(f"警告：等待时间超时,"+"不" if not self.has_target else ""+"存在「毁灭」目标")
                 key_mouse_manager.keyUp("w")
                 self.mini_state+=2
                 if self.mini_state>=7:
@@ -2229,7 +2259,7 @@ class UniverseUtils:
         3: 接近目标点状态
         >=7: 完成一轮寻路
         """
-        CUS_LOGGER.info("开始交易寻路")
+        CUS_LOGGER.info("「汝将肩负骄阳…直至…」")
         self.should_update_map=True
         ThreadWithException(target=self.auto_update_map,name="更新地图").start()
         if self.debug:
@@ -2242,24 +2272,24 @@ class UniverseUtils:
         self.is_find_end = 0
         self.get_screen()
         first = self.first_mini
-        CUS_LOGGER.info("移动方向前往交互点(大图)")
+        CUS_LOGGER.info("那就去吧，卡厄斯兰那。如你约定的那般：欺骗世界，夺得火种，扭转命运……")
         self.target_type = -1
         if not self.move_to_shop():
-            CUS_LOGGER.info("未在小地图找到交互")
+            CUS_LOGGER.info(f"那些源自本心的坚持和选择，{factor}不相信它们是所谓「命途」的设计……")
             self.has_target=False
             if self.mini_state > 2:
-                CUS_LOGGER.info("移动方向前往终点")
+                CUS_LOGGER.info("奋力地燃烧自己，以徒劳为剑，反抗神明吧——")
                 key_mouse_manager.wait()
                 self.is_find_end = self.move_to_end(mode=2,device=1)
                 self.has_target = bool(self.is_find_end)
                 if self.has_target:
                     self.target_type = 4
-            CUS_LOGGER.info("停止移动方向")
+            CUS_LOGGER.info("…你害怕了吗？在了解到自己的本源后……")
         else:
             self.has_target=True
             self.target_type = 2
             if self.mini_state > 2:
-                CUS_LOGGER.info(f"在找到目标的情况下，仍移动方向前往终点，当前状态{self.mini_state}")
+                CUS_LOGGER.info(f"你会将「我」给予你的动力，视作「毁灭」蛊惑人心的低语吗？(当前状态{self.mini_state})")
                 key_mouse_manager.wait()
                 self.is_find_end = self.move_to_end(mode=2,device=1)
                 self.has_target = bool(self.is_find_end)
@@ -2277,7 +2307,7 @@ class UniverseUtils:
         init_time = time.time()
         while True:
             key_mouse_manager.wait()
-            CUS_LOGGER.info("开始检测交互点循环")
+            CUS_LOGGER.info(f"每一个人的愿望…{factor}都铭记在心。")
             if self._stop == 1:
                 key_mouse_manager.keyUp("w")
                 self.stop_move=1
@@ -2288,17 +2318,17 @@ class UniverseUtils:
             self.get_screen()
             have_f=self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96)
             if not have_f:
-                CUS_LOGGER.info("未检测到f交互")
+                CUS_LOGGER.info("听好，自往日而来的救世主——请回头吧——勿要惊扰它们，那众多鲜花的如泥死亡。")
                 key_mouse_manager.keyDown("w")
             if have_f:
                 if self.mini_state<=1:
                     key_mouse_manager.keyUp("w")
-                CUS_LOGGER.info("发现其它交互")
+                CUS_LOGGER.info(f"{factor}…从未抛弃过。")
                 judge, use_time = self.good_f()
                 if judge and not (self.ts.similar("黑塔") and time.time() - self.quit < 30):
-                    CUS_LOGGER.info("不是黑塔或是黑塔但上次交互超过30秒")
+                    CUS_LOGGER.info("相比炽盛的神火，人性的部分…实在微小。")
                     if not self.ts.similar("黑塔"):
-                        CUS_LOGGER.info("并非黑塔")
+                        CUS_LOGGER.info("空洞的火焰，无法拯救任何人……")
                     else:
                         self.quit = time.time()
                         self.mini_state += 2
@@ -2310,18 +2340,18 @@ class UniverseUtils:
                     need_confirm = 1
                     self.should_update_map = False
                     if self.nof():
-                        CUS_LOGGER.info("未检测到f")
+                        CUS_LOGGER.info("…将这团火递给下一个我……无数次…无数次…无数次。")
                         key_mouse_manager.keyUp("w")
                         self.should_update_map = False
                         return
                     break
                 elif self.ts.similar("黑塔") and time.time() - self.quit < 30:
-                    CUS_LOGGER.info("检测到黑塔,但上次交互时间过短")
+                    CUS_LOGGER.info("你自己…无数个你自己的愿望…又是什么呢？")
                     key_mouse_manager.press("w")
                     self.mini_state += 2
                     self.should_update_map = False
                 else:
-                    CUS_LOGGER.info("未检测到交互界面，其它情况")
+                    CUS_LOGGER.info("当你毫无怨言地…背负起世界的时候……属于你的「自我」，就无法诞生了啊。")
                     need_confirm=1
                     break
             if not self.is_run():
@@ -2329,10 +2359,10 @@ class UniverseUtils:
                 self.stop_move = 1
                 self.should_update_map = False
                 key_mouse_manager.wait()
-                CUS_LOGGER.info("检测到其它界面，退出循环")
+                CUS_LOGGER.info("你已无力为继了…半神。把火种，交给我。让你我…尽快结束痛苦。")
                 return
             if time.time()-init_time>run_wait_time:
-                CUS_LOGGER.info(f"等待时间超时,是否有目标{self.has_target}")
+                CUS_LOGGER.warning(f"警告：等待时间超时,"+"不" if not self.has_target else ""+"存在「毁灭」目标")
                 self.stop_move=1
                 key_mouse_manager.keyUp("w")
                 self.mini_state+=2
@@ -2359,16 +2389,17 @@ class UniverseUtils:
             self.should_update_map = False
             return
         if need_confirm or first:
-            CUS_LOGGER.info("尝试乱转找到交互点")
+            CUS_LOGGER.info("再骄盛的太阳，也有遍照不到的地方。")
             for i in "sasddwwaa":
                 if self._stop:
                     self.should_update_map = False
                     return
                 self.get_screen()
                 if self.target_type==2:
-                    CUS_LOGGER.info(f"必须找到交互点，尝试寻找")
+                    CUS_LOGGER.info(f"……直到，逆转「再创世」揭示的残酷未来。")
                     if self.good_f()[0]:
                         key_mouse_manager.press('f',force= True)
+                        key_mouse_manager.keyUp('w')
                         if self.nof(must_be='event'):
                             self.should_update_map = False
                             return
@@ -2378,8 +2409,13 @@ class UniverseUtils:
                         key_mouse_manager.wait()
                 elif self.move_to_shop():
                     i="w"
+                elif self.good_f()[0]:
+                    key_mouse_manager.press('f',force= True)
+                    if self.nof(must_be='event'):
+                        self.should_update_map = False
+                        return
                 key_mouse_manager.press(i, 0.25)
-                CUS_LOGGER.info(f"向{i}走0.25秒")
+                CUS_LOGGER.debug(f"向{i}走0.25秒")
                 key_mouse_manager.wait()
             key_mouse_manager.click(0.5,0.5)
             self.should_update_map = False
@@ -2391,7 +2427,7 @@ class UniverseUtils:
         3: 接近目标点状态
         >=7: 完成一轮寻路
         """
-        CUS_LOGGER.info("开始无地图寻路")
+        CUS_LOGGER.info("走下去…背负这个世界…直到…灰白的英雄…无名的救世主…带来黎明……")
         if self.debug:
             CUS_LOGGER.debug(f'当前状态{self.mini_state}')
         self.should_update_map=True
@@ -2403,10 +2439,10 @@ class UniverseUtils:
         self.has_target=True
         self.get_screen()
         first = self.first_mini
-        CUS_LOGGER.info("移动方向前往敌人交互点")
+        CUS_LOGGER.info(f"PhiLia093已经拥抱了她的命运……而{factor}，也会投身自己的本源——「毁灭」。")
         self.target_type = -1
         if not self.move_to_red_point():
-            CUS_LOGGER.info("未在小地图找到敌人")
+            CUS_LOGGER.info("想反悔就反悔，孩子们总是幸福的……可属于大人的命运，从来没有回头的选择。")
             self.has_target=False
         if not self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95,fresh=True) and not self.has_target:
             ThreadWithException(target=self.move_direct_thread,
@@ -2429,7 +2465,7 @@ class UniverseUtils:
         need_confirm=0
         init_time = time.time()
         while True:
-            CUS_LOGGER.info("开始检测交互点循环")
+            CUS_LOGGER.info(f"{factor}以「愤怒」铭记此世的全部。只要{factor}还在燃烧，他们就从未离去。")
             if self._stop == 1:
                 key_mouse_manager.keyUp("w")
                 self.stop_move=1
@@ -2440,35 +2476,35 @@ class UniverseUtils:
             self.get_screen()
             have_f=self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96)
             if not have_f:
-                CUS_LOGGER.info("未检测到f交互")
+                CUS_LOGGER.info(f"{factor}的悲伤从未消逝。恰恰相反，火种加诸此身，他心中的火焰前所未有地暴烈……")
                 key_mouse_manager.keyDown("w")
             elif have_f:
-                CUS_LOGGER.info("发现终点交互")
+                CUS_LOGGER.info(f"然后，{factor}杀死了自己。")
                 key_mouse_manager.press('f')
                 self.stop_move = 1
                 key_mouse_manager.wait()
                 need_confirm = 1
-                CUS_LOGGER.info('等待验证交互文本 ' + self.ts.text)
+                CUS_LOGGER.debug('等待验证交互文本 ' + self.ts.text)
                 if self.nof("tp"):
-                    CUS_LOGGER.info("未检测到f")
+                    CUS_LOGGER.info(f"而后，{factor}在这次轮回中的一切努力，也会在同一时间化为泡影。")
                     key_mouse_manager.keyUp("w")
                     self.should_update_map = False
                     if not self.is_run():
                         return
                 break
             if self.check("auto_2", 0.0583, 0.0769):
-                CUS_LOGGER.info("检测到位于战斗中")
+                CUS_LOGGER.info("「逐火是不断失却的旅途，在那一切当中，生命也微不足惜。」")
                 key_mouse_manager.keyUp("w")
                 self.stop_move=1
                 self.mini_state+=2
                 key_mouse_manager.wait()
                 return
             if self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95):
-                CUS_LOGGER.info("检测到怪物z标志")
+                CUS_LOGGER.info("「付之一炬」…多么熟悉的结局。它也出现在每一段旅途里，始终如一。")
                 self.stop_move=1
                 iters = 0
                 while self.check("z",0.5906,0.9537,mask="mask_z",threshold=0.95,fresh=True) and not self._stop:
-                    CUS_LOGGER.info("检测到怪物，准备攻击")
+                    CUS_LOGGER.info("「羁客」与「学士」兑现了他们的命运，再一次。")
                     key_mouse_manager.keyUp("w")
                     iters+=1
                     if iters>4:
@@ -2500,12 +2536,18 @@ class UniverseUtils:
                             while time.time()-now<wait_time:
                                 self.get_screen()
                                 if predict(self.screen, enemy=True, item=False)['enemy'] is not None:
-                                    CUS_LOGGER.info("检测到待击杀目标")
-                                    self.save_screen(not_now=True)
+                                    CUS_LOGGER.info(f"或者，兑现命运的不止他们。只是{factor}已记不清了。")
+                                    if self.debug:
+                                        self.save_screen(not_now=True)
                                     break
 
                     if self.quan:
                         key_mouse_manager.keyUp("w")
+                        skill_num=match_skill_numbers_in_region(self.get_screen())
+                        if skill_num is not None:
+                            self.skill_num=skill_num
+                        if self.skill_num==0:
+                            fixed=True
                         self.use_e(fixed=fixed)
                         if self.floor not in [4, 8, 13]:
                             for _ in range(2):
@@ -2517,7 +2559,11 @@ class UniverseUtils:
                         else:
                             key_mouse_manager.keyDown("w")
                     elif self.bai_e:
-                        # key_mouse_manager.keyUp("w")
+                        skill_num = match_skill_numbers_in_region(self.get_screen())
+                        if skill_num is not None:
+                            self.skill_num = skill_num
+                        if self.skill_num == 0:
+                            fixed = True
                         self.use_e(face=True,fixed=fixed)
                         if self.floor not in [4, 8, 13]:
                             self.stop_move = 1
@@ -2539,10 +2585,10 @@ class UniverseUtils:
                 self.stop_move = 1
                 self.should_update_map = False
                 key_mouse_manager.wait()
-                CUS_LOGGER.info("检测到其它界面，退出循环")
+                CUS_LOGGER.info("哪怕是微不足道的注脚，也会在故事里留下自己的印记。")
                 return
             if time.time()-init_time>run_wait_time:
-                CUS_LOGGER.info(f"等待时间超时,是否有目标{self.has_target}")
+                CUS_LOGGER.warning(f"警告：等待时间超时,"+"不" if not self.has_target else ""+"存在「毁灭」目标")
                 self.stop_move=1
                 key_mouse_manager.keyUp("w")
                 if self.mini_state>=7:
@@ -2561,7 +2607,7 @@ class UniverseUtils:
             self.should_update_map = False
             return
         if self.state=="run" and need_confirm:
-            CUS_LOGGER.info("尝试乱转找到交互点")
+            CUS_LOGGER.info("哪怕只是徒劳，你们…我们，都有选择的权利。")
             for i in "sasddwwaa":
                 if self._stop:
                     self.should_update_map = False
@@ -2581,8 +2627,16 @@ class UniverseUtils:
                         key_mouse_manager.wait()
                 elif self.move_direct_to_text():
                     i="w"
+                elif self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
+                    key_mouse_manager.keyUp(i)
+                    key_mouse_manager.wait()
+                    key_mouse_manager.press('f')
+                    self.get_screen()
+                    if self.nof():
+                        self.should_update_map = False
+                        return
                 key_mouse_manager.press(i, 0.25)
-                CUS_LOGGER.info(f"向{i}走0.25秒")
+                CUS_LOGGER.debug(f"向{i}走0.25秒")
                 key_mouse_manager.wait()
             key_mouse_manager.click(0.5,0.5)
             self.should_update_map = False
@@ -2616,6 +2670,7 @@ class UniverseUtils:
                 key_mouse_manager.press('e',force= True)
                 key_mouse_manager.wait()
             elif self.bai_e:
+                CUS_LOGGER.info(f"「{factor}」施放【莫因舍弃而哭泣】")
                 if face:
                     key_mouse_manager.press('e',force= True)
                 else:
@@ -2627,7 +2682,7 @@ class UniverseUtils:
                         key_mouse_manager.press("w")
                         key_mouse_manager.click(0.5, 0.5)
                         key_mouse_manager.wait()
-                        CUS_LOGGER.info("秘技点不足,强行攻击")
+                        CUS_LOGGER.info(f"「{factor}」施放【沉默的悲叹】")
                     else:
                         time.sleep(1.6)
                         key_mouse_manager.press('w')
@@ -2638,10 +2693,10 @@ class UniverseUtils:
             if self.click_text(text="秘技点不足", box=[895, 1023, 178, 312], click=False, ocr_line=False, warning=False):
                 key_mouse_manager.click(0.5, 0.5)
                 key_mouse_manager.wait()
-                CUS_LOGGER.info("秘技点不足,强行攻击")
+                CUS_LOGGER.info(f"「{factor}」施放【沉默的悲叹】")
             if self.click_text(text="快速恢复", box=[864, 1058, 224, 318], click=False, ocr_line=False, warning=False):
                 self.solve_snack()
-                CUS_LOGGER.debug("检测到快速恢复")
+                CUS_LOGGER.debug("告诉我…你甘为烈阳……哪怕燃尽…世间万物……")
                 key_mouse_manager.wait()
                 if self.quan or self.bai_e:
                     key_mouse_manager.press('e')
@@ -2673,15 +2728,16 @@ class UniverseUtils:
         """
         np.array颜色为（b,g,r)
         """
-        CUS_LOGGER.info(f"开始有地图寻路,模式{fixed}")
-        self.set_path_state("开始有地图寻路")
+        if fixed:
+            CUS_LOGGER.info(f"「汝将肩负骄阳，直至灰白的黎明显著。」")
+        else:
+            CUS_LOGGER.info(f"『然而逐火是不断失却的旅途，在那一切当中，生命也当如尘埃般渺小。』")
         self.get_loc(False)
         self.get_screen()
-        self.set_path_state("开始寻路")
         self.target_loc, self.target_type = self.get_recent_target()
         now_distance = self.update_direction_data()
         if not now_distance:
-            CUS_LOGGER.warning("角度更新失败，不在大地图中")
+            CUS_LOGGER.warning("惟有…助长火焰。方能烧熔…那绝望的未来。")
             return
         if not self._stop:
             key_mouse_manager.keyDown("w")
@@ -2690,22 +2746,34 @@ class UniverseUtils:
         if self.target_type != 3:
             sprint()
             self.is_sprinting = 1
-        self.set_path_state("开始获取真实路径")
         if not self.get_loc():
-            CUS_LOGGER.warning("路径更新失败，不在大地图中")
+            CUS_LOGGER.warning("金血…出自「毁灭」。我们早已失去…奢求温暖的权利。")
             return False
         # 复杂的定位、寻路过程
         go_direct = 2
         go_time = random.uniform(0.5, 0.75)
         retry_time = 0
         has_not_found_red = False
-        threshold_distance = [13, 21 + ((self.quan or self.bai_e) and not fixed) * 7, 11, 7]
+        skill_num = match_skill_numbers_in_region(self.get_screen())
+        if skill_num is not None:
+            self.skill_num = skill_num
+        if self.skill_num == 0:
+            fixed = True
+        if not fixed:
+            if self.bai_e:
+                add_round = 7
+            elif self.quan:
+                add_round = 4
+            else:
+                add_round = 0
+        else:
+            add_round=0
+        threshold_distance = [13, 19 + add_round, 11, 7]
         # 基于距离的位置卡住检测
         last_locs = []
         STUCK_DISTANCE_THRESHOLD = 2.0  # 卡住判定的距离阈值
         for i in range(30):
-            self.set_path_state("开始定位寻路")
-            CUS_LOGGER.info(f"第{i}次定位寻路")
+            CUS_LOGGER.debug(f"第{i}次定位寻路")
             if self._stop == 1:
                 key_mouse_manager.keyUp("w")
                 return
@@ -2713,29 +2781,29 @@ class UniverseUtils:
                 key_mouse_manager.keyDown("w")
             # 预判实际点位
             if not self.get_loc():
-                CUS_LOGGER.warning("寻路中路径更新失败，不在大地图中")
+                CUS_LOGGER.warning("它理应照亮众人，照亮前路，照亮翁法罗斯终将到来的黎明……")
                 return
             if self.target_type == 1:
                 red = [47, 47, 232]
-                self.set_path_state("先验遇敌")
+                CUS_LOGGER.info(f"{factor}的前路将是光明，和永恒不熄的烈火。")
                 outside = mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True),
                                                center_radius=85)
                 rd = np.where(
                     np.sum((outside - red) ** 2, axis=-1) <= self.red_threshold)
                 if rd[0].shape[0]:
                     # 就在旁边
-                    self.set_path_state("检测到遇敌红环")
+                    CUS_LOGGER.info("毁灭的太阳，已然成双……")
                     break
                 now_distance = get_dis(self.now_loc, self.target_loc)
                 if now_distance < 20:
-                    self.set_path_state("距离敌人交互点比较近")
-                    CUS_LOGGER.info(f"距离小于20,开始清除{(self.target_loc, 1)}从{self.target}")
+                    CUS_LOGGER.info("让它点燃你的血液…你的愤怒…！")
+                    CUS_LOGGER.debug(f"距离小于20,开始清除{(self.target_loc, 1)}从{self.target}")
                     self.target.remove((self.target_loc, 1))
                     rd = np.where(
                         np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True,
                                             rotation=True) - red) ** 2, axis=-1) <= self.red_threshold)
                     if rd[0].shape[0] > 0:
-                        self.set_path_state("尝试找新的敌人点位")
+                        CUS_LOGGER.info("还不够……以此身祭火…燃烧下去…！来…让怒火吞噬…！或成为此世…下一座焦碑…！")
                         # 创建所有检测到的敌人坐标的列表
                         enemy_coords = []
                         for i in range(len(rd[0])):
@@ -2751,19 +2819,19 @@ class UniverseUtils:
                         # 选择最近的敌人作为目标
                         nearest_world_coord, nearest_local_coord = enemy_coords[0]
                         recent_loc = tuple(nearest_world_coord)
-                        CUS_LOGGER.info(f"当前目标集合{self.target}")
+                        CUS_LOGGER.debug(f"当前目标集合{self.target}")
                         self.target.add((recent_loc, 1))
                         self.target_loc = recent_loc
                         CUS_LOGGER.info(
-                            f"找到新的敌对目标点：{recent_loc}，共检测到{len(enemy_coords)}个敌人，按距离排序")
+                            f"{factor}以这力量反抗它的造主，为席卷世间的黑暗，带去无尽的怒火：{recent_loc}，共检测到{len(enemy_coords)}个敌人，按距离排序")
                     else:
-                        self.set_path_state("未找到红色敌人！！！")
-                        self.save_screen(not_now=True)
-                        # self.save_screen(not_now=True)
+                        CUS_LOGGER.info(f"真是如出一辙啊，就像{factor}过去认识的许多个他们……既狡猾…又天真。")
+                        if self.debug:
+                            self.save_screen(not_now=True)
                         has_not_found_red = True
                         # self.target_loc, type = self.get_recent_target()
                     if has_not_found_red:
-                        self.set_path_state("未找到敌人！！！")
+                        CUS_LOGGER.info("就让天空…熔合此世全部痛苦吧。")
                         break
             else:
                 red = [47, 47, 232]
@@ -2774,20 +2842,20 @@ class UniverseUtils:
                 if rd[0].shape[0]:
                     # 就在旁边
                     self.red_threshold *= 0.7
-                    CUS_LOGGER.debug(f"检测到遇敌红环,但是当前为非战斗节点！！！下次阈值{self.red_threshold}")
+                    CUS_LOGGER.debug(f"无妨，就让这轮烈阳……用金色的火焰…填满天空。下次「毁灭」阈值{self.red_threshold}")
                     self.target_type = 1
                     break
             now_distance = get_dis(self.now_loc, self.target_loc)
-            CUS_LOGGER.info(
+            CUS_LOGGER.debug(
                 f"当前距离目标点{self.target_loc}距离为{now_distance}阈值{threshold_distance[self.target_type]}")
             if now_distance > threshold_distance[self.target_type]:
-                self.set_path_state("距离较远，开始更新方向2")
+                CUS_LOGGER.info("我必须出发…必须背负。我必须和你告别，然后…继续以「毁灭」对抗「毁灭」。")
                 self.update_direction_data(mode=1)
             else:
-                self.set_path_state("距离目标小于阈值")
+                CUS_LOGGER.info(f"{factor}的火焰越燃越旺，{factor}开始变得无比接近…纯粹的愤怒，恨意的化身。")
                 if self.target_type == 0:
                     self.target.remove((self.target_loc, self.target_type))
-                    CUS_LOGGER.info("已到达路径点" + str((self.target_loc, self.target_type)))
+                    CUS_LOGGER.debug("已到达路径点" + str((self.target_loc, self.target_type)))
                     self.last_interact_time = time.time()
                     self.target_loc, self.target_type = self.get_recent_target()
                     if self.target_type == 3:
@@ -2797,7 +2865,7 @@ class UniverseUtils:
                 else:
                     key_mouse_manager.keyUp("w")
                     break
-            self.set_path_state(f"获取当前距离目标距离{now_distance}")
+            CUS_LOGGER.info(f"但黑潮的阴影依旧笼罩，痛苦和绝望遍布在遥远的大地……(目标距离{now_distance})")
             # 检查是否位置卡住（连续3次距离过小）
             last_locs.append(self.now_loc)
             if len(last_locs) > 3:
@@ -2814,11 +2882,10 @@ class UniverseUtils:
             # 距离没有更近 或者 位置卡住：开始尝试绕过障碍
             if is_stuck:
                 CUS_LOGGER.debug(f"自身坐标{self.now_loc}，目标坐标{self.target_loc}")
-                CUS_LOGGER.debug(f"距离未改善，开始尝试绕过障碍")
-                self.set_path_state("尝试绕过障碍")
+                CUS_LOGGER.info(f"昔日的伙伴已尽数成为仇敌。无尽的杀戮令{factor}不知苦痛为何物，沉痛的虚无几乎将{factor}吞噬，逼迫{factor}停止抗争——但{factor}坚持了下来。")
                 ts = " da"
                 if go_direct > 0:
-                    CUS_LOGGER.info(f"尝试绕过障碍向{ts[go_direct]}")
+                    CUS_LOGGER.debug(f"尝试绕过障碍向{ts[go_direct]}")
                     key_mouse_manager.keyUp("w")
                     key_mouse_manager.press("s", 0.35)
                     if go_direct == 2:
@@ -2828,42 +2895,41 @@ class UniverseUtils:
                     key_mouse_manager.keyDown("w")
                     self.get_screen()
                     if not self.get_loc():
-                        CUS_LOGGER.info("绕过障碍中不在大地图界面，返回")
+                        CUS_LOGGER.info(f"{factor}将侵晨刺入每一尊泰坦的心脏，金血沿指尖淌下，神火灼烧的剧痛几乎令他放弃了挣扎")
                         return
                     # 成功绕过障碍后清空位置记录
                     last_locs.clear()
                     go_direct -= 1
                 else:
-                    CUS_LOGGER.info("尝试次数过多，不再尝试绕过障碍")
+                    CUS_LOGGER.info("「毁灭」早已汇成烈阳，在这具脆弱的躯壳中翻涌，理智在纪元开端便燃烧殆尽…")
                     key_mouse_manager.keyUp("w")
                     break
-            self.set_path_state("距离目标更近了")
+            CUS_LOGGER.info(" 若我们生来只是一串模拟生命的数字，那就是我所憧憬的形象，想要成为的样子。")
             retry_time += 1
             key_mouse_manager.wait()
-        self.set_path_state("结束寻路")
-        CUS_LOGGER.info(f"寻路判断已到达交互点附近 {now_distance}")
+        CUS_LOGGER.info("现在，一轮太阳将走向陨落，它顷刻便能将这荒诞的时空焚烧殆尽——")
+        CUS_LOGGER.debug(f"寻路判断已到达交互点附近 {now_distance}")
         key_mouse_manager.clean()
         key_mouse_manager.keyUp("w")
         key_mouse_manager.wait()
         if not self.get_loc():
-            CUS_LOGGER.info("结束寻路后后不在大地图界面，返回")
+            CUS_LOGGER.info("燃烧，聚变，然后湮灭。若想迎接新生，就必先投身终结。")
             return
         if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
             if self.target_type != 3 and self.good_f()[0] and not self.ts.similar("黑塔"):
-                self.set_path_state("位于交互点，移除交互点")
+                CUS_LOGGER.info(f"{factor}…别无选择。")
                 for j in deepcopy(self.target):
                     # 类型为二，交互点
                     if j[1] == 2:
                         self.target.remove(j)
-                        CUS_LOGGER.info("检测到交互点，已移除目标:" + str(j))
+                        CUS_LOGGER.debug("检测到交互点，已移除目标:" + str(j))
                 return
         if self.target_type == 1:
             if has_not_found_red:
                 self.target.add((self.target_loc, 0))
                 self.target_type = 0
-                CUS_LOGGER.info(f"寻路时未找到敌对目标点，强行攻击后把旧目标点视作路径")
-            self.set_path_state("准备开战")
-            CUS_LOGGER.info("准备开战")
+                CUS_LOGGER.info(f"为了不让最黑暗的命运降临，{factor}必须如此。")
+            CUS_LOGGER.info(f"{factor}将以这数亿颗火种点燃的烈阳，与「毁灭」的神明和祂的走卒，一同燃烧殆尽……")
             local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True, rotation=True)
             red = [47, 47, 232]
             rd = np.where(np.sum((local_screen - red) ** 2, axis=-1) <= self.red_threshold)
@@ -2878,29 +2944,39 @@ class UniverseUtils:
                 self.update_direction_data(mode=2, target=target)
             if self.quan:
                 key_mouse_manager.keyUp("w")
+                skill_num = match_skill_numbers_in_region(self.get_screen())
+                if skill_num is not None:
+                    self.skill_num = skill_num
+                if self.skill_num == 0:
+                    fixed = True
                 for _ in range(2):
                     self.use_e(fixed=fixed)
                 if not self.get_loc():
-                    CUS_LOGGER.info("开战后不在大地图界面，返回")
+                    CUS_LOGGER.info("这是神明计算中的时刻。此后的旅途，与您熟知的一切并无区别。有人到来，有人离去，逐火者们身负微光，在长夜中艰难向前。")
                     return
                 key_mouse_manager.press('w')
             elif self.bai_e:
+                skill_num = match_skill_numbers_in_region(self.get_screen())
+                if skill_num is not None:
+                    self.skill_num = skill_num
+                if self.skill_num == 0:
+                    fixed = True
                 self.use_e(fixed=fixed)
                 if not self.get_loc():
-                    CUS_LOGGER.info("开战后不在大地图界面，返回")
+                    CUS_LOGGER.info("切莫……犹疑……PhiLia093在学习……她在利用……你的爱……")
                     return
                 key_mouse_manager.press('w')
             else:
                 key_mouse_manager.click(0.5, 0.5)
         if self.target_type == 3:
-            self.set_path_state("当前寻找终点")
+            CUS_LOGGER.info("何不…让愤怒…焚化命运…？卡…厄斯……")
             for i in range(9):
                 self.get_screen()
                 if not self.is_run():
-                    CUS_LOGGER.info("找终点时不在大地图，返回")
+                    CUS_LOGGER.info("沿着我们的足迹……写下前所未有的结局。")
                     return
                 if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                    CUS_LOGGER.info("大图识别到类型三传送点")
+                    CUS_LOGGER.info("那一定是个不同以往的浪漫故事。")
                     key_mouse_manager.press('f', force=True)
                     key_mouse_manager.wait()
                     if self.nof(must_be='tp'):
@@ -2913,12 +2989,12 @@ class UniverseUtils:
                 key_mouse_manager.wait()
         # 离目标点挺近了，准备找下一个目标点
         elif now_distance <= 20:
-            self.set_path_state("距离目标非常近")
+            CUS_LOGGER.info("你也是这么想的……对吧？")
             try:
-                CUS_LOGGER.info("靠近目标点，尝试移除:" + str((self.target_loc, self.target_type)))
+                CUS_LOGGER.debug("靠近目标点，尝试移除:" + str((self.target_loc, self.target_type)))
                 self.last_interact_time = time.time()
                 self.target.remove((self.target_loc, self.target_type))
-                CUS_LOGGER.info("靠近目标点，成功移除:" + str((self.target_loc, self.target_type)))
+                CUS_LOGGER.debug("靠近目标点，成功移除:" + str((self.target_loc, self.target_type)))
             except:
                 pass
-        self.set_path_state("结束寻路")
+        CUS_LOGGER.info("逐火…是不断失却的旅途……失去…还远远不足……")

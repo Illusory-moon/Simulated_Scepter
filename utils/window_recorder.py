@@ -1,5 +1,6 @@
 import ctypes
 import datetime
+import os
 import time
 
 import cv2
@@ -424,14 +425,42 @@ class WindowRecorder:
                 self.out = None
             CUS_LOGGER.info("视频写入器已释放")
 
-    def stop_recording(self):
+    def stop_recording(self, delete_video=False):
+        """停止录制
+        
+        Args:
+            delete_video (bool): 是否删除录制的视频文件，默认为 False
+        """
         if not self.recording:
             return
         self.recording = False
+        
+        # 等待录制线程完全退出，避免 FFmpeg DLL 资源竞争
+        if self.recording_thread and self.recording_thread.is_alive():
+            try:
+                CUS_LOGGER.debug("等待录制线程结束...")
+                self.recording_thread.join(timeout=3.0)
+                if self.recording_thread.is_alive():
+                    CUS_LOGGER.warning("录制线程未在规定时间内结束")
+                else:
+                    CUS_LOGGER.debug("录制线程已正常结束")
+            except Exception as e:
+                CUS_LOGGER.warning(f"等待录制线程结束时发生错误：{e}")
+        
         if self.out:
             self.out.release()
             self.out = None
-        CUS_LOGGER.debug(f"停止录制{self.output_file}")
+        
+        # 如果需要删除视频文件
+        if delete_video:
+            try:
+                if os.path.exists(self.output_file):
+                    os.remove(self.output_file)
+                    CUS_LOGGER.debug(f"已删除视频文件：{self.output_file}")
+            except Exception as e:
+                CUS_LOGGER.warning(f"删除视频文件失败：{e}")
+        else:
+            CUS_LOGGER.debug(f"停止录制{self.output_file}")
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ import sys
 import json
 
 from route import PATHS
+from utils.log import CUS_LOGGER
 
 
 class Config:
@@ -79,9 +80,7 @@ class Config:
 
             elif i in ['1', '2', '3', '4']:
                 self.skill_char.append(i)
-
-        # 未导入log类,暂时用print应付调试
-        print(f"秘技列表:{self.skill_char}")
+        CUS_LOGGER.info(f"载入特殊秘技计算因子:{self.skill_char}")
 
 
     def read(self):

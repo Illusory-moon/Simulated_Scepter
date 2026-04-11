@@ -104,7 +104,7 @@ class KeyMouseManager:
         清除当前键鼠管理器线程所有操作
         """
         CUS_LOGGER = get_CUS_LOGGER()
-        CUS_LOGGER.info("清除当前所有操作")
+        CUS_LOGGER.debug("清除当前所有操作")
         if self.worker_thread and self.worker_thread.is_alive():
             with self.queue_lock:
                 self.operation_queue.clear()  # 清空队列中的所有操作
@@ -180,7 +180,7 @@ class KeyMouseManager:
         op_type = operation['type']
         force = operation.get('force', False)
         CUS_LOGGER = get_CUS_LOGGER()
-        CUS_LOGGER.info(f"执行操作{operation}，当前队列长度{len(self.operation_queue)}")
+        CUS_LOGGER.debug(f"执行操作{operation}，当前队列长度{len(self.operation_queue)}")
         if op_type == 'keyDown':
             key = self._get_mapping(operation['key'])
             pyautogui.keyDown(key)
@@ -269,7 +269,7 @@ class KeyMouseManager:
         else:
             y = x
         dx = int(16.5 * y * self.multi * self.scale)
-        CUS_LOGGER.info(f"旋转{x}°，精度{fine},移动距离{dx}，倍率{self.multi}，缩放比{self.scale}")
+        CUS_LOGGER.debug(f"旋转{x}°，精度{fine},移动距离{dx}，倍率{self.multi}，缩放比{self.scale}")
         win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, dx, 0)  # 进行视角移动
         self._sleep(0.05 * fine)
         if x != y:
