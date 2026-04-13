@@ -61,6 +61,56 @@ class IronBloodUniverse(SimulatedUniverse):
         super().end_of_university()
         self.need_end=False
         self.init_map()
+
+    def update_count(self, read=True):
+        """
+        更新或读取计数器值
+
+        该函数用于管理模拟宇宙的运行计数，可以读取保存在文件中的计数器值，
+        或将当前计数器值加1后保存到文件中。
+
+        参数:
+            read: bool，控制操作模式
+                  True表示读取模式，从文件中读取计数器值
+                  False表示写入模式，将当前计数器值加1后保存到文件中
+
+        返回值:
+            无返回值，直接更新实例变量self.count
+        """
+        file_name = "config/backup/count.txt"
+        if read:
+            new_cnt = 0
+            if os.path.exists(file_name):
+                with open(file_name, "r", encoding="utf-8", errors="ignore") as fh:
+                    s = fh.readlines()
+                    try:
+                        new_cnt = int(s[0].strip("\n"))
+                    except:
+                        pass
+            else:
+                os.makedirs("config/backup", exist_ok=True)
+                with open(file_name, "w", encoding="utf-8") as file:
+                    file.write("0")
+                    file.close()
+        else:
+            new_cnt = self.count + 1
+            try:
+                with open(file_name, "w", encoding="utf-8") as file:
+                    file.write(str(new_cnt))
+                    file.close()
+            except  Exception as e:
+                CUS_LOGGER.error(f"写入文件失败{e}")
+            # 追加记录轮回次数和击杀数到另一个文件
+            if self.debug:
+                record_file = "config/backup/kill_record.txt"
+                try:
+                    os.makedirs("config/backup", exist_ok=True)
+                    with open(record_file, "a", encoding="utf-8") as file:
+                        file.write(f"轮回次数:{self.count}, 击杀数:{self.kill_count}\n")
+                        file.close()
+                except Exception as e:
+                    CUS_LOGGER.error(f"写入击杀记录文件失败{e}")
+        self.count = new_cnt
     def normal(self):
         bk_lst_changed = self.last_interact_time
         self.last_interact_time = time.time()
