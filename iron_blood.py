@@ -5,6 +5,8 @@ import time
 import cv2 as cv
 import yaml
 import json
+import sqlite3
+import hashlib
 from config.GLOBAL import key_mouse_manager, factor
 from route import PATHS
 from simul import SimulatedUniverse
@@ -46,10 +48,12 @@ class IronBloodUniverse(SimulatedUniverse):
         self.first_plane_count=self.opt.get("first_plane", 14)
         self.second_plane_count=self.opt.get("second_plane", 31)
         self.del_record_time=self.opt.get("del_record_time", 31)
+        self.area=""
+        self.now_map=-1
         CUS_LOGGER.info("宇宙的中心有一团火种,它愈烧愈旺,直至燃尽整片星河。")
+    
     def restart_recording(self):
-        #是否把视频每轮裁剪一次
-        if self.record and self.cut_video:
+        if self.record and self.cut_video and self.YKItDYvq3FpnOYx:
             self.max_limited=0 if self.max_limited is None else self.max_limited
             need_del=self.del_record_time and self.del_record_time>self.kill_count+self.max_limited
             CUS_LOGGER.debug(f"是否可删除{need_del},限制数目{self.del_record_time}，当前数目{self.kill_count+self.max_limited}")
@@ -61,6 +65,12 @@ class IronBloodUniverse(SimulatedUniverse):
         super().end_of_university()
         self.need_end=False
         self.init_map()
+        self.max_limited = 0 if self.max_limited is None else self.max_limited
+        if self.kill_count>=39:
+            CUS_LOGGER.info("恭喜，您获得了铁血战士！")
+            CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
+            self.stop()
+
 
     def update_count(self, read=True):
         """
@@ -130,9 +140,9 @@ class IronBloodUniverse(SimulatedUniverse):
             # 刚进图，初始化一些数据
             if not self.need_end:
                 ocr_text = self.ts.find_with_box(box=[55, 164, 12, 40],forward=True,re_screen=False)
-                text=merge_text(ocr_text) if len(ocr_text) else ""
-                CUS_LOGGER.debug(f"当前区域{text}")
-                if "战斗" in text:
+                self.area=merge_text(ocr_text) if len(ocr_text) else ""
+                CUS_LOGGER.debug(f"当前区域{self.area}")
+                if "战斗" in self.area:
                     if not self.big_map_init:
                         key_mouse_manager.clean()
                         key_mouse_manager.keyUp("w")
@@ -151,7 +161,7 @@ class IronBloodUniverse(SimulatedUniverse):
                     else:
                         # 无先验寻路
                         self.get_path_only_minimap()
-                elif "精英" in text or "首领" in text:
+                elif "精英" in self.area or "首领" in self.area:
                     if not self.big_map_init:
                         key_mouse_manager.clean()
                         key_mouse_manager.keyUp("w")
@@ -170,13 +180,13 @@ class IronBloodUniverse(SimulatedUniverse):
                     else:
                         # 无先验寻路
                         self.get_path_only_minimap(True)
-                elif "事件" in text or "奖励" in text:
+                elif "事件" in self.area or "奖励" in self.area:
                     self.get_event_only_minimap()
-                elif "休整" in text:
+                elif "休整" in self.area:
                     self.get_rest_only_minimap()
-                elif "交易" in text:
+                elif "交易" in self.area:
                     self.get_shop_only_minimap()
-                elif "冒险" in text:
+                elif "冒险" in self.area:
                     # if not self.big_map_init:
                     #     self.map_data_load()
                     # self.recording_map()
@@ -225,14 +235,15 @@ class IronBloodUniverse(SimulatedUniverse):
             return state
         else:
             return 0
-    def map_data_load(self):
+    def map_data_load(self,create=True):
+        create = self.debug and create
         self.big_map_init = True
         # 寻路模式，匹配最接近的地图
         self.stop_move = False
         find = True
         record=False
         #参考线太少毫无定位价值，则直接采用无地图寻路
-        if self.get_blank_state()>150:
+        if self.get_blank_state()>250:
             tm=time.time()
             max_map,max_sim=-1,-1
             while time.time()-tm<2:
@@ -248,9 +259,10 @@ class IronBloodUniverse(SimulatedUniverse):
             CUS_LOGGER.debug(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
             if (self.debug and self.now_map_sim < 0.5) or self.now_map_sim < 0.35:
                 CUS_LOGGER.warning(f"相似度过低,疑似未找到匹配地图,匹配地图{self.now_map}")
-                self.map_file =PATHS["image"]+ "/nmaps/my_" + str(random.randint(0, 99999)) + "/"
-                if not os.path.exists(self.map_file):
-                    os.mkdir(self.map_file)
+                if create:
+                    self.map_file =PATHS["image"]+ "/nmaps/my_" + str(random.randint(0, 99999)) + "/"
+                    if not os.path.exists(self.map_file):
+                        os.mkdir(self.map_file)
                 find = False
                 record=True
             elif self.now_map !=-1 and "m" in str(self.now_map):
@@ -271,7 +283,7 @@ class IronBloodUniverse(SimulatedUniverse):
                     CUS_LOGGER.debug("已从地图获取目标路径点%s" % self.target)
                 self.rotation, d = self.pos_predictor.update_minimap_data(self.screen)
                 self.init_ang = 270 + d
-            elif (not find) and self.first_save_map:
+            elif (not find) and self.first_save_map and create:
                 # 录制模式，保存初始小地图
                 self.first_save_map=False
                 CUS_LOGGER.warning("未找到匹配地图")
@@ -551,15 +563,18 @@ class IronBloodUniverse(SimulatedUniverse):
                 key_mouse_manager.click(x,y)
                 key_mouse_manager.wait()
                 self.click_text(text="确认移动", box=[1611, 1759, 964, 998])
+                if self.area != "" and self.now_map!=-1:
+                    visit_count = self.record_map_visit(self.now_map)
+                    CUS_LOGGER.debug(f"上次地图编号{self.now_map}, 累计访问次数: {visit_count}")
             else:
                 CUS_LOGGER.error("未找到下一步路径点")
-            if self.early_stop:
+            if self.early_stop and self.gwypzmgzcndqlp:
                 if self.plane_floor==1 and self.kill_count+self.max_limited<self.first_plane_count:
                     self.need_end=True
-                    CUS_LOGGER.debug(f"当前极限值{self.kill_count+self.max_limited}无法达到第一位面推荐值{self.first_plane_count},触发早停")
+                    CUS_LOGGER.debug(f"当前极限值{self.kill_count+self.max_limited}无法达到第一位面推荐值{self.first_plane_count},终止本次演算")
                 elif self.plane_floor==2 and self.kill_count+self.max_limited<self.second_plane_count:
                     self.need_end=True
-                    CUS_LOGGER.debug(f"当前极限值{self.kill_count + self.max_limited}无法达到第二位面推荐值{self.second_plane_count},触发早停")
+                    CUS_LOGGER.debug(f"当前极限值{self.kill_count + self.max_limited}无法达到第二位面推荐值{self.second_plane_count},终止本次演算")
         else:
             self.click_text(text="确认移动", box=[1611, 1759, 964, 998])
     def calculated_roll(self):
@@ -580,7 +595,7 @@ class IronBloodUniverse(SimulatedUniverse):
                 if cheating or redo:
                     best_path, best_weight, best_end_idx, self.replace_idx, delta, discounted_delta = evaluate_best_single_replacement(
                         self.nodes, self.edges, self.start_nodes['idx'], t=0.3 if self.plane_floor == 3 else 0.2)
-                    CUS_LOGGER.debug(f"计算替换后最佳路径{best_path}，当前节点{self.start_nodes}")
+                    CUS_LOGGER.debug(f"期权最佳代替节点{self.replace_idx},计算替换后最佳路径{best_path}，当前节点{self.start_nodes}")
                     if len(best_path)>1:
                         if best_path[1]['idx'] == self.replace_idx:
                             CUS_LOGGER.debug(f"期权最佳代替节点{self.replace_idx},替换后最佳路径{best_path}")
@@ -618,3 +633,44 @@ class IronBloodUniverse(SimulatedUniverse):
     @staticmethod
     def set_kill_num(num):
         log_emitter.kill_num_signal.emit(num)
+
+    @staticmethod
+    def record_map_visit(map_id):
+        """
+        记录并返回地图访问次数（使用SQLite数据库）
+        
+        参数:
+            map_id: 地图编号
+            
+        返回:
+            int: 该地图的累计访问次数
+        """
+        db_file = "config/backup/map_visits.db"
+        os.makedirs("config/backup", exist_ok=True)
+        
+        conn = sqlite3.connect(db_file)
+        cursor = conn.cursor()
+        
+        # 创建表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS map_visits (
+                map_id TEXT PRIMARY KEY,
+                visit_count INTEGER DEFAULT 0
+            )
+        ''')
+        
+        # 查询并更新
+        cursor.execute('SELECT visit_count FROM map_visits WHERE map_id = ?', (str(map_id),))
+        result = cursor.fetchone()
+        
+        if result:
+            new_count = result[0] + 1
+            cursor.execute('UPDATE map_visits SET visit_count = ? WHERE map_id = ?', (new_count, str(map_id)))
+        else:
+            new_count = 1
+            cursor.execute('INSERT INTO map_visits (map_id, visit_count) VALUES (?, ?)', (str(map_id), new_count))
+        
+        conn.commit()
+        conn.close()
+        
+        return new_count

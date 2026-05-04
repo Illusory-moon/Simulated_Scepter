@@ -1,5 +1,6 @@
 import base64
 import datetime
+import os
 
 import cv2
 import numpy
@@ -8,7 +9,7 @@ from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import QApplication
-
+from route import PATHS
 from config import GLOBAL
 from load_ui import QMainWindowLoadUI
 from utils.log import CUS_LOGGER
@@ -127,13 +128,20 @@ class QMainWindowLog(QMainWindowLoadUI):
 
     def start_print(self):
         """打印默认输出提示"""
+        if self.check_model_file():
+            GLOBAL.PRINT_TO_UI.emit(
+                text="您好，高级用户！！！欢迎使用ω- u13权杖系统。本系统将用于求解铁血战士计算的终点,一道完美的「毁灭」方程式……",
+                color_level=1,
+                time=False)
+        else:
+            GLOBAL.PRINT_TO_UI.emit(
+                text="用户，您好！欢迎使用ω- u13权杖系统。本系统将用于求解铁血战士第一因。",
+                color_level=2,
+                time=False)
 
         GLOBAL.PRINT_TO_UI.emit(
-            text="欢迎使用ADA-本项目将用于求解铁血战士计算的终点,一道完美的「毁灭」方程式……",
-            time=False)
-
-        GLOBAL.PRINT_TO_UI.emit(
-            text="如果认为本项目对您践行「毁灭」有帮助,请为开发者于github点star,或是赞助一下,请开发者喝杯咖啡~",
+            text="如果认为本项目对您践行「毁灭」有帮助,请为开发者于github点免费的star以表支持,或是赞助请开发者喝杯咖啡~",
+            color_level=4,
             time=False)
 
     # 用于展示弹窗信息的方法
@@ -236,3 +244,18 @@ class QMainWindowLog(QMainWindowLoadUI):
         cursor.setPosition(cursor.position() + 1, QTextCursor.MoveMode.KeepAnchor)  # 移动到末尾
         self.TextBrowser.setTextCursor(cursor)
         QApplication.processEvents()
+
+    def check_model_file(self):
+
+        model_path = os.path.join(PATHS["root"], "resource", "models", "kesln.onnx")
+        model_exists = os.path.exists(model_path)
+
+        if not model_exists:
+            self.recording_checkBox2.setEnabled(False)
+            self.recording_label_checkbox.setEnabled(False)
+            self.recording_time_input.setEnabled(False)
+            self.early_stop_checkbox.setEnabled(False)
+            self.Iron_blood_first_plane_input.setEnabled(False)
+            self.Iron_blood_second_plane_input.setEnabled(False)
+            return False
+        return True

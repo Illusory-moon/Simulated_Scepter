@@ -153,7 +153,7 @@
              </sizepolicy>
             </property>
             <property name="text">
-             <string>ADA</string>
+             <string>ω- u13.exe</string>
             </property>
             <property name="alignment">
              <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -714,6 +714,9 @@ border:none</string>
                 <layout class="QHBoxLayout" name="horizontalLayout_3">
                  <item>
                   <widget class="QPushButton" name="run_diver_btn">
+                   <property name="visible">
+                    <bool>false</bool>
+                   </property>
                    <property name="text">
                     <string>运行差分宇宙</string>
                    </property>
@@ -938,6 +941,19 @@ border:none</string>
               </layout>
              </item>
              <item>
+              <spacer name="verticalSpacer_3">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
               <layout class="QVBoxLayout" name="verticalLayout_12">
                <item>
                 <widget class="QLabel" name="label_7">
@@ -1059,7 +1075,7 @@ border:none</string>
          </widget>
          <widget class="QWidget" name="AbyssTab">
           <attribute name="title">
-           <string>铁血战士设置</string>
+           <string>进阶设置</string>
           </attribute>
           <layout class="QVBoxLayout" name="verticalLayout_6">
            <property name="spacing">
@@ -1418,6 +1434,9 @@ border:none</string>
           </layout>
          </widget>
          <widget class="QWidget" name="Tab6">
+          <property name="visible">
+           <bool>false</bool>
+          </property>
           <attribute name="title">
            <string>性能分析</string>
           </attribute>

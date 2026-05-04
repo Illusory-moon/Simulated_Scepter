@@ -1,127 +1,110 @@
 [简体中文](README.md) | [繁体中文](README_CHT.md) | [English](README_ENG.md)
 
-# Auto_Simulated_Universe
-星穹铁道-模拟宇宙全自动化
+# 模拟权杖 | Simulated_Scepter
+模拟权杖 ω - u13.exe
+本软件使用 [AGPL 3.0 协议](LICENSE)开源.
 
-快速上手，请访问：[项目文档](https://github.com/Night-stars-1/Auto_Simulated_Universe_Docs/blob/docs/docs/guide/index.md)
+《崩坏:星穹铁道》的极难成就《铁血战士》自动助手，一键自动化助力完成。
+![模拟宇宙](doc/insect.png)
+![模拟宇宙](doc/warrior.png)
+ 软件基于图像识别，不支持任何非绿色作弊功能（如抓包，逆向）。
 
-遇到问题，请在提问前查看：[Q&A](https://github.com/Night-stars-1/Auto_Simulated_Universe_Docs/blob/docs/docs/guide/qa.md)
+ 在提问之前。。。你需要查看的 [How to ask](https://github.com/ryanhanwu/How-To-Ask-Questions-The-Smart-Way/blob/main/README.md)
 
-运行自动化时不能用电脑做其他事？试试多用户后台运行！[后台运行](https://github.com/Night-stars-1/Auto_Simulated_Universe_Docs/blob/docs/docs/guide/bs.md)
-
-此页面主要介绍差分宇宙自动化，如需详细的普通模拟宇宙自动化介绍请移步[普通宇宙](https://github.com/CHNZYX/Auto_Simulated_Universe/blob/old/README.md)
 
 ----------------------------------------------------------------------------------------------
 
-## 免责声明
-本软件是一个外部工具旨在自动化崩坏星轨的游戏玩法。它被设计成仅通过现有用户界面与游戏交互,并遵守相关法律法规。该软件包旨在提供简化和用户通过功能与游戏交互,并且它不打算以任何方式破坏游戏平衡或提供任何不公平的优势。该软件包不会以任何方式修改任何游戏文件或游戏代码。
+# 免责声明 | Disclaimer
 
-This software is open source, free of charge and for learning and exchange purposes only. The developer team has the final right to interpret this project. All problems arising from the use of this software are not related to this project and the developer team. If you encounter a merchant using this software to practice on your behalf and charging for it, it may be the cost of equipment and time, etc. The problems and consequences arising from this software have nothing to do with it.
+### 一、软件性质与开源声明
+本软件是一个外部开源辅助工具，旨在通过模拟用户操作、与游戏现有用户界面（UI）进行交互，以实现游戏玩法的自动化。本软件被设计成仅通过现有用户界面与游戏交互，不会以任何方式修改任何游戏文件或游戏代码。本软件开源、免费，仅供个人学习、交流与研究自动化技术之用。开发者团队拥有本项目的最终解释权。
 
-本软件开源、免费，仅供学习交流使用。开发者团队拥有本项目的最终解释权。使用本软件产生的所有问题与本项目与开发者团队无关。若您遇到商家使用本软件进行代练并收费，可能是设备与时间等费用，产生的问题及后果与本软件无关。
+### 二、知识产权与权属声明
+《崩坏：星穹铁道》游戏及其相关内容的著作权、商标权等一切知识产权，均归米哈游公司（miHoYo）及其关联实体合法所有。本软件仅作为技术学习工具，不主张、不享有任何游戏内容的版权。
 
+### 三、用户使用许可范围
+用户通过本软件获取的全部功能，均被严格限定为“个人临时学习研究”之唯一目的，不构成对用户任何明示或默示的商业使用授权。用户不得将本软件以任何形式直接或间接用于商业盈利、推广、培训、代练收费等场景。
 
-请注意，根据MiHoYo的 [崩坏:星穹铁道的公平游戏宣言]([https://hsr.hoyoverse.com/en-us/news/111244](https://sr.mihoyo.com/news/111246?nav=news&type=notice)):
+### 四、用户义务与合规风险提示
+4.1 用户使用本软件时需遵守国家相关法律法规及米哈游官方发布的用户协议。用户在使用本软件前，已充分知悉并理解米哈游在其 [《崩坏：星穹铁道》公平游戏宣言](https://sr.mihoyo.com/news/111246?nav=news&type=notice) 中的明确规定：
 
-    "严禁使用外挂、加速器、脚本或其他破坏游戏公平性的第三方工具。"
-    "一经发现，米哈游（下亦称“我们”）将视违规严重程度及违规次数，采取扣除违规收益、冻结游戏账号、永久封禁游戏账号等措施。"
+> “严禁使用外挂、加速器、脚本或其他破坏游戏公平性的第三方工具。”
+> “一经发现，米哈游（下亦称‘我们’）将视违规严重程度及违规次数，采取扣除违规收益、冻结游戏账号、永久封禁游戏账号等措施。”
 
-## 安装GUI [![](https://img.shields.io/github/downloads/CHNZYX/Auto_Simulated_Universe/total?color=66ccff)](https://github.com/CHNZYX/Auto_Simulated_Universe/releases)
+4.2 用户完全知晓并同意，使用本软件可能会被米哈游认定为违反上述规定的行为，并可能导致游戏账号遭受包括但不限于警告、收益扣除、暂时冻结乃至永久封禁在内的处罚。由此产生的一切后果与责任，均由用户单方承担。
 
-\[新增\]: v7.2后支持云·星穹铁道。云崩铁要用网页应用打开，直接在网页打开会无法识别。需要关闭网速和延迟显示；同时需要设置为全屏幕，并且物理屏幕分辨率为x\*1080(x>=1920)。若无法达到要求，建议在多用户下开启。
+### 五、第三方代练风险提示
+若用户遇到商家使用本软件进行代练并收费，请注意：该等商家收取的费用，可能为设备损耗、时间成本等费用，与软件本身无关。因接受此类代练服务产生的一切问题、纠纷及后果，包括但不限于账号被封禁、虚拟财产损失、个人信息泄露或被商家欺诈等，均与本软件及开发者团队无任何关联。
 
-## 命令行用法
+### 六、风险自担与责任豁免
+6.1 运营方/开发者团队对软件的功能可用性、稳定性、安全性、兼容性及无瑕疵运行，不作任何形式的明示或默示担保。
 
-只支持x\*1080(x>=1920,窗口化或全屏幕)，关闭hdr，文本语言选择简体中文，游戏界面不能有任何遮挡。代码版[下载链接](https://github.com/CHNZYX/Auto_Simulated_Universe/archive/refs/heads/main.zip)
+6.2 用户因获取、使用本软件而遭受的任何直接或间接损失、法律纠纷、设备损害、数据丢失、游戏账号被处罚或其他风险，无论因何由致，均由用户自行承担全部责任，运营方/开发者团队概不负责。
 
-如果没怎么接触过python，建议直接在[release](https://github.com/CHNZYX/Auto_Simulated_Universe/releases/latest)中下载gui版本，并直接阅读GUI使用方法
+6.3 运营方/开发者团队不对用户的使用行为承担任何监督、担保、调解或赔偿义务。使用本软件产生的所有问题与本项目及开发者团队无关。
 
-**第一次运行**
+6.4 用户任何违反本协议使用限制及法律法规规定的行为，均构成违约。用户须独立承担由此引发的一切民事、行政乃至刑事责任，并赔偿因此给运营方/开发者团队或其他第三方造成的全部损失。
 
-建议使用anaconda，创建虚拟环境并安装依赖库（conda需要在cmd下运行，powershell可能无法切换虚拟环境）
-
-```plaintext
-conda create -n asu python=3.12 -y
-conda activate asu
-pip install -r requirements.txt
-```
-
-或者直接安装（不建议）：双击`install_requirements.bat`安装依赖库
-
-重命名info_example.yml为info.yml
-
-**运行自动化**
-
-命令行运行
-
-差分宇宙
-```plaintext
-python diver.py
-```
-
-或普通模拟宇宙
-```plaintext
-python simul.py
-```
-
-详细参数：
-```plaintext
-python diver.py <--debug> <--speed> <--cpu> --nums=<nums>
-```
---speed：开启速通模式
-
---debug：开启调试模式
-
---cpu：图像识别强制使用cpu
-
-nums：指定通关次数，必须为正整数
-
-```plaintext
-python simul.py --bonus=<bonus> --debug=<debug> --speed=<speed> --find=<find> --nums=<nums>
-```
-bonus in [0,1]：是否开启沉浸奖励
-
-speed in [0,1]：开启速通模式
-
-consumable in [0,1]：精英和首领战之前是否使用最左上角的消耗品
-
-debug in [0,1,2]：开启调试模式
-
-find in [0,1]：0为录图，1为跑图
-
-nums：指定通关次数，必须为正整数
+### 七、协议生效与最终解释
+用户下载、安装或使用本软件之行为，即构成对本协议全部条款的完全了解与不可撤销的同意。本协议各条款之最终解释权及软件的运营管理权，均归属开发者团队。开发者团队有权在必要时单方变更本协议内容或终止服务，无需事先逐一通知用户。
 
 ----------------------------------------------------------------------------------------------
 
-`info.yml`内容如下
-```yaml
-config:
-  # 难度，1-5，（5代表最高难度，如果世界没有难度5则会选择难度4）
-  difficulty: 5
-  # 队伍类型 目前只支持：追击/dot/终结技/击破/盾反
-  team: 终结技
-  # 速通模式
-  speed_mode: 0
-  # 图像识别强制使用cpu
-  cpu_mode: 0
-  # 首领房间需要开秘技的角色，按顺序开
-  skill:
-    - 黄泉
-  # 自动存档数量，0-4，0代表不存档，1-4代表自动存档到前1-4个存档位
-  save: 4
-  timezone: Default
-  max_run: 34
+# 功能 | Function
+
+## 智能择路  
+
+![image](doc/select.png)
+
+## 精准索敌  
+
+![image](doc/battle.png)
+
+## 进阶功能
+
+### 视频录制  
+
+以爱的名义，将逝去的一切尽数珍藏。。。
+
+### 提前重置  
+
+若此世无法带来拯救，那就为它带来毁灭。。。（人话：40杀达成希望渺茫则重开）
+
+## 地图频率分析  
+```plaintext
+sqlite3 config/backup/map_visits.db "SELECT * FROM map_visits ORDER BY visit_count DESC;"
 ```
+----------------------------------------------------------------------------------------------
 
-必须携带至少一名远程平a角色，最好放在1号位
+## 兼容性
 
-注意！！！！！ 开始运行/开始校准之后就不要移动游戏窗口了！要移动请先停止自动化！
+只支持1080p及以上屏幕(x>=1920,窗口化或全屏幕)，关闭hdr，文本语言选择简体中文，游戏界面不能有任何遮挡,需置于前台。
 
-**校准**
+由于onnxruntime环境，电脑环境需注意win10版本是否大于等于2004，win11默认支持 ，同时建议具有2G以上显存运行本软件
+# 下载 | Download 
+方法一：前往交流群直接下载打包好的发行版（推荐）* ![](https://img.shields.io/badge/QQ%201群-1072802257-4e4c97)
 
-如果出现视角转动过大/过小而导致迷路的问题，可能是校准值出问题了，可以尝试手动校准：
+方法二：自行下载源码本地部署，没接触过python的，请忽视下述教程，可以直接前往交流群下载相关资源
 
-进入游戏，将人物传送到黑塔的办公室，然后命令行运行 `python align_angle.py`，等待视角转换/原地转圈结束
+**快速部署**
+
+```plaintext
+uv sync
+uv run new_gui.py
+```
+----------------------------------------------------------------------------------------------
+
+# 相关配置建议
+
+一号位角色建议顺序为白厄、黄泉、其它远程平a角色,其余序号使用角色任意，队伍需至少3人方能正常运行脚本
+
+请注意！！！！！ 开始运行/开始校准之后就不要移动游戏窗口了！避免脚本错误的执行！！要移动请先按f5停止自动化！
+
+### 校准
+
+有时可能出现视角转动过大/过小而导致迷路的问题，可以尝试手动校准：
+
+进入游戏，将人物传送到黑塔的办公室，然后gui点击校准角度按钮，等待视角转换/原地转圈结束
 
 改变鼠标dpi可能会影响校准值，此时需要重新校准。
 
@@ -131,77 +114,67 @@ config:
 
 在游戏中设置“自动沿用战斗设置”
 
-**运行自动化**
+**运行权杖**
 
-点击运行
+点击”擢升铁血战士“运行
 
 注意！！！！！ 开始运行/开始校准之后就不要移动游戏窗口了！要移动请先停止自动化！
 
-**TIPS：**
+F5/‘停止任务’按钮停止运行。
 
-尽量使用远程角色作为一号位，队伍中必须至少有一名远程角色。
+**系统设置**
 
-F8/‘停止’按钮停止运行。
+![画质](doc/config.png)
 
-显隐表示显示/隐藏命令行窗口，默认隐藏
 
-调试模式：如果不希望迷路后退出结算，请开启调试模式
-
-速通模式：开启表示追求最高效率通关，低配队伍慎用
-
-推荐最低画质配置：
-
-![画质](https://github.com/CHNZYX/Auto_Simulated_Universe/blob/main/imgs/image_quality.jpg)
-
-**校准**
-
-如果出现视角转动过大/过小而导致迷路的问题，可能是校准值出问题了，可以尝试手动校准：
-
-进入游戏，将人物传送到黑塔的办公室，然后点击校准，等待视角转换/原地转圈结束
-
-改变鼠标dpi可能会影响校准值，此时需要重新校准。
-
-## 更新
-
-~~双击update.exe~~
-
-## 通知插件使用方法（notif.exe）
-
-如果你没有用本地多用户，那么直接双击`notif.exe`即可开启windows通知，每刷完一次都会通知哦
-
-如果你用了本地多用户，那么请在子用户运行gui，在主用户运行notif，这样就能在主用户收到通知了
-
-计数会在每周自动重置，如果想手动改变计数，请打开`logs/notif.txt`，修改第一行的信息
-
-通知插件会在右下角显示托盘图标
 
 ----------------------------------------------------------------------------------------------
 
-~~欢迎加入，欢迎反馈bug，QQ群：831830526~~
-
-~~群没了，可以加736265667~~
-
-二群545443061
+# 开发交流-玩家社区-助力毁灭 | Destruction
+* 包含本权杖系统稳定发行版.
+* ![](https://img.shields.io/badge/QQ%201群-1072802257-4e4c97)
 
 ----------------------------------------------------------------------------------------------
 
-如果喜欢本项目，可以打赏送作者一杯咖啡喵！
+# 支持开发 | Star or Buy Coffee
 
-![打赏](https://github.com/CHNZYX/Auto_Simulated_Universe/blob/main/imgs/money.jpg)
+### 点Star - 觉得本项目有帮助请右上角点一个免费的Star喵, 谢谢喵
 
-----------------------------------------------------------------------------------------------
-## 贡献者
+### 微信打赏
 
-感谢以下贡献者对本项目做出的贡献
+<img alt="image" height="300" src="doc/pay.jpg" width="300"/>
 
-<a href="https://github.com/CHNZYX/Auto_Simulated_Universe/graphs/contributors">
 
-  <img src="https://contrib.rocks/image?repo=CHNZYX/Auto_Simulated_Universe" />
+# 致谢 | Acknowledgements
 
-</a>
+本项目使用了以下优秀的开源库和工具：
 
-![Alt](https://repobeats.axiom.co/api/embed/a24da575ebc375e58ec8d8a0d7fff6d26306d2fc.svg "Repobeats analytics image")
+## 核心依赖库
 
-## Star History
+- **[OpenCV](https://opencv.org/)** - 图像处理和计算机视觉库，用于图像识别、模板匹配和小地图分析
+- **[NumPy](https://numpy.org/)** - 科学计算库，提供高效的数组操作和数值计算支持（OpenCV依赖）
+- **[Pillow](https://python-pillow.org/)** - Python图像处理库，用于图像加载和处理
+- **[PyAutoGUI](https://pyautogui.readthedocs.io/)** - 自动化控制库，实现鼠标键盘的模拟操作
+- **[pywin32](https://github.com/mhammond/pywin32)** - Windows API接口，用于窗口管理和系统级操作
+- **[keyboard](https://github.com/boppreh/keyboard)** - 全局键盘监听和控制库
 
-[![Star History Chart](https://api.star-history.com/svg?repos=CHNZYX/Auto_Simulated_Universe&type=Date)](https://star-history.com/#CHNZYX/Auto_Simulated_Universe&Date)
+## OCR与深度学习
+
+- **[ONNX Runtime](https://onnxruntime.ai/)** - 跨平台机器学习推理引擎，支持DirectML加速，用于PaddleOCR模型推理
+
+## GUI框架
+
+- **[PyQt5](https://www.riverbankcomputing.com/software/pyqt/)** - Qt框架的Python绑定，构建图形用户界面
+
+## 数据处理与配置
+
+- **[PyYAML](https://pyyaml.org/)** - YAML解析器，用于配置文件管理
+- **[Shapely](https://shapely.readthedocs.io/)** - 几何对象操作库，用于空间分析和路径规划
+- **[pyclipper](https://github.com/greginvm/pyclipper)** - 多边形裁剪库，配合OCR使用
+- **[SciPy](https://scipy.org/)** - 科学计算库，用于信号处理和小地图分析
+- **[Matplotlib](https://matplotlib.org/)** - 数据可视化库，用于调试和数据分析（开发/测试依赖）
+- **[ipykernel](https://ipython.org/)** - Jupyter内核支持（开发/测试依赖）
+
+## 相关开源项目
+- **[Auto_Simulated_Universe](https://github.com/CHNZYX/Auto_Simulated_Universe/)** - 本项目核心轮子，基于此项目大幅重构
+- **[StarRailCopilot](https://github.com/LmeSzinc/StarRailCopilot/)** - 先进的状态机架构启发，地图高精度定位

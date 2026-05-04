@@ -107,7 +107,6 @@ class DivergentUniverse(UniverseUtils):
             with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
                 data = json.load(file)
         self.record = data.get("recording_state", True)
-        # 根据self._show_map决定是否叠加地图到录制视频上
         self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",
                                        window_class_name="UnityWndClass", see_time=True, offsets=[10, 50, 10, 10], simul_instance=self)
 
@@ -1204,7 +1203,7 @@ class DivergentUniverse(UniverseUtils):
 
     def stop(self, *_, **__):
         CUS_LOGGER.info("尝试停止运行")
-        if self.record:
+        if self.record and self._u1a:
             CUS_LOGGER.info("尝试停止录制")
             try:
                 self.recorder.stop_recording()
@@ -1222,7 +1221,7 @@ class DivergentUniverse(UniverseUtils):
         self._stop = False
         self.keys = KeyController(self)
         key_mouse_manager.start()
-        if self.record:
+        if self.record and self._u1a:
             self.recorder.start_recording(self.count)
         try:
             self.route()

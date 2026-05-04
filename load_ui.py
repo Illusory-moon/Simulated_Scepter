@@ -28,9 +28,9 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
 
         self.opt = None
 
-        uic.loadUi(PATHS["root"] + '\\ui\\ADA.ui', self)
+        uic.loadUi(PATHS["root"] + '\\ui\\UI.ui', self)
 
-        self.setWindowTitle("FAA - 本软件免费且开源")
+        self.setWindowTitle("ω- u13.exe - 本软件免费且开源")
 
         self.setWindowIcon(QIcon(PATHS["logo"] + "\\圆角-FetDeathWing-256x-AllSize.ico"))
 
@@ -46,6 +46,24 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
         self.json_to_opt(PATHS["root"] + "\\config\\config\\settings.json")
         self.skin_set()
         self.font_set()
+
+        self.run_diver_btn.setVisible(False)
+        self.tabWidget.setTabVisible(4, False)
+        self.label_7.setVisible(False)
+        self.Diver_debug_checkbox.setVisible(False)
+        self.Diver_speed_checkbox.setVisible(False)
+        self.Diver_weekly_checkbox.setVisible(False)
+        self.Diver_cpu_checkbox.setVisible(False)
+        self.label_10.setVisible(False)
+        self.Diver_difficulty_combo.setVisible(False)
+        self.label_11.setVisible(False)
+        self.Diver_team_combo.setVisible(False)
+        self.label_12.setVisible(False)
+        self.Diver_save_cnt_combo.setVisible(False)
+        self.label_17.setVisible(False)
+        self.Diver_timezone_combo.setVisible(False)
+        self.label_18.setVisible(False)
+        self.Diver_max_run_input.setVisible(False)
 
         self.Button_MostMinimized.clicked.connect(self.minimize_to_tray)
 
@@ -212,10 +230,10 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
     def init_tray_icon(self):
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.setIcon(QIcon(PATHS["logo"] + "\\圆角-FetDeathWing-256x-AllSize.ico"))
-        self.tray_icon.setToolTip(f"ADA - 正在后台运行")
+        self.tray_icon.setToolTip(f"ω- u13.exe - 正在后台运行")
 
         tray_menu = QMenu()
-        restore_action = tray_menu.addAction("一键启动")
+        self.restore_action = tray_menu.addAction("一键启动")
         quit_action = tray_menu.addAction("退出程序")
 
 
@@ -229,7 +247,7 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
     def minimize_to_tray(self):
         self.hide()
         self.tray_icon.showMessage(
-            "ADA 已最小化",
+            "ω- u13.exe 已最小化",
             "程序正在后台运行",
             QSystemTrayIcon.MessageIcon.Information,
             2000

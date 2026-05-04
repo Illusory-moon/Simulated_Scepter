@@ -22,7 +22,7 @@ from PIL import Image, ImageDraw, ImageFont
 from math import sin, cos
 import traceback
 
-from config.GLOBAL import key_mouse_manager, factor
+from config.GLOBAL import key_mouse_manager, factor, get_global_stop_flag, set_global_stop_flag
 from diver import merge_text
 from route import PATHS
 from utils.simul.config import config
@@ -162,64 +162,81 @@ class UniverseUtils:
         self.debug, self.find = 0, 1
         self.bx, self.by = 1920, 1080
         CUS_LOGGER.warning("我会等待那一天的到来。一直等待下去。总有一天……会有人翻开这近乎「永恒」的一页……(等待游戏窗口)")
-        while True:
+        # 使用全局停止标志，避免__init__阻塞导致无法停止
+        start_time = time.time()
+        timeout = 300  # 5分钟超时
+        while not get_global_stop_flag():
             try:
-                hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
-                Text = win32gui.GetWindowText(hwnd)
-                self.x0, self.y0, self.x1, self.y1 = win32gui.GetClientRect(hwnd)
-                self.xx = self.x1 - self.x0
-                self.yy = self.y1 - self.y0
-                # self.x0, self.y0, self.x1, self.y1 = win32gui.GetWindowRect(hwnd)
-                self.x0, self.y0, self.x1, self.y1 = get_window_rect(hwnd)
-                self.full = self.x0 == 0 and self.y0 == 0
-                self.x0 = max(0, self.x1 - self.xx) #+ 9 * self.full
-                self.y0 = max(0, self.y1 - self.yy) #+ 9 * self.full
-                if (
-                    (self.xx == 1920 or self.yy == 1080)
-                    and self.xx >= 1920
-                    and self.yy >= 1080
-                ):
-                    self.x0 += (self.xx - 1920) // 2
-                    self.y0 += (self.yy - 1080) // 2
-                    self.x1 -= (self.xx - 1920) // 2
-                    self.y1 -= (self.yy - 1080) // 2
-                    self.xx, self.yy = 1920, 1080
-                self.scx = self.xx / self.bx
-                self.scy = self.yy / self.by
-                dc = win32gui.GetWindowDC(hwnd)
-                dpi_x = win32print.GetDeviceCaps(dc, win32con.LOGPIXELSX)
-                dpi_y = win32print.GetDeviceCaps(dc, win32con.LOGPIXELSY)
-                win32gui.ReleaseDC(hwnd, dc)
-                scale_x = dpi_x / 96
-                scale_y = dpi_y / 96
-                try:
-                    self.scale = ctypes.windll.user32.GetDpiForWindow(hwnd) / 96.0
-                except:
-                    CUS_LOGGER.warning('DPI获取失败')
-                    self.scale = 1.0
-                CUS_LOGGER.debug(
-                    "DPI: " + str(self.scale) + " A:" + str(int(self.multi * 100) / 100)
-                )
-                CUS_LOGGER.info("当前演算世界: " + str(Text))
-                # 计算出真实分辨率
-                self.real_width = int(self.xx * scale_x)
-                # x01y01:窗口左上右下坐标
-                # xx yy:窗口大小
-                # scx scy:当前窗口和基准窗口（1920*1080）缩放大小比例
-                if Text == "崩坏：星穹铁道" or Text == "云·星穹铁道":
-                    time.sleep(1)
-                    if self.xx != 1920 or self.yy != 1080:
-                        CUS_LOGGER.error("分辨率错误")
-                    break
-                else:
-                    time.sleep(0.3)
+                re=self.get_xy()
+                if re: break
+                # 检查是否超时
+                if time.time() - start_time > timeout:
+                    CUS_LOGGER.error(f"等待游戏窗口超时({timeout}秒)，请检查游戏是否启动")
+                    raise TimeoutError(f"等待游戏窗口超过{timeout}秒")
+            except TimeoutError:
+                raise
             except Exception:
                 traceback.print_exc()
                 time.sleep(0.3)
                 pass
+        if get_global_stop_flag():
+            CUS_LOGGER.debug("初始化被用户中断")
+            set_global_stop_flag(False)  # 重置标志
+            return
         self.order = config.order
         self.sct = Screen()
-
+    def get_xy(self):
+        hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
+        Text = win32gui.GetWindowText(hwnd)
+        self.x0, self.y0, self.x1, self.y1 = win32gui.GetClientRect(hwnd)
+        self.xx = self.x1 - self.x0
+        self.yy = self.y1 - self.y0
+        # self.x0, self.y0, self.x1, self.y1 = win32gui.GetWindowRect(hwnd)
+        self.x0, self.y0, self.x1, self.y1 = get_window_rect(hwnd)
+        self.full = self.x0 == 0 and self.y0 == 0
+        self.x0 = max(0, self.x1 - self.xx)  # + 9 * self.full
+        self.y0 = max(0, self.y1 - self.yy)  # + 9 * self.full
+        if (
+                (self.xx == 1920 or self.yy == 1080)
+                and self.xx >= 1920
+                and self.yy >= 1080
+        ):
+            self.x0 += (self.xx - 1920) // 2
+            self.y0 += (self.yy - 1080) // 2
+            self.x1 -= (self.xx - 1920) // 2
+            self.y1 -= (self.yy - 1080) // 2
+            self.xx, self.yy = 1920, 1080
+        self.scx = self.xx / self.bx
+        self.scy = self.yy / self.by
+        dc = win32gui.GetWindowDC(hwnd)
+        dpi_x = win32print.GetDeviceCaps(dc, win32con.LOGPIXELSX)
+        dpi_y = win32print.GetDeviceCaps(dc, win32con.LOGPIXELSY)
+        win32gui.ReleaseDC(hwnd, dc)
+        scale_x = dpi_x / 96
+        scale_y = dpi_y / 96
+        try:
+            self.scale = ctypes.windll.user32.GetDpiForWindow(hwnd) / 96.0
+        except:
+            CUS_LOGGER.warning('DPI获取失败')
+            self.scale = 1.0
+        CUS_LOGGER.debug(
+            "DPI: " + str(self.scale) + " A:" + str(int(self.multi * 100) / 100)
+        )
+        CUS_LOGGER.info("当前演算世界: " + str(Text))
+        # 计算出真实分辨率
+        self.real_width = int(self.xx * scale_x)
+        # x01y01:窗口左上右下坐标
+        # xx yy:窗口大小
+        # scx scy:当前窗口和基准窗口（1920*1080）缩放大小比例
+        if Text == "崩坏：星穹铁道" or Text == "云·星穹铁道":
+            time.sleep(1)
+            if self.xx != 1920 or self.yy != 1080:
+                CUS_LOGGER.error(f"分辨率错误 {self.xx} {self.yy} 请设为1920*1080")
+            return 1
+        else:
+            time.sleep(0.3)
+            CUS_LOGGER.info(f"继续，燃烧下去……哪怕燃尽…自己的一切。")
+            return 0
     def gen_hotkey_img(self,hotkey="e",bg=PATHS["image"]+"/f_bg.jpg"):
         img=find_image_in_folder('key/', hotkey)
         if img is None:
@@ -1463,10 +1480,12 @@ class UniverseUtils:
 
     def update_state(self,state):
         if self.state is not None and self.state!=state:
+            self.last_state=self.state
             self.state = state
             self.last_update_time=time.time()
             CUS_LOGGER.debug(f"当前状态{state}更新时间{self.last_update_time}")
         elif self.state is None:
+            self.last_state = self.state
             self.state = state
             self.last_update_time=time.time()
             CUS_LOGGER.debug(f"当前状态{state}更新时间{self.last_update_time}")
@@ -1868,7 +1887,7 @@ class UniverseUtils:
                 if self.has_target:
                     self.target_type = 4
             else:
-                self.map_data_load()
+                self.map_data_load(create=False)
                 if int(self.now_map)==27793:
                     key_mouse_manager.mouse_move(15)
                 else:
@@ -2565,14 +2584,11 @@ class UniverseUtils:
                         if self.skill_num == 0:
                             fixed = True
                         self.use_e(face=True,fixed=fixed)
-                        if self.floor not in [4, 8, 13]:
-                            self.stop_move = 1
-                            self.mini_state += 2
-                            key_mouse_manager.press('w')
-                            self.should_update_map = False
-                            return
-                        else:
-                            key_mouse_manager.keyDown("w")
+                        self.stop_move = 1
+                        self.mini_state += 2
+                        key_mouse_manager.press('w')
+                        self.should_update_map = False
+                        return
                     else:
                         key_mouse_manager.click(0.5,0.5)
                     if iters + self.quan == 2:
@@ -2913,7 +2929,7 @@ class UniverseUtils:
         key_mouse_manager.keyUp("w")
         key_mouse_manager.wait()
         if not self.get_loc():
-            CUS_LOGGER.info("燃烧，聚变，然后湮灭。若想迎接新生，就必先投身终结。")
+            CUS_LOGGER.info("「救世主」…我愿你…常战常胜。")
             return
         if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
             if self.target_type != 3 and self.good_f()[0] and not self.ts.similar("黑塔"):
@@ -2998,3 +3014,4 @@ class UniverseUtils:
             except:
                 pass
         CUS_LOGGER.info("逐火…是不断失却的旅途……失去…还远远不足……")
+

@@ -80,6 +80,10 @@ class MainWindow(QMainWindowLog):
         """
         停止当前任务
         """
+        # 设置全局停止标志（用于__init__中的阻塞等待）
+        from config.GLOBAL import set_global_stop_flag
+        set_global_stop_flag(True)
+        
         if self.current_task and hasattr(self.current_task, 'stop'):
             self.current_task.stop()
             self.task_thread = None
@@ -112,6 +116,9 @@ class MainWindow(QMainWindowLog):
 
 
     def init_ui(self):
+        # 检查模型文件是否存在
+        self.check_model_file()
+        
         # 连接按钮信号
         self.run_simul_btn.clicked.connect(self.run_simul)
         self.run_diver_btn.clicked.connect(self.run_diver)
@@ -182,6 +189,10 @@ class MainWindow(QMainWindowLog):
         
         # 连接信号以实现动态更新
         self.connect_dependency_signals()
+
+        self.restore_action.triggered.connect(self.run_iron_blood)
+    
+
     
     def load_hotkey_config(self):
         """从 settings.json 加载快捷键配置"""
@@ -363,6 +374,9 @@ class MainWindow(QMainWindowLog):
                 bonus=config_simul.bonus
             )
             self.current_task = su
+            # 等待游戏窗口(可被中断)
+            if not su.wait_for_game_window():
+                return
             su.save_screen()
             
         try:

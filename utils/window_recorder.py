@@ -353,7 +353,7 @@ class WindowRecorder:
                         font_thickness = 2
                         font = cv2.FONT_HERSHEY_SIMPLEX
                         line_spacing = 15
-                        h_padding = 6
+                        h_padding = 25
                         v_padding = 20
 
                         # 获取文本尺寸
@@ -372,11 +372,11 @@ class WindowRecorder:
                         bottom_y = img_cv.shape[0] - 5
                         left_x = 5
 
-                        # 绘制白色背景矩形
+                        # 绘制黑色背景矩形
                         cv2.rectangle(img_cv,
                                       (left_x, bottom_y - rect_height),
                                       (left_x + rect_width, bottom_y),
-                                      (255, 255, 255),
+                                      (0, 0, 0),
                                       -1)
 
                         # 优化文字绘制位置
@@ -387,14 +387,14 @@ class WindowRecorder:
                                     (left_x + h_padding, line1_y),
                                     font,
                                     font_scale,
-                                    (0, 0, 255),
+                                    (255, 255, 255),
                                     font_thickness)
 
                         cv2.putText(img_cv, current_time,
                                     (left_x + h_padding, line2_y),
                                     font,
                                     font_scale,
-                                    (0, 0, 255),
+                                    (255, 255, 255),
                                     font_thickness)
 
                     # 写入视频文件
