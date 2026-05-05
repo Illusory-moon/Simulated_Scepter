@@ -4,8 +4,8 @@ import cv2 as cv
 import numpy as np
 
 from importing import load_img
-from utils.utils.image_tool import find_image_by_name
-from utils.utils.minimap_util import rotate_minimap, mask_minimap_center, crop, area_offset, get_minimap
+from tool.utils.image_tool import find_image_by_name
+from tool.utils.minimap_util import rotate_minimap, mask_minimap_center, crop, area_offset, get_minimap
 
 MINIMAP_RADIUS = 93
 #(138,149)精准中心点

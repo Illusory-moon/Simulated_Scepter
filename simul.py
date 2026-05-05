@@ -1,5 +1,5 @@
-import datetime
 import json
+import shutil
 
 import pyautogui
 import cv2 as cv
@@ -10,20 +10,20 @@ from copy import deepcopy
 
 import yaml
 
-from config.GLOBAL import key_mouse_manager, factor
-from config import GLOBAL, EXTRA
+from tool.GLOBAL import key_mouse_manager, factor
+from tool import GLOBAL, EXTRA
 from diver import load_actions, merge_text
-from utils.log import CUS_LOGGER, set_debug
-from utils.simul.utils import UniverseUtils, set_forground, sprint, get_dis
+from tool.log import CUS_LOGGER
+from tool.simul.utils import UniverseUtils, set_forground, sprint, get_dis
 import os
 import hashlib as _h
-from utils.simul.config import config
-from utils.thread import ThreadWithException
-from utils.utils.Error import NormalEndError
-from utils.utils.image_tool import find_image_by_name
-from utils.utils.minimap_util import deal_minimap, get_minimap, MINIMAP_RADIUS, re_get_position
-from utils.utils.tool import get_hwnd_and_text, find_latest_modified_file, get_center
-from utils.window_recorder import WindowRecorder
+from tool.simul.config import config
+from tool.thread import ThreadWithException
+from tool.utils.Error import NormalEndError
+from tool.utils.image_tool import find_image_by_name
+from tool.utils.minimap_util import deal_minimap, get_minimap, MINIMAP_RADIUS, re_get_position
+from tool.utils.tool import get_hwnd_and_text, find_latest_modified_file, get_center
+from tool.window_recorder import WindowRecorder
 from route import PATHS
 
 
@@ -128,7 +128,13 @@ class SimulatedUniverse(UniverseUtils):
             with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
                 data = json.load(file)
 
-        with open("config/config/info_old.yml", "r", encoding="utf-8", errors="ignore") as f:
+        config_file = "config/config/info_old.yml"
+        example_file = "config/config/info_example_old.yml"
+        if not os.path.exists(config_file):
+            if os.path.exists(example_file):
+                shutil.copy2(example_file, config_file)
+
+        with open(config_file, "r", encoding="utf-8", errors="ignore") as f:
             self.event_prior = yaml.safe_load(f)["prior"]["事件"]
         self.record = data.get("recording_state", True)
 

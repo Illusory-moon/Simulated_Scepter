@@ -8,6 +8,10 @@ dist/
 img/
 test.*
 *.spec
+config/backup/
+cache/
+save/
+temp/
 resources/imgs/bigmap.jpg
 resources/imgs/bwmap.jpg
 resources/imgs/maxloc.jpg

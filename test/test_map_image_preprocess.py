@@ -1,5 +1,5 @@
 import cv2
-from utils.utils.image_tool import find_image_in_folder
+from tool.utils.image_tool import find_image_in_folder
 def map_image_preprocess(image):
  """
  在ResourceGenerate和_predict_position()中使用的共享预处理方法

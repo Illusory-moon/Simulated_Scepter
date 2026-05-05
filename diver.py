@@ -7,29 +7,27 @@ import time
 import win32gui, win32api, win32con
 import json
 
-from config import EXTRA
 from route import PATHS
-from utils.diver.ocr import sort_text
-from utils.log import CUS_LOGGER, set_debug
-from utils.log import my_print as print
-from utils.log import print_exc
-from utils.diver.args import args
-from utils.diver.utils import UniverseUtils, set_forground
-from config.GLOBAL import key_mouse_manager
-from config import GLOBAL, EXTRA
-from utils.diver.config import config
+from tool.log import CUS_LOGGER
+from tool.log import my_print as print
+from tool.log import print_exc
+from tool.diver.utils import UniverseUtils, set_forground
+from tool.GLOBAL import key_mouse_manager
+from tool import EXTRA
+from tool import GLOBAL, EXTRA
+from tool.diver.config import config
 import datetime
 import csv
 import pytz
 import pyuac
-import utils.diver.keyops as keyops
-from utils.diver.keyops import KeyController
+import tool.diver.keyops as keyops
+from tool.diver.keyops import KeyController
 import bisect
 from collections import defaultdict
 
-from utils.public_ocr import load_actions, clean_text, merge_text
-from utils.utils.image_tool import find_image_by_name
-from utils.window_recorder import WindowRecorder
+from tool.public_ocr import load_actions, clean_text, merge_text
+from tool.utils.image_tool import find_image_by_name
+from tool.window_recorder import WindowRecorder
 
 # 版本号
 version = "v8.042"

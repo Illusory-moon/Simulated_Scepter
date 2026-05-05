@@ -1,12 +1,12 @@
 from datetime import datetime
 
-from utils.utils.image_tool import find_image_by_name
+from tool.utils.image_tool import find_image_by_name
 from importing import load_img
 load_img()
 import cv2
 import numpy as np
 from scipy import signal
-from utils.utils.minimap_util import rgb2yuv, RotationRemapData, peak_confidence, convolve, \
+from tool.utils.minimap_util import rgb2yuv, RotationRemapData, peak_confidence, convolve, \
     DIRECTION_RADIUS, DIRECTION_ARROW_COLOR, area_pad, color_similarity_2d, get_bbox, area_limit, image_size, \
     DIRECTION_ROTATION_SCALE, crop, DIRECTION_SEARCH_SCALE, subtract_blur, POSITION_SEARCH_SCALE, cubic_find_maximum, \
     ArrowRotateMap, ArrowRotateMapAll, area_offset, MINIMAP_RADIUS, map_image_preprocess
@@ -52,7 +52,7 @@ def get_minimap(image, radius, copy=False, rotation=False, center_radius=80):
     area = area_offset((-radius, -radius, radius, radius), offset=MINIMAP_CENTER)
     image = crop(image, area, copy=copy)
     if rotation:
-        from utils.utils.mminimap import update_rotation
+        from tool.utils.mminimap import update_rotation
         # 获取输入图片的视角角度
         input_rotation = update_rotation(minimap=image)
         # 读取0度视角纹理图

@@ -1,17 +1,15 @@
 import json
 import os
 import sys
-import types
 
 from PyQt5 import uic, QtGui, QtCore, QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QFont, QFontDatabase
 from PyQt5.QtWidgets import QSystemTrayIcon, QMenu
 from route import PATHS
-from config import EXTRA
+from tool import EXTRA
 
-
-from ui.scripts.createicon import create_qt_icon
+from tool.scripts.createicon import create_qt_icon
 
 ZOOM_RATE = None
 
@@ -28,7 +26,7 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
 
         self.opt = None
 
-        uic.loadUi(PATHS["root"] + '\\ui\\UI.ui', self)
+        uic.loadUi(PATHS["ui"] + '\\UI.ui', self)
 
         self.setWindowTitle("ω- u13.exe - 本软件免费且开源")
 
@@ -158,7 +156,7 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
         self.Title_Logo.setFixedSize(40, 40)
         self.Title_Logo.setScaledContents(True)
 
-        cus_path = PATHS["root"] + "\\ui\\background.png"
+        cus_path = PATHS["ui"] + "\\background.png"
         cus_path = cus_path.replace("\\", "/")
         style_sheet = f"""
             #SkinWidget{{

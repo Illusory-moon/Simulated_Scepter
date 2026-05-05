@@ -5,11 +5,11 @@ import time
 import numpy as np
 import cv2 as cv
 import win32gui
-from utils.utils.get_win_rect import get_window_rect
-from config.GLOBAL import key_mouse_manager
-from utils.screenshot import Screen
-from utils.simul.utils import set_forground
-from utils.utils.image_tool import find_image_in_folder, find_image_by_name, load_all_images_from_directory
+from tool.utils.get_win_rect import get_window_rect
+from tool.GLOBAL import key_mouse_manager
+from tool.screenshot import Screen
+from tool.simul.utils import set_forground
+from tool.utils.image_tool import find_image_in_folder, load_all_images_from_directory
 load_all_images_from_directory()
 event_mask = (find_image_in_folder("gray_image/",'MASK_MAP_INTERACT_BLACK') > 70)[:497]
 def get_screen():

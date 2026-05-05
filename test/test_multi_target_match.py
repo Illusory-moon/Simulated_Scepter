@@ -4,7 +4,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from importing import load_img
 from route import PATHS
-from utils.utils.image_tool import find_image_in_folder
+from tool.utils.image_tool import find_image_in_folder
 def match_multiple_targets(processed_image,mode=1, threshold=0.5, max_per_template=10):
     """对一组模板在单张灰度图上做多目标匹配，并做简单的非极大值抑制。
 

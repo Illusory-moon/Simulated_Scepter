@@ -2,7 +2,7 @@
 
 # 模拟权杖 | Simulated_Scepter
 模拟权杖 ω - u13.exe
-本软件使用 [AGPL 3.0 协议](LICENSE)开源.
+本软件使用 [AGPL 3.0 协议](https://github.com/syfoud/Simulated_Scepter/LICENSE)开源.
 
 《崩坏:星穹铁道》的极难成就《铁血战士》自动助手，一键自动化助力完成。
 ![模拟宇宙](doc/insect.png)
@@ -112,7 +112,7 @@ uv run new_gui.py
 
 **第一次运行**
 
-在游戏中设置“自动沿用战斗设置”
+按照下述系统设置配图调整自己的系统设置，在游戏中设置“自动沿用战斗设置”，在寰宇蝗灾界面的毁灭的配队中选好队伍角色
 
 **运行权杖**
 

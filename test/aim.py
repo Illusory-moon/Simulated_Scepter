@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from utils.timer import timer
+from tool.timer import timer
 
 class Lines:
     MID_Y = 360

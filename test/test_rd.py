@@ -2,8 +2,8 @@ import numpy as np
 import cv2 as cv
 from importing import load_img
 load_img()
-from utils.simul.utils import get_dis
-from utils.utils.minimap_util import get_minimap, re_get_position, MINIMAP_RADIUS, POSITION_SEARCH_SCALE
+from tool.simul.utils import get_dis
+from tool.utils.minimap_util import get_minimap, re_get_position, MINIMAP_RADIUS, POSITION_SEARCH_SCALE
 
 red = [47, 47, 232]
 now_loc=(800.3,317.9)

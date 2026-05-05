@@ -10,9 +10,8 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import QApplication
 from route import PATHS
-from config import GLOBAL
+from tool import GLOBAL
 from load_ui import QMainWindowLoadUI
-from utils.log import CUS_LOGGER
 
 
 class QMainWindowLog(QMainWindowLoadUI):
@@ -140,7 +139,7 @@ class QMainWindowLog(QMainWindowLoadUI):
                 time=False)
 
         GLOBAL.PRINT_TO_UI.emit(
-            text="如果认为本项目对您践行「毁灭」有帮助,请为开发者于github点免费的star以表支持,或是赞助请开发者喝杯咖啡~",
+            text="如果认为本项目对您践行「毁灭」有帮助,可以为开发者于github点免费的star以表支持,或是赞助请开发者喝杯咖啡~",
             color_level=4,
             time=False)
 
@@ -258,4 +257,6 @@ class QMainWindowLog(QMainWindowLoadUI):
             self.Iron_blood_first_plane_input.setEnabled(False)
             self.Iron_blood_second_plane_input.setEnabled(False)
             return False
+        else:
+            self.Aboutupdatelock.setVisible(False)
         return True

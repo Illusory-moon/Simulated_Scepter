@@ -3,8 +3,8 @@ import time
 import numpy as np
 import pyuac
 
-from config.GLOBAL import key_mouse_manager
-from utils.log import CUS_LOGGER
+from tool.GLOBAL import key_mouse_manager
+from tool.log import CUS_LOGGER
 
 
 def get_angle(su):
@@ -22,12 +22,12 @@ def get_angle(su):
 def main(ang=[1,1,3], su=None):
     key_mouse_manager.start()
     if su is None:
-        from utils.simul.utils import UniverseUtils
+        from tool.simul.utils import UniverseUtils
         su = UniverseUtils()
     if 'Diver' in su.__class__.__name__:
-        from utils.diver.config import config
+        from tool.diver.config import config
     else:
-        from utils.simul.config import config
+        from tool.simul.config import config
     CUS_LOGGER.info("开始校准")
     key_mouse_manager.multi = 1
     init_ang = get_angle(su)

@@ -3,7 +3,7 @@ from copy import deepcopy
 import numpy as np
 import cv2 as cv
 
-from utils.utils.minimap_util import get_minimap, MINIMAP_RADIUS
+from tool.utils.minimap_util import get_minimap, MINIMAP_RADIUS
 
 
 def get_bw_map(local_screen=None):

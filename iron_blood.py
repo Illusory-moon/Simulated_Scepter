@@ -1,25 +1,25 @@
 import os
+import shutil
 import random
-from config import EXTRA
+from tool import EXTRA
 import time
 import cv2 as cv
 import yaml
 import json
 import sqlite3
-import hashlib
-from config.GLOBAL import key_mouse_manager, factor
+from tool.GLOBAL import key_mouse_manager, factor
 from route import PATHS
 from simul import SimulatedUniverse
-from utils.log import CUS_LOGGER, log_emitter
-from utils.public_ocr import load_actions, merge_text
-from utils.utils.Error import NoMatchError
-from utils.utils.analysis_map import match_multiple_targets, build_rightward_graph, compute_start_point_from_crop, \
+from tool.log import CUS_LOGGER, log_emitter
+from tool.public_ocr import load_actions, merge_text
+from tool.utils.Error import NoMatchError
+from tool.utils.analysis_map import match_multiple_targets, build_rightward_graph, compute_start_point_from_crop, \
     max_weight_path, display_matches, evaluate_best_single_replacement, compute_all_max_steps
-from utils.utils.image_tool import find_image_by_name
-from utils.utils.minimap_util import MINIMAP_RADIUS, get_minimap, re_get_position
-from utils.utils.ocr_num import match_numbers_in_region, extract_number
-from utils.utils.tool import find_latest_modified_file
-from utils.window_recorder import WindowRecorder
+from tool.utils.image_tool import find_image_by_name
+from tool.utils.minimap_util import MINIMAP_RADIUS, get_minimap, re_get_position
+from tool.utils.ocr_num import match_numbers_in_region, extract_number
+from tool.utils.tool import find_latest_modified_file
+from tool.window_recorder import WindowRecorder
 
 
 class IronBloodUniverse(SimulatedUniverse):
@@ -33,7 +33,14 @@ class IronBloodUniverse(SimulatedUniverse):
         self.need_record = False
         self.default_json_path = "actions/insect.json"
         self.default_json = load_actions(self.default_json_path)
-        with open("config/config/event_info.yml", "r", encoding="utf-8", errors="ignore") as f:
+        
+        config_file = "config/config/event_info.yml"
+        example_file = "config/config/info_example.yml"
+        if not os.path.exists(config_file):
+            if os.path.exists(example_file):
+                shutil.copy2(example_file, config_file)
+        
+        with open(config_file, "r", encoding="utf-8", errors="ignore") as f:
             self.event_prior = yaml.safe_load(f)["event"]
         self.action_history = []
         self.steps=None
@@ -329,16 +336,21 @@ class IronBloodUniverse(SimulatedUniverse):
             self.save_screen(not_now=True)
         image = self.screen
         matches = match_multiple_targets(image, mode)
-        CUS_LOGGER.debug(f"找到 {len(matches)} 个匹配:")
+        CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配:")
         if len(matches)==0:
             CUS_LOGGER.warning("未匹配到任何图标，可能是误识别")
             raise NoMatchError
         if mode==2:
             start=compute_start_point_from_crop(image)
+            if start is None:
+                start = compute_start_point_from_crop(image,th=0.5)
         elif mode==3:
             start = compute_start_point_from_crop(image,[1003,929,1035,965])
+            if start is None:
+                start = compute_start_point_from_crop(image, [1003, 929, 1035, 965],th=0.5)
         else:
             start=None
+        CUS_LOGGER.debug(f"当前起点坐标{start}")
         for i, m in enumerate(matches):
             CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}")
         self.nodes, self.edges, start_idx = build_rightward_graph(

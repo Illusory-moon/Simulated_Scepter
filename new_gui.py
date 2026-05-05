@@ -1,28 +1,26 @@
 import ctypes
 import json
-import logging
 import sys
-import threading
 import os
 import shutil
 import keyboard
 import time
 
-import pyuac
+from PyQt5.QtGui import QFont
 
-from utils.log import CUS_LOGGER, log_emitter
-from utils.thread import ThreadWithException
-from config import EXTRA
+from tool.log import log_emitter
+from tool.thread import ThreadWithException
+from tool import EXTRA
 from route import PATHS
-from utils.utils.image_tool import load_all_images_from_directory, find_image_by_name
+from tool.utils.image_tool import load_all_images_from_directory, find_image_by_name
 load_all_images_from_directory()
-from utils.simul.config import config as config_simul
-from utils.diver.config import config as config_diver
+from tool.simul.config import config as config_simul
+from tool.diver.config import config as config_diver
 
 from align_angle import main as align_angle_main
 from logger_printer import QMainWindowLog
 from PyQt5.QtWidgets import (
-    QApplication, QLineEdit, QMessageBox)
+    QApplication, QLineEdit, QMessageBox, QDialog, QVBoxLayout, QLabel, QTextBrowser, QHBoxLayout, QPushButton)
 from PyQt5.QtCore import pyqtSignal, Qt
 from simul import SimulatedUniverse
 from diver import DivergentUniverse
@@ -60,6 +58,9 @@ class MainWindow(QMainWindowLog):
         log_emitter.find_path_state_signal.connect(self.set_find_path_state)
         log_emitter.kill_num_signal.connect(self.set_kill_num)
         log_emitter.fps_update_signal.connect(self.set_FPS)
+        
+        # 检查是否首次启动并显示用户协议
+        self.check_first_launch()
     
     def start_task(self, task_func):
         """
@@ -69,6 +70,8 @@ class MainWindow(QMainWindowLog):
             raise RuntimeError("已有任务正在运行")
         self.task_thread = ThreadWithException(target=task_func,name="主任务线程")
         self.task_thread.start()
+        # 更新任务状态标签为"运行中"
+        self.Label_RunningState.setText("任务序列线程状态: 运行中")
 
     def is_task_running(self):
         """
@@ -81,13 +84,15 @@ class MainWindow(QMainWindowLog):
         停止当前任务
         """
         # 设置全局停止标志（用于__init__中的阻塞等待）
-        from config.GLOBAL import set_global_stop_flag
+        from tool.GLOBAL import set_global_stop_flag
         set_global_stop_flag(True)
         
         if self.current_task and hasattr(self.current_task, 'stop'):
             self.current_task.stop()
             self.task_thread = None
             self.current_task = None
+            # 更新任务状态标签为"未运行"
+            self.Label_RunningState.setText("任务序列线程状态: 未运行")
             return True
         return False
 
@@ -161,6 +166,7 @@ class MainWindow(QMainWindowLog):
         # 连接配置保存按钮
         self.config_save_btn.clicked.connect(self.save_config)
         self.Iron_blood_save_btn.clicked.connect(self.save_iron_config)
+        self.Aboutupdatelock.clicked.connect(self.show_unlock_dialog)
 
         with EXTRA.FILE_LOCK:
             with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
@@ -375,8 +381,6 @@ class MainWindow(QMainWindowLog):
             )
             self.current_task = su
             # 等待游戏窗口(可被中断)
-            if not su.wait_for_game_window():
-                return
             su.save_screen()
             
         try:
@@ -432,7 +436,7 @@ class MainWindow(QMainWindowLog):
             QMessageBox.critical(self, "错误", str(e))
 
     def run_diver(self):
-        from utils.diver.args import args
+        from tool.diver.args import args
         
         def task():
             args.cpu = int(config_diver.cpu_mode)
@@ -533,6 +537,311 @@ class MainWindow(QMainWindowLog):
         self.state_text.setText(text)
     def set_kill_num(self, num:str):
         self.kill_num_text.setText(num)
+    
+    def check_first_launch(self):
+        """
+        检查是否首次启动，如果是则显示用户协议弹窗
+        """
+        cache_dir = os.path.join(PATHS["root"], "cache")
+        agreement_file = os.path.join(cache_dir, "agreement_accepted.txt")
+        
+        # 如果标记文件不存在，则为首次启动
+        if not os.path.exists(agreement_file):
+            self.show_agreement_dialog(agreement_file)
+    
+    def show_agreement_dialog(self, agreement_file):
+        """
+        显示用户协议弹窗
+        :param agreement_file: 协议接受标记文件路径
+        """
+        dialog = QDialog(self)
+        dialog.setWindowTitle("用户协议与免责声明")
+        dialog.setModal(True)
+        dialog.resize(800, 600)
+        
+        # 设置窗口标志，确保弹窗置顶
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # 标题
+        title_label = QLabel("欢迎使用模拟权杖系统")
+        title_font = QFont()
+        title_font.setPointSize(14)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title_label)
+        
+        # 协议内容文本框（带滚动条）
+        text_browser = QTextBrowser()
+        text_browser.setOpenExternalLinks(True)  # 允许点击链接
+        
+        # 读取README.md中的免责声明内容
+        disclaimer_content = self.load_disclaimer_content()
+        text_browser.setMarkdown(disclaimer_content)
+        
+        layout.addWidget(text_browser)
+        
+        # 按钮区域
+        button_layout = QHBoxLayout()
+        
+        decline_btn = QPushButton("拒绝")
+        accept_btn = QPushButton("同意并继续")
+        
+        # 设置按钮样式
+        accept_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        
+        decline_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #da190b;
+            }
+        """)
+        
+        button_layout.addWidget(decline_btn)
+        button_layout.addWidget(accept_btn)
+        layout.addLayout(button_layout)
+        
+        # 按钮事件处理
+        def on_accept():
+            # 创建cache目录（如果不存在）
+            cache_dir = os.path.dirname(agreement_file)
+            if not os.path.exists(cache_dir):
+                os.makedirs(cache_dir)
+            
+            # 创建标记文件
+            with open(agreement_file, 'w', encoding='utf-8') as f:
+                from datetime import datetime
+                f.write(f"Agreement accepted at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("User has read and agreed to the terms and conditions.\n")
+            
+            dialog.accept()
+        
+        def on_decline():
+            sys.exit(0)
+        
+        accept_btn.clicked.connect(on_accept)
+        decline_btn.clicked.connect(on_decline)
+        
+        # 显示弹窗
+        dialog.exec_()
+    
+    def load_disclaimer_content(self):
+        """
+        从README.md中加载免责声明内容
+        :return: 免责声明的文本
+        """
+        try:
+            readme_path = os.path.join(PATHS["root"], "README.md")
+            if os.path.exists(readme_path):
+                with open(readme_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # 提取免责声明部分
+                start_marker = "# 免责声明 | Disclaimer"
+                end_marker = "----------------------------------------------------------------------------------------------"
+                
+                start_idx = content.find(start_marker)
+                if start_idx != -1:
+                    # 从免责声明标题开始查找
+                    remaining = content[start_idx:]
+                    # 找到下一个分隔线（免责声明结束标记）
+                    end_idx = remaining.find(end_marker, len(start_marker))
+                    if end_idx != -1:
+                        # 提取从标题到分隔线之间的内容
+                        disclaimer = remaining[:end_idx].strip()
+                        return disclaimer
+                
+                # 如果提取失败，返回默认文本
+                return self.get_default_disclaimer()
+            else:
+                return self.get_default_disclaimer()
+        except Exception as e:
+            print(f"加载免责声明失败: {e}")
+            return self.get_default_disclaimer()
+    
+    def get_default_disclaimer(self):
+        """
+        获取默认免责声明文本
+        :return: 默认免责声明的markdown文本
+        """
+        return """
+# 免责声明
+
+### 一、软件性质与开源声明
+本软件是一个外部开源辅助工具，旨在通过模拟用户操作、与游戏现有用户界面（UI）进行交互，以实现游戏玩法的自动化。本软件被设计成仅通过现有用户界面与游戏交互，不会以任何方式修改任何游戏文件或游戏代码。本软件开源、免费，仅供个人学习、交流与研究自动化技术之用。
+
+### 二、知识产权与权属声明
+《崩坏：星穹铁道》游戏及其相关内容的著作权、商标权等一切知识产权，均归米哈游公司（miHoYo）及其关联实体合法所有。本软件仅作为技术学习工具，不主张、不享有任何游戏内容的版权。
+
+### 三、用户使用许可范围
+用户通过本软件获取的全部功能，均被严格限定为"个人临时学习研究"之唯一目的，不构成对用户任何明示或默示的商业使用授权。
+
+### 四、用户义务与合规风险提示
+用户使用本软件时需遵守国家相关法律法规及米哈游官方发布的用户协议。使用本软件可能会被认定为违反游戏公平性的行为，并可能导致游戏账号遭受处罚。
+
+### 五、风险自担与责任豁免
+用户因获取、使用本软件而遭受的任何直接或间接损失、法律纠纷、设备损害、数据丢失、游戏账号被处罚或其他风险，均由用户自行承担全部责任。
+
+**使用本软件即表示您已阅读并同意以上条款。**
+"""
+    
+    def show_unlock_dialog(self):
+        """
+        显示高级用户功能解锁说明弹窗
+        """
+        dialog = QDialog(self)
+        dialog.setWindowTitle("高级用户功能解锁说明")
+        dialog.setModal(True)
+        dialog.resize(700, 550)
+        
+        # 设置窗口标志，确保弹窗置顶
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # 标题
+        title_label = QLabel("🔓 高级用户功能解锁")
+        title_font = QFont()
+        title_font.setPointSize(16)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title_label)
+        
+        # 分隔线
+        line1 = QLabel("─" * 50)
+        line1.setAlignment(Qt.AlignCenter)
+        layout.addWidget(line1)
+        
+        # 说明内容文本框（带滚动条）
+        text_browser = QTextBrowser()
+        text_browser.setOpenExternalLinks(True)  # 允许点击链接
+        
+        unlock_content = """
+# 如何解锁高级用户功能？
+
+## 📌 解锁方式
+
+为了获得高级用户功能的访问权限，您需要完成以下步骤：
+
+### 方式一：GitHub 免费 Star 支持（推荐）
+
+1. **访问本项目 GitHub 仓库**
+   - 项目地址：[https://github.com/syfoud/Simulated_Scepter](https://github.com/syfoud/Simulated_Scepter)
+   
+2. **点击 Star 按钮**
+   - 在页面右上角找到 ⭐ Star 按钮
+   - 点击即可为项目点亮 Star
+   
+3. **截图保存**
+   - 截取包含您的 GitHub 用户名和 Star 状态的完整页面
+   - 确保截图中能清晰看到您已 Star 该项目
+
+### 方式二：赞助开发者
+
+如果您希望进一步支持项目开发，可以选择赞助：
+
+- **赞助方式**：请联系开发者获取赞助渠道
+- **赞助金额**：随意，一杯咖啡即可 ☕
+- **赞助福利**：优先技术支持 + 高级功能解锁
+
+---
+
+## 📸 联系开发者
+
+完成上述任一方式后，请按以下步骤操作：
+
+### 步骤 1：准备截图
+- GitHub Star 截图 **或** 赞助凭证截图
+- 确保截图清晰可见
+
+### 步骤 2：加入 QQ 群
+- **QQ 群号**：1072802257
+
+### 步骤 3：提交申请
+- 私聊联系开发者
+- 发送您的截图
+- 说明申请解锁高级功能
+
+### 步骤 4：使用密钥
+- 下载群文件加密压缩包
+- 使用开发者告知您的密钥解压
+- 将解压的onnx文件放置于/resource/models/目录下方
+- 重新启动本软件
+---
+"""
+        
+        text_browser.setMarkdown(unlock_content)
+        layout.addWidget(text_browser)
+        
+        # 按钮区域
+        button_layout = QHBoxLayout()
+        
+        github_btn = QPushButton("前往 GitHub")
+        close_btn = QPushButton("关闭")
+        
+        # 设置按钮样式
+        github_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #24292e;
+                color: white;
+                padding: 10px 20px;
+                border-radius: 5px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #1b1f23;
+            }
+        """)
+
+        
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                padding: 10px 20px;
+                border-radius: 5px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+        """)
+        
+        button_layout.addWidget(github_btn)
+        button_layout.addWidget(close_btn)
+        layout.addLayout(button_layout)
+        
+        # 按钮事件处理
+        def open_github():
+            import webbrowser
+            webbrowser.open("https://github.com/syfoud/Simulated_Scepter")  # 请替换为实际的 GitHub 地址
+
+        
+        github_btn.clicked.connect(open_github)
+        close_btn.clicked.connect(dialog.close)
+        
+        # 显示弹窗
+        dialog.exec_()
 def main(show):
     def is_admin():
         try:

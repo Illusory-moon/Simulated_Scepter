@@ -30,7 +30,7 @@ def build_paths(root):
         "model": os.path.join(root, "resource", "model"),
         "image": os.path.join(root, "resource", "imgs"),
         "theme": os.path.join(root, "resource", "theme"),
-        "ui": os.path.join(root, "ui"),
+        "ui": os.path.join(root, "resource", "ui"),
         "db": os.path.join(root, "resource", "db")
     }
 
