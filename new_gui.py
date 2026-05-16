@@ -436,10 +436,8 @@ class MainWindow(QMainWindowLog):
             QMessageBox.critical(self, "错误", str(e))
 
     def run_diver(self):
-        from tool.diver.args import args
         
         def task():
-            args.cpu = int(config_diver.cpu_mode)
             su = DivergentUniverse(
                 int(config_diver.debug_mode),
                 int(config_diver.max_run),

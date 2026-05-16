@@ -354,7 +354,7 @@ class WindowRecorder:
                         font = cv2.FONT_HERSHEY_SIMPLEX
                         line_spacing = 15
                         h_padding = 25
-                        v_padding = 20
+                        v_padding = 8
 
                         # 获取文本尺寸
                         (text_width1, text_height1), _ = cv2.getTextSize(current_date, font, font_scale, font_thickness)
@@ -368,9 +368,9 @@ class WindowRecorder:
                         rect_width = max_text_width + h_padding * 2
                         rect_height = total_text_height + v_padding * 2
 
-                        # 计算左下角位置（距离底部和左边5像素）
-                        bottom_y = img_cv.shape[0] - 5
-                        left_x = 5
+                        # 计算左下角位置（紧贴左下角）
+                        bottom_y = img_cv.shape[0]
+                        left_x = 0
 
                         # 绘制黑色背景矩形
                         cv2.rectangle(img_cv,
