@@ -86,14 +86,17 @@ class MainWindow(QMainWindowLog):
         # 设置全局停止标志（用于__init__中的阻塞等待）
         from tool.GLOBAL import set_global_stop_flag
         set_global_stop_flag(True)
-        
+
         if self.current_task and hasattr(self.current_task, 'stop'):
             self.current_task.stop()
             self.task_thread = None
             self.current_task = None
             # 更新任务状态标签为"未运行"
             self.Label_RunningState.setText("任务序列线程状态: 未运行")
+            set_global_stop_flag(False)
             return True
+
+        set_global_stop_flag(False)
         return False
 
 
