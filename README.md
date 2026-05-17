@@ -81,6 +81,8 @@ sqlite3 config/backup/map_visits.db "SELECT * FROM map_visits ORDER BY visit_cou
 只支持1080p及以上屏幕(x>=1920,窗口化或全屏幕)，关闭hdr，文本语言选择简体中文，游戏界面不能有任何遮挡,需置于前台。
 
 由于onnxruntime环境，电脑环境需注意win10版本是否大于等于2004，win11默认支持 ，同时建议具有2G以上显存运行本软件
+
+下载解压目录不允许有中文路径！！
 # 下载 | Download 
 方法一：前往交流群直接下载打包好的发行版（推荐）* ![](https://img.shields.io/badge/QQ%201群-1072802257-4e4c97)
 

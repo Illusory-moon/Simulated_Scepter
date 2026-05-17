@@ -82,6 +82,7 @@ Only supports 1080p and above screens (x>=1920, windowed or fullscreen), HDR dis
 
 Due to the onnxruntime environment, please ensure Windows 10 version is greater than or equal to 2004 (Windows 11 is supported by default). It is recommended to have more than 2GB of VRAM to run this software.
 
+The download and extraction directory cannot have a Chinese path!!
 # Download | Download 
 Method 1: Go to the QQ group to directly download the packaged release version (recommended) * ![](https://img.shields.io/badge/QQ%20Group%201-1072802257-4e4c97)
 
