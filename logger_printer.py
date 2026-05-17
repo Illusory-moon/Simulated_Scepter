@@ -142,6 +142,10 @@ class QMainWindowLog(QMainWindowLoadUI):
             text="如果认为本项目对您践行「毁灭」有帮助,可以为开发者于github点免费的star以表支持,或是赞助请开发者喝杯咖啡~",
             color_level=4,
             time=False)
+        GLOBAL.PRINT_TO_UI.emit(
+            text="项目开源地址:https://github.com/syfoud/Simulated_Scepter 交流群:1072802257",
+            color_level=3,
+            time=False)
 
     # 用于展示弹窗信息的方法
     @QtCore.pyqtSlot(str, str)

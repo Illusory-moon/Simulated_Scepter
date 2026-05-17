@@ -1473,6 +1473,7 @@ class UniverseUtils:
         return ans, max_sim
 
     def update_state(self,state):
+        log_emitter.find_path_state_signal.emit(state)
         if self.state is not None and self.state!=state:
             self.last_state=self.state
             self.state = state
@@ -1961,6 +1962,7 @@ class UniverseUtils:
         if not self.is_run():
             self.should_update_map = False
             return
+        first_find=self.first_mini
         if need_confirm or self.has_target:
             CUS_LOGGER.info(f"{factor}会坚守。直到有人前来打破这漫长的轮回，为翁法罗斯的命运添上结尾。")
             for i in "sasddwwaa":
@@ -1980,15 +1982,15 @@ class UniverseUtils:
                             if self.nof(must_be='event'):
                                 self.should_update_map = False
                                 return
-                if self.is_find_end==1 and self.mini_state > 2:
+                if (self.is_find_end==1 or first_find) and self.mini_state > 2:
+                    first_find=False
                     if self.move_to_end(mode=0,device=1):
-                        key_mouse_manager.press('w')
-                        key_mouse_manager.wait()
+                        i = "w"
                 elif self.move_to_event():
                     i="w"
                 elif self.move_direct_to_text():
                     i="w"
-                elif self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
+                if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
                     key_mouse_manager.press('f',force= True)
                     if self.nof(must_be='event'):
                         self.should_update_map = False
@@ -2140,7 +2142,7 @@ class UniverseUtils:
         if not self.is_run():
             self.should_update_map = False
             return
-        if need_confirm or first:
+        if need_confirm or self.has_target:
             CUS_LOGGER.info("你的冷漠令我心寒。他们对你而言，只是一堆无足轻重的注脚？")
             for i in "sasddwwaa":
                 if self._stop:
@@ -2154,13 +2156,12 @@ class UniverseUtils:
                         if self.nof(must_be='event'):
                             self.should_update_map = False
                             return
-                if self.is_find_end==1 and self.mini_state > 2:
+                if (self.is_find_end==1 or first) and self.mini_state > 2:
                     if self.move_to_end(mode=0,device=1):
-                        key_mouse_manager.press('w')
-                        key_mouse_manager.wait()
+                        i="w"
                 elif self.move_to_event(rest=True):
                     i="w"
-                elif self.good_f()[0]:
+                if self.good_f()[0]:
                     key_mouse_manager.press('f',force= True)
                     if self.nof(must_be='event'):
                         self.should_update_map = False
@@ -2401,7 +2402,7 @@ class UniverseUtils:
         if not self.is_run():
             self.should_update_map = False
             return
-        if need_confirm or first:
+        if need_confirm or self.has_target:
             CUS_LOGGER.info("再骄盛的太阳，也有遍照不到的地方。")
             for i in "sasddwwaa":
                 if self._stop:
@@ -2416,13 +2417,12 @@ class UniverseUtils:
                         if self.nof(must_be='event'):
                             self.should_update_map = False
                             return
-                if self.is_find_end==1 and self.mini_state > 2:
+                if (self.is_find_end==1 or first) and self.mini_state > 2:
                     if self.move_to_end(mode=0,device=1):
-                        key_mouse_manager.press('w')
-                        key_mouse_manager.wait()
+                        i="w"
                 elif self.move_to_shop():
                     i="w"
-                elif self.good_f()[0]:
+                if self.good_f()[0]:
                     key_mouse_manager.press('f',force= True)
                     if self.nof(must_be='event'):
                         self.should_update_map = False
@@ -3002,9 +3002,47 @@ class UniverseUtils:
             CUS_LOGGER.info("你也是这么想的……对吧？")
             try:
                 CUS_LOGGER.debug("靠近目标点，尝试移除:" + str((self.target_loc, self.target_type)))
-                self.last_interact_time = time.time()
-                self.target.remove((self.target_loc, self.target_type))
-                CUS_LOGGER.debug("靠近目标点，成功移除:" + str((self.target_loc, self.target_type)))
+                # 如果是敌人类型，移除后需要重新扫描地图上的红色点位
+                if self.target_type == 1:
+                    CUS_LOGGER.info("为自己而活，倒也不错...")
+                    self.last_interact_time = time.time()
+                    self.target.remove((self.target_loc, self.target_type))
+                    CUS_LOGGER.debug("靠近目标点，成功移除敌人:" + str((self.target_loc, self.target_type)))
+                    
+                    # 扫描地图红色点位，尝试添加回检测到的目标点
+                    red = [47, 47, 232]
+                    rd = np.where(
+                        np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True,
+                                            rotation=True) - red) ** 2, axis=-1) <= self.red_threshold)
+                    if rd[0].shape[0] > 0:
+                        CUS_LOGGER.info("他的眼泪还未落下,便蒸发不见。")
+                        # 创建所有检测到的敌人坐标的列表
+                        enemy_coords = []
+                        for i in range(len(rd[0])):
+                            enemy_x, enemy_y = rd[1][i], rd[0][i]
+                            new_loc = re_get_position(self.now_loc)
+                            world_x = new_loc[0] + (enemy_x - 93)*POSITION_MINIMAP_SCALE
+                            world_y = new_loc[1] + (enemy_y - 93)*POSITION_MINIMAP_SCALE
+                            new_loc = re_get_position((world_x, world_y), re=True)
+                            enemy_coords.append((new_loc, (enemy_x, enemy_y)))
+                        
+                        # 按距离self.now_loc排序，最近的在前面
+                        enemy_coords.sort(key=lambda coord: get_dis(coord[0], self.now_loc))
+                        # 选择最近的敌人作为新目标
+                        nearest_world_coord, nearest_local_coord = enemy_coords[0]
+                        recent_loc = tuple(nearest_world_coord)
+                        self.target.add((recent_loc, 1))
+                        self.target_loc = recent_loc
+                        self.target_type = 1
+                        CUS_LOGGER.info(
+                            f"已添加新的敌人目标: {recent_loc}，共检测到{len(enemy_coords)}个敌人")
+                    else:
+                        CUS_LOGGER.info("看来，你终究得逞了………刽子手。")
+                else:
+                    # 非敌人类型，直接移除
+                    self.last_interact_time = time.time()
+                    self.target.remove((self.target_loc, self.target_type))
+                    CUS_LOGGER.debug("靠近目标点，成功移除:" + str((self.target_loc, self.target_type)))
             except:
                 pass
         CUS_LOGGER.info("逐火…是不断失却的旅途……失去…还远远不足……")
