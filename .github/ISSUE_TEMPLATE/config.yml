@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: 📖 项目文档 / Documentation
-    url: https://github.com/syfoud/Auto_difficult_achievement
-    about: 在提问前请先查阅项目文档与 README
-  - name: 💬 讨论区 / Discussions
-    url: https://github.com/syfoud/Auto_difficult_achievement/discussions
-    about: 非 Bug/功能请求的问题请前往讨论区
