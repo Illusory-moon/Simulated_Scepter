@@ -25,8 +25,12 @@ from tool.window_recorder import WindowRecorder
 class IronBloodUniverse(SimulatedUniverse):
     def __init__(
             self):
+        settings_path = PATHS["root"] + "\\config\\config\\settings.json"
+        example_path = PATHS["root"] + "\\config\\config\\settings_example.json"
+        if not os.path.exists(settings_path) and os.path.exists(example_path):
+            shutil.copy2(example_path, settings_path)
         with EXTRA.FILE_LOCK:
-            with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
+            with open(settings_path, mode="r", encoding="UTF-8") as file:
                 self.opt = json.load(file)
         super().__init__(find=True,speed=False,consumable=False, slow=False,debug=self.opt.get("debug", True), nums=self.opt.get("max_run_time", 0))
         self.plane_floor = -1

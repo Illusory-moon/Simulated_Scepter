@@ -171,8 +171,12 @@ class MainWindow(QMainWindowLog):
         self.Iron_blood_save_btn.clicked.connect(self.save_iron_config)
         self.Aboutupdatelock.clicked.connect(self.show_unlock_dialog)
 
+        settings_path = PATHS["root"] + "\\config\\config\\settings.json"
+        example_path = PATHS["root"] + "\\config\\config\\settings_example.json"
+        if not os.path.exists(settings_path) and os.path.exists(example_path):
+            shutil.copy2(example_path, settings_path)
         with EXTRA.FILE_LOCK:
-            with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
+            with open(settings_path, mode="r", encoding="UTF-8") as file:
                 data = json.load(file)
         self.recording_checkBox.setChecked(data.get("recording_state", True))
         self.recording_checkBox2.setChecked(data.get("recording_iron_blood", True))
@@ -212,8 +216,12 @@ class MainWindow(QMainWindowLog):
         }
             
         try:
+            settings_path = PATHS["root"] + "\\config\\config\\settings.json"
+            example_path = PATHS["root"] + "\\config\\config\\settings_example.json"
+            if not os.path.exists(settings_path) and os.path.exists(example_path):
+                shutil.copy2(example_path, settings_path)
             with EXTRA.FILE_LOCK:
-                with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
+                with open(settings_path, mode="r", encoding="UTF-8") as file:
                     data = json.load(file)
                 
             hotkey_config = data.get("hotkeys", default_config)
@@ -241,8 +249,12 @@ class MainWindow(QMainWindowLog):
     def save_ui_settings(self):
         """保存 ui 的状态到 settings.json"""
             
+        settings_path = PATHS["root"] + "\\config\\config\\settings.json"
+        example_path = PATHS["root"] + "\\config\\config\\settings_example.json"
+        if not os.path.exists(settings_path) and os.path.exists(example_path):
+            shutil.copy2(example_path, settings_path)
         with EXTRA.FILE_LOCK:
-            with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
+            with open(settings_path, mode="r", encoding="UTF-8") as file:
                 data = json.load(file)
             
         data["recording_state"] = self.recording_checkBox.isChecked()

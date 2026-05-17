@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import sys
 
 from PyQt5 import uic, QtGui, QtCore, QtWidgets
@@ -41,7 +42,11 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
         self.tray_icon = None
         self.init_tray_icon()
 
-        self.json_to_opt(PATHS["root"] + "\\config\\config\\settings.json")
+        settings_path = PATHS["root"] + "\\config\\config\\settings.json"
+        example_path = PATHS["root"] + "\\config\\config\\settings_example.json"
+        if not os.path.exists(settings_path) and os.path.exists(example_path):
+            shutil.copy2(example_path, settings_path)
+        self.json_to_opt(settings_path)
         self.skin_set()
         self.font_set()
 

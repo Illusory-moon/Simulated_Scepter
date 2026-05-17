@@ -124,8 +124,12 @@ class SimulatedUniverse(UniverseUtils):
                 self.img_map[file]= image
 
         CUS_LOGGER.debug("加载地图完成，共 %d 张" % len(self.img_map))
+        settings_path = PATHS["root"] + "\\config\\config\\settings.json"
+        example_path = PATHS["root"] + "\\config\\config\\settings_example.json"
+        if not os.path.exists(settings_path) and os.path.exists(example_path):
+            shutil.copy2(example_path, settings_path)
         with EXTRA.FILE_LOCK:
-            with open(PATHS["root"] + "\\config\\config\\settings.json", mode="r", encoding="UTF-8") as file:
+            with open(settings_path, mode="r", encoding="UTF-8") as file:
                 data = json.load(file)
 
         config_file = "config/config/info_old.yml"
@@ -1182,8 +1186,6 @@ class SimulatedUniverse(UniverseUtils):
         key_mouse_manager.start()
         if self.record and self.gwypzmgzcndqlp:
             self.recorder.start_recording(self.count)
-        else:
-            CUS_LOGGER.warning(f'没有权限')
         if self._show_map:
             self.map_thread = ThreadWithException(target=self.show_map,name="地图")
             self.map_thread.start()

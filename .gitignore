@@ -36,6 +36,7 @@ check5.txt
 ocr/
 config/config/info.yml
 config/config/info_old.yml
+config/config/settings.json
 version.txt
 *.exe
 test.py

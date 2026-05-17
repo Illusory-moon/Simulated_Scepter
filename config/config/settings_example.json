@@ -1,0 +1,18 @@
+{
+    "skin_type": 1,
+    "recording_state": false,
+    "record_map": false,
+    "recording_iron_blood": false,
+    "record_add_label": false,
+    "del_record_time": 14,
+    "max_run_time": 0,
+    "first_plane": 14,
+    "second_plane": 31,
+    "debug": false,
+    "early_stop": false,
+    "hotkeys": {
+        "stop": "f5",
+        "test": "f6",
+        "print": "f7"
+    }
+}
