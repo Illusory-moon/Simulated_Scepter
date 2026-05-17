@@ -316,6 +316,7 @@ def color_similarity_2d(image, color):
     cv2.add(positive, negative, dst=positive)
     cv2.subtract(255, positive, dst=positive)
     return positive
+@cached_property
 def RotationRemapData():
     d = MINIMAP_RADIUS * 2
     mx = np.zeros((d, d), dtype=np.float32)
