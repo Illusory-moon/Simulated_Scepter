@@ -21,7 +21,7 @@ from align_angle import main as align_angle_main
 from logger_printer import QMainWindowLog
 from PyQt5.QtWidgets import (
     QApplication, QLineEdit, QMessageBox, QDialog, QVBoxLayout, QLabel, QTextBrowser, QHBoxLayout, QPushButton)
-from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtCore import pyqtSignal, Qt, pyqtSlot
 from simul import SimulatedUniverse
 from diver import DivergentUniverse
 from iron_blood import IronBloodUniverse
@@ -29,13 +29,12 @@ from iron_blood import IronBloodUniverse
 import faulthandler
 
 
+HOTKEY_DEBOUNCE_SECONDS = 1.0
 
 
 class MainWindow(QMainWindowLog):
     calibration_finished = pyqtSignal(object)
-    f5_pressed = pyqtSignal()
-    f6_pressed = pyqtSignal()
-    f7_pressed = pyqtSignal()
+    hotkey_pressed = pyqtSignal(str)
     
     def __init__(self):
         super().__init__()
@@ -43,6 +42,7 @@ class MainWindow(QMainWindowLog):
         self.current_task = None
         self.task_thread = None
         self._last_key_time = {}
+        self._task_running_warning = None
             
         # 加载快捷键配置并注册监听器
         self.hotkey_config = self.load_hotkey_config()
@@ -50,10 +50,8 @@ class MainWindow(QMainWindowLog):
     
         self.init_ui()
         self.setup_keyboard_listener()
-        # 连接F5/F6/F7按键信号到处理函数
-        self.f5_pressed.connect(lambda: self.handle_key_pressed("f5"))
-        self.f6_pressed.connect(lambda: self.handle_key_pressed("f6"))
-        self.f7_pressed.connect(lambda: self.handle_key_pressed("f7"))
+        # 确保热键回调中的 GUI 操作排队回主线程执行
+        self.hotkey_pressed.connect(self.handle_key_pressed, Qt.QueuedConnection)
         log_emitter.show_error_signal.connect(self.show_error_message)
         log_emitter.find_path_state_signal.connect(self.set_find_path_state)
         log_emitter.kill_num_signal.connect(self.set_kill_num)
@@ -283,30 +281,63 @@ class MainWindow(QMainWindowLog):
 
     def _on_hotkey_pressed(self, event, action):
         """
-        当自定义快捷键被按下时的回调函数
+        当自定义快捷键被按下时的回调函数（运行在键盘监听线程，仅发射信号）
         """
         current_time = time.time()
         key = event.name.lower()
-            
+
         # 防重复触发
         last_time = self._last_key_time.get(key, 0)
-        if current_time - last_time > 1:
+        if current_time - last_time > HOTKEY_DEBOUNCE_SECONDS:
             self._last_key_time[key] = current_time
-                
-            # 根据动作类型处理
-            if action == "stop":
-                if self.is_task_running():
-                    self.stop_btn.click()
-            elif action == "test":
-                if self.is_task_running():
-                    QMessageBox.warning(self, "警告", "已有任务正在运行")
-                else:
-                    self.test_btn.click()
-            elif action == "print":
-                if self.is_task_running():
-                    QMessageBox.warning(self, "警告", "已有任务正在运行")
-                else:
-                    self.print_btn.click()
+
+            if action in {"stop", "test", "print"}:
+                self.hotkey_pressed.emit(action)
+
+    @pyqtSlot(str)
+    def handle_key_pressed(self, action):
+        """
+        快捷键信号的槽函数（运行在主线程）
+        """
+        if action == "stop":
+            if self.is_task_running():
+                self.stop_btn.click()
+        elif action == "test":
+            if self.is_task_running():
+                self.show_task_running_warning()
+            else:
+                self.test_btn.click()
+        elif action == "print":
+            if self.is_task_running():
+                self.show_task_running_warning()
+            else:
+                self.print_btn.click()
+
+    def show_task_running_warning(self):
+        """
+        非阻塞显示热键冲突提示，避免任务运行时嵌套弹窗事件循环。
+        """
+        if self._task_running_warning and self._task_running_warning.isVisible():
+            self._task_running_warning.raise_()
+            self._task_running_warning.activateWindow()
+            return
+
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Warning)
+        msg.setWindowTitle("警告")
+        msg.setText("已有任务正在运行")
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.setWindowFlags(msg.windowFlags() | Qt.WindowStaysOnTopHint)
+        msg.setAttribute(Qt.WA_DeleteOnClose, True)
+        msg.finished.connect(lambda result: self.clear_task_running_warning(result))
+        self._task_running_warning = msg
+        msg.open()
+        msg.raise_()
+        msg.activateWindow()
+
+    @pyqtSlot(int)
+    def clear_task_running_warning(self, _result):
+        self._task_running_warning = None
         
     def update_button_hotkey_text(self, hotkey_config):
         stop_key = hotkey_config.get("stop", "f5").upper()
