@@ -1,0 +1,70 @@
+name: 使用提问 / Question
+description: 询问使用方法或寻求帮助
+title: "[Question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请优先查阅项目文档和已有 Issue / Discussions，避免重复提问。
+
+  - type: textarea
+    id: question
+    attributes:
+      label: 你的问题
+      description: 清晰简洁地描述你的问题
+      placeholder: 我想要实现 [...] 但遇到了 [...]
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已尝试的方案
+      description: 列出你已经尝试过的排查步骤或查阅的资料
+      placeholder: |
+        1. 尝试了 [...]
+        2. 查阅了 [...]
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志
+      description: 如果涉及运行错误，请粘贴相关日志
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: 操作系统
+      placeholder: e.g. Windows 11
+    validations:
+      required: false
+
+  - type: input
+    id: python_version
+    attributes:
+      label: Python 版本
+      placeholder: e.g. 3.10
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: 项目版本 / Commit
+      placeholder: e.g. v1.0.0
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 补充信息
+      description: 任何有助于理解问题的额外信息
+    validations:
+      required: false
