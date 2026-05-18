@@ -46,7 +46,7 @@ body:
       description: 你考虑过的其他替代方案或变通方法
       placeholder: 或者可以实现 [...]
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: usage
@@ -58,7 +58,7 @@ body:
         # 示例代码
         ...
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: additional
@@ -66,4 +66,4 @@ body:
       label: 补充信息
       description: 任何有助于理解该需求的额外信息或截图
     validations:
-      required: false
+      required: true
