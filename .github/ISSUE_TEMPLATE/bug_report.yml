@@ -60,7 +60,7 @@ body:
     id: full_logs
     attributes:
       label: 完整日志
-      description: 粘贴完整运行日志（从开始到结束的完整输出）
+      description: 上传完整运行日志文件
       render: shell
     validations:
       required: true
