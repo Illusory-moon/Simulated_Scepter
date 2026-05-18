@@ -1218,7 +1218,7 @@ class SimulatedUniverse(UniverseUtils):
         self._stop = 1
         key_mouse_manager.stop()
         if self.record and self.bveerelbcpgyqan :
-            CUS_LOGGER.info("以「爱」名义，她将逝去的一切尽数珍藏……直到世间的尽头……")
+            CUS_LOGGER.info("以「爱」的名义，她将逝去的一切尽数珍藏……直到世间的尽头……")
             try:
                 self.recorder.stop_recording()
             except Exception as e:
