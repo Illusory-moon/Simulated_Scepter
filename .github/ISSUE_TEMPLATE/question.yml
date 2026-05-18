@@ -40,9 +40,9 @@ body:
   - type: textarea
     id: full_logs
     attributes:
-      label: 完整日志
-      description: 粘贴完整运行日志（从开始到结束的完整输出）
-      render: shell
+      label: 完整日志（文件上传）
+      description: 将完整日志文件拖拽到此处上传，或点击下方区域选择文件
+      placeholder: 拖拽 .log 或 .txt 文件到此处
     validations:
       required: true
 
