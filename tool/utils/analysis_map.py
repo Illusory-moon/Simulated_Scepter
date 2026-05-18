@@ -98,11 +98,10 @@ def build_rightward_graph(matches, start=None, max_gap=90.0, max_overlap=40.0, m
 
     Args:
         matches (list): match_multiple_targets 的输出列表，元素包含 'name','location','size','similarity'
-        weight_map (dict): 各类型 (name) 对应的非负权重
         start: 可选的起点索引或 (x,y) 坐标；若为 None 则选最左侧节点作为起点
-        max_gap: 最大允许的水平空隙（像素）；若 None 使用节点最小宽度的默认值
-        max_overlap: 最大允许的水平重叠（像素）；若 None 使用节点最小宽度的默认值
-        max_dy: 最大允许的垂直偏移（像素）；若 None 使用节点最小高度的默认值
+        max_gap: 最大允许的水平空隙（像素）
+        max_overlap: 最大允许的水平重叠（像素）
+        max_dy: 最大允许的垂直偏移（像素）
     Returns:
         nodes: 节点字典列表，包含键：idx,name,cx,cy,w,h,weight,orig
         edges: 字典 idx -> 子节点 idx 列表

@@ -357,10 +357,15 @@ class IronBloodUniverse(SimulatedUniverse):
         CUS_LOGGER.debug(f"当前起点坐标{start}")
         for i, m in enumerate(matches):
             CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}")
-        self.nodes, self.edges, start_idx = build_rightward_graph(
-            matches,
-            start=start,
-        )
+        if mode == 3:
+            self.nodes, self.edges, start_idx = build_rightward_graph(
+                matches, start=start,
+                max_gap=110, max_overlap=50, max_dy=130
+            )
+        else:
+            self.nodes, self.edges, start_idx = build_rightward_graph(
+                matches, start=start
+            )
         CUS_LOGGER.debug('构建图后的节点 (索引，类型，相似度，中心 x, 中心 y):')
         for n in self.nodes:
             CUS_LOGGER.debug(f"  {n['idx']}: {n['name']} sim={n.get('similarity', 0):.3f} center=({n['cx']:.1f},{n['cy']:.1f})")
@@ -396,11 +401,11 @@ class IronBloodUniverse(SimulatedUniverse):
                     elif n['name']=='head' or n['name']=='boss':
                         self.max_limited+=1
             CUS_LOGGER.debug(f'路径极限最大值：{self.max_limited}')
-        if self.debug:
             # 评估最佳单节点替换
-            best_path, best_weight, best_end_idx, self.replace_idx, delta, discounted_delta = evaluate_best_single_replacement(
-                self.nodes, self.edges, start_idx, t=0.3 if self.plane_floor == 3 else 0.2)
-            self.steps = compute_all_max_steps(self.nodes, self.edges, start_idx)
+        best_path, best_weight, best_end_idx, self.replace_idx, delta, discounted_delta = evaluate_best_single_replacement(
+            self.nodes, self.edges, start_idx, t=0.3 if self.plane_floor == 3 else 0.2)
+        self.steps = compute_all_max_steps(self.nodes, self.edges, start_idx)
+        if self.debug:
             if self.replace_idx is None or discounted_delta <= 0:
                 CUS_LOGGER.info('\n替换评估：未找到有益的单节点替换')
                 highlight = None
