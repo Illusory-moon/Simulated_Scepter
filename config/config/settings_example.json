@@ -9,6 +9,7 @@
     "first_plane": 14,
     "second_plane": 31,
     "debug": false,
+    "max_interact_time": 40,
     "early_stop": false,
     "hotkeys": {
         "stop": "f5",

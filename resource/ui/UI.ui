@@ -1198,6 +1198,20 @@ border:none</string>
               </layout>
              </item>
              <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_interact_time">
+               <item>
+                <widget class="QLabel" name="label_interact_time">
+                 <property name="text">
+                  <string>单关交互最长时间（秒）</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="Iron_blood_interact_time_input"/>
+               </item>
+              </layout>
+             </item>
+             <item>
               <layout class="QVBoxLayout" name="verticalLayout_16">
                <item>
                 <widget class="Line" name="line_103">

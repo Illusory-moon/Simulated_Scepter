@@ -59,6 +59,7 @@ class IronBloodUniverse(SimulatedUniverse):
         self.first_plane_count=self.opt.get("first_plane", 14)
         self.second_plane_count=self.opt.get("second_plane", 31)
         self.del_record_time=self.opt.get("del_record_time", 31)
+        self.max_interact_time=self.opt.get("max_interact_time", 40)
         self.area=""
         self.now_map=-1
         CUS_LOGGER.info("宇宙的中心有一团火种,它愈烧愈旺,直至燃尽整片星河。")
@@ -207,7 +208,7 @@ class IronBloodUniverse(SimulatedUniverse):
                     key_mouse_manager.mouse_move(1)
                     key_mouse_manager.wait()
             # 长时间未交互/战斗，暂离或重开
-            if ((time.time() - self.last_interact_time >= 40-self.debug*10) and not self.need_record )or self.need_end:
+            if ((time.time() - self.last_interact_time >= self.max_interact_time) and not self.need_record )or self.need_end:
                 key_mouse_manager.clean()
                 key_mouse_manager.wait()
                 key_mouse_manager.keyUp("w")

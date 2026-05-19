@@ -184,6 +184,7 @@ class MainWindow(QMainWindowLog):
         self.Iron_blood_max_run_input.setText(str(int(data.get("max_run_time", 0))))
         self.Iron_blood_first_plane_input.setText(str(data.get("first_plane", 14)))
         self.Iron_blood_second_plane_input.setText(str(data.get("second_plane", 31)))
+        self.Iron_blood_interact_time_input.setText(str(data.get("max_interact_time", 40)))
         self.debug_checkox2.setChecked(data.get("debug", True))
         
         # 初始化快捷键配置输入框
@@ -263,6 +264,7 @@ class MainWindow(QMainWindowLog):
         data["max_run_time"] = int(self.Iron_blood_max_run_input.text())
         data["first_plane"] = int(self.Iron_blood_first_plane_input.text())
         data["second_plane"] = int(self.Iron_blood_second_plane_input.text())
+        data["max_interact_time"] = int(self.Iron_blood_interact_time_input.text())
         data["debug"] = self.debug_checkox2.isChecked()
             
         # 保存快捷键配置
