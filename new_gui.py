@@ -833,6 +833,11 @@ class MainWindow(QMainWindowLog):
 - 将解压的onnx文件放置于/resource/models/目录下方
 - 重新启动本软件
 ---
+For no-Chinese User：
+- 1.Prepare github star picture
+- 2.send to email xing12130@outlook.com ,describe you want to unlock
+- 3.wait for developer reply,it will be a bit long time because developers won't check emails frequently.
+- 4.get the onnx file and put it to "root/resource/models/" path
 """
         
         text_browser.setMarkdown(unlock_content)
