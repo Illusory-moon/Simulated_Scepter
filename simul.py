@@ -189,6 +189,7 @@ class SimulatedUniverse(UniverseUtils):
         if self.check_bonus == 0 and self.my_cnt >= self.nums > 0:
             CUS_LOGGER.info(f'当仁不让。{factor}将肩负世界，直至此身焚灭。')
             self.end = 1
+        CUS_LOGGER.info(f'{factor}再度踏上轮回……')
         self.update_floor(1)
         self.update_state("end")
 
