@@ -280,7 +280,8 @@ class IronBloodUniverse(SimulatedUniverse):
                     if not os.path.exists(self.map_file):
                         os.mkdir(self.map_file)
                 find = False
-                record=True
+                if self.debug:
+                    record=True
             elif self.now_map !=-1 and "m" in str(self.now_map):
                 CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
                 self.map_file = PATHS["image"] + "/nmaps/" + self.now_map + "/"
