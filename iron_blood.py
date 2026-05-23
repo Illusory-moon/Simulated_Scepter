@@ -51,6 +51,7 @@ class IronBloodUniverse(SimulatedUniverse):
         self.nodes=None
         self.replace_idx=None
         self.next_node = None
+        self.max_limited = None
         self.kill_count =0
         self.need_end=False
         self.record = self.opt.get("recording_iron_blood", True)
@@ -267,6 +268,9 @@ class IronBloodUniverse(SimulatedUniverse):
                     break
             self.now_map,self.now_map_sim=max_map,max_sim
             if self.click_text(text="确认",box=[1361, 1417, 713, 744],click=False,allow_fail=True):
+                self.big_map_init = False
+                key_mouse_manager.wait()
+                time.sleep(3)
                 return find,record,False
             CUS_LOGGER.debug(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
             if (self.debug and self.now_map_sim < 0.5) or self.now_map_sim < 0.35:
@@ -307,6 +311,11 @@ class IronBloodUniverse(SimulatedUniverse):
                 key_mouse_manager.wait()
                 key_mouse_manager.keyDown("w")
         else:
+            if self.click_text(text="确认",box=[1361, 1417, 713, 744],click=False,allow_fail=True):
+                self.big_map_init = False
+                key_mouse_manager.wait()
+                time.sleep(3)
+                return find,record,False
             find = False
             self.mini_state = 1
             CUS_LOGGER.warning("非常规地图，将进行无地图寻路")
