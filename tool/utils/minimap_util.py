@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -322,8 +323,8 @@ def RotationRemapData():
     my = np.zeros((d, d), dtype=np.float32)
     for i in range(d):
         for j in range(d):
-            mx[i, j] = d / 2 + i / 2 * np.cos(2 * np.pi * j / d)
-            my[i, j] = d / 2 + i / 2 * np.sin(2 * np.pi * j / d)
+            mx[i, j] = d / 2 + (i / 2) * math.cos(2 * math.pi * j / d)
+            my[i, j] = d / 2 + (i / 2) * math.sin(2 * math.pi * j / d)
     return mx, my
 def copy_image(src):
     """
