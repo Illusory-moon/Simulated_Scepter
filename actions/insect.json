@@ -317,6 +317,20 @@
              "select_event"
         ]
     },
+    {
+        "name": "命途选择事件",
+        "trigger":{
+            "photo": "fate8",
+            "pos": {"x":0.1828,"y":0.5000},
+            "mask":"mask_event",
+            "threshold":0.965,
+            "condition": "event"
+        },
+        "actions":
+        [
+             "select_event"
+        ]
+    },
         {
         "name": "正式选择事件",
         "trigger":{
