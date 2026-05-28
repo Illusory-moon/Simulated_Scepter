@@ -52,6 +52,7 @@ class IronBloodUniverse(SimulatedUniverse):
         self.replace_idx=None
         self.next_node = None
         self.max_limited = None
+        self.last_kill_count = None
         self.kill_count =0
         self.need_end=False
         self.record = self.opt.get("recording_iron_blood", True)
@@ -567,24 +568,41 @@ class IronBloodUniverse(SimulatedUniverse):
         else:
             #不是肉体帝候一律放弃
             self.click_text(text="放弃", box=[1221, 1276, 967, 998])
-    def select_go(self):
-        num = extract_number(match_numbers_in_region(self.screen))
-        retry=True
-        if num is not None:
-            num=int(num)
-            if num%8==0:
-                self.kill_count=num//8
-                retry=False
-            else:
-                CUS_LOGGER.warning("异常的被动效果参数")
-        if retry:
-            time.sleep(2)
-            num = extract_number(match_numbers_in_region(self.get_screen()))
-            if num is None or int(num)%8!=0:
-                return
-            else:
+    def try_get_kill_count(self):
+        screen = self.get_screen()
+        num = extract_number(match_numbers_in_region(screen))
+        try:
+           if num is not None:
                 num = int(num)
-                self.kill_count = num // 8
+           else:
+                return None
+        except (ValueError, TypeError):
+            return None
+        if num is None or num % 8 != 0:
+            return None
+        if not hasattr(self, 'last_kill_count') or self.last_kill_count is None:
+            self.last_kill_count = num
+            return None
+        if self.last_kill_count == num:
+            self.last_kill_count = None
+            return num // 8
+        self.last_kill_count = num
+        return None
+    def select_go(self):
+        max_retries = 5
+        kill = None
+        for attempt in range(max_retries):
+            kill = self.try_get_kill_count()
+            if kill is not None:
+                self.kill_count = kill
+                CUS_LOGGER.debug(f"识别成功，击杀数{self.kill_count}")
+                break
+            CUS_LOGGER.warning(f"第{attempt+1}次完整识别与复核失败，重试")
+            if attempt != max_retries - 1:
+                time.sleep(2) #这个sleep是源码里就有的
+        if kill is None:
+            CUS_LOGGER.error("多次尝试仍无法获取击杀数，放弃本次计数")
+            return
         CUS_LOGGER.debug(f"当前击杀数{self.kill_count}")
         self.set_kill_num(str(self.kill_count))
         key_mouse_manager.clean()
