@@ -773,5 +773,19 @@
         [
             "is_run"
         ]
+    },
+    {
+        "name": "列车补给",
+        "trigger": {
+            "text": "列车补给",
+            "box": [880, 1039, 55, 97],
+            "interval": 2,
+            "redundancy": 5
+        },
+        "actions": [
+            {
+                "position": [1200, 1000]
+            }
+        ]
     }
 ]
