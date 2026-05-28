@@ -2403,34 +2403,75 @@ class UniverseUtils:
             self.should_update_map = False
             return
         if need_confirm or self.has_target:
-            CUS_LOGGER.info("再骄盛的太阳，也有遍照不到的地方。")
-            for i in "sasddwwaa":
+            CUS_LOGGER.info("交互完成，开始走向觐见装置并等待「选择移动目标」界面...")
+    
+            start_time = time.time()
+            stuck_timeout = 20.0   # 超时时间20秒
+            stuck_count = 0         # 超时次数，用于记录日志
+    
+            # 保留源码中的转向序列
+            directions = "sasddwwaa"
+            dir_idx = 0
+            max_attempts = 30  # 防止无限循环
+    
+            for _ in range(max_attempts):
                 if self._stop:
                     self.should_update_map = False
                     return
+        
+                # 1. 检测是否已经出现“被动效果”界面（成功找到觐见装置）
+                if self.click_text(text="被动效果", box=[205, 296, 826, 855], click=False, allow_fail=True, warning=False):
+                    CUS_LOGGER.info("检测到「被动效果」界面，等待 insect.json 处理")
+                    self.should_update_map = False
+                    return
+        
+                # 2. 超时检测并后退+侧移
+                elapsed = time.time() - start_time
+                if elapsed > stuck_timeout:
+                    stuck_count += 1
+                    CUS_LOGGER.warning(f"走向觐见装置超时 ({elapsed:.1f}秒)，第{stuck_count}次尝试后退+侧移脱困")
+                    key_mouse_manager.keyUp("w")
+                    key_mouse_manager.press("s", 0.8)
+                    if random.choice([True, False]):
+                        key_mouse_manager.press("a", 0.6)
+                        CUS_LOGGER.debug("后退后左移")
+                    else:
+                        key_mouse_manager.press("d", 0.6)
+                        CUS_LOGGER.debug("后退后右移")
+                    key_mouse_manager.keyDown("w")
+                    start_time = time.time()   # 重置计时器
+                    self.get_screen()           # 刷新屏幕
+                    # 继续循环，不增加方向索引，保持当前方向尝试
+                    continue
+        
+                # 3. 正常寻路：使用 move_to_end（面向觐见装置）
                 self.get_screen()
-                if self.target_type==2:
-                    CUS_LOGGER.info(f"……直到，逆转「再创世」揭示的残酷未来。")
-                    if self.good_f()[0]:
-                        key_mouse_manager.press('f',force= True)
-                        key_mouse_manager.keyUp('w')
-                        if self.nof(must_be='event'):
-                            self.should_update_map = False
-                            return
-                if (self.is_find_end==1 or first) and self.mini_state > 2:
-                    if self.move_to_end(mode=0,device=1):
-                        i="w"
-                elif self.move_to_shop():
-                    i="w"
+                move_direction = None
+                # 尝试通过觐见装置定位
+                if (self.is_find_end == 1 or self.first_mini) and self.mini_state > 2:
+                    if self.move_to_end(mode=0, device=1):
+                        move_direction = "w"
+                # 如果仍然没有，则使用转向序列中的下一个方向
+                if move_direction is None:
+                    move_direction = directions[dir_idx % len(directions)]
+                    dir_idx += 1
+        
+                # 5. 移动一小段
+                key_mouse_manager.press(move_direction, 0.25)
+                CUS_LOGGER.debug(f"向 {move_direction} 走0.25秒")
+                key_mouse_manager.wait()
+        
+                # 6. 如果在移动过程中碰到了交互（f 键），尝试按下并退出
                 if self.good_f()[0]:
-                    key_mouse_manager.press('f',force= True)
+                    key_mouse_manager.press('f', force=True)
                     if self.nof(must_be='event'):
+                        CUS_LOGGER.info("按下 f 并成功进入事件，退出寻路循环")
                         self.should_update_map = False
                         return
-                key_mouse_manager.press(i, 0.25)
-                CUS_LOGGER.debug(f"向{i}走0.25秒")
-                key_mouse_manager.wait()
-            key_mouse_manager.click(0.5,0.5)
+    
+            # 如果循环结束仍未成功，最后尝试点击屏幕中心（源码兜底）
+            CUS_LOGGER.warning("多次尝试后仍未找到觐见装置，点击屏幕中心并退出")
+            key_mouse_manager.click(0.5, 0.5)
             self.should_update_map = False
     def get_path_only_minimap(self,fixed=False):
         """
