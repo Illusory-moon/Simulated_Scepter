@@ -405,54 +405,29 @@ class SimulatedUniverse(UniverseUtils):
         return 1
     # 祝福界面/回响界面 （放在一起处理了）
     def choose_bless(self):
-        chose = 0
-        if self.click_text(text="重置祝福",box=[1268, 1444, 929, 1025],click=False,warning=False):
-            for _ in range(4):
-                img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
-                if self.ts.split_and_find(self.tk.fates, img_down, mode="bless")[1] or self._stop:
-                    break
-                if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
+        for _ in range(4):
+            img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
+            if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
+                break
+            CUS_LOGGER.debug("未识别到命途")
+            if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
                     return 1
-            img_up = self.get_small_interaction_img(x=0.5047, y=0.5491, mask="mask_bless", fresh=True)
-            res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, mode="bless_skip=self.tk.skip")
-            img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
-            res_down = self.ts.split_and_find([self.fate], img_down, mode="bless")
-            if res_up[1] == 2:
-                key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
-                key_mouse_manager.wait()
-                chose = 1
-            elif res_down[1] == 2:
-                key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
-                key_mouse_manager.wait()
-                chose = 1
-            if not chose:
-                key_mouse_manager.click(0.2990, 0.1046)
-                key_mouse_manager.wait()
-        # 未匹配到优先祝福，刷新祝福并再次匹配
-        if not chose:
-            for _ in range(4):
-                img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
-                if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
-                    break
-                CUS_LOGGER.debug("未识别到命途")
-                if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
-                    return 1
-            img_up = self.get_small_interaction_img(x=0.5047, y=0.5491, mask="mask_bless", fresh=True)
-            res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
-            img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
-            res_down = self.ts.split_and_find(self.tk.secondary, img_down, mode="bless")
-            if res_up[1] == 2:
-                CUS_LOGGER.debug("识别到具体祝福")
-                key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
-                key_mouse_manager.wait()
-            elif res_down[1] >= 2:
-                CUS_LOGGER.debug("识别到匹配命途")
-                key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
-                key_mouse_manager.wait()
-            elif self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False,allow_fail=True):
-                CUS_LOGGER.debug("未识别到具体祝福,随便选一个")
-                key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
-                key_mouse_manager.wait()
+        img_up = self.get_small_interaction_img(x=0.5047, y=0.5491, mask="mask_bless", fresh=True)
+        res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
+        img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
+        res_down = self.ts.split_and_find(self.tk.secondary, img_down, mode="bless")
+        if res_up[1] == 2:
+            CUS_LOGGER.debug("识别到具体祝福")
+            key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+            key_mouse_manager.wait()
+        elif res_down[1] >= 2:
+            CUS_LOGGER.debug("识别到匹配命途")
+            key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
+            key_mouse_manager.wait()
+        elif self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False,allow_fail=True):
+            CUS_LOGGER.debug("未识别到具体祝福,随便选一个")
+            key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+            key_mouse_manager.wait()
         self.click_text(text="确认",box=[1663, 1719, 949, 979],need_fresh=False,ocr_line=True,warning=True)
         key_mouse_manager.wait()
         if self.quan:
