@@ -2448,7 +2448,7 @@ class UniverseUtils:
                 self.get_screen()
                 move_direction = None
                 # 尝试通过觐见装置定位
-                if (self.is_find_end == 1 or self.first_mini) and self.mini_state > 2:
+                if (self.is_find_end == 1 or first) and self.mini_state > 2:
                     if self.move_to_end(mode=0, device=1):
                         move_direction = "w"
                 # 如果仍然没有，则使用转向序列中的下一个方向
