@@ -2441,7 +2441,7 @@ class UniverseUtils:
                     key_mouse_manager.keyDown("w")
                     start_time = time.time()   # 重置计时器
                     self.get_screen()           # 刷新屏幕
-                    # 继续循环，不增加方向索引，保持当前方向尝试
+                    self.move_to_end(mode=0, device=1)
                     continue
         
                 # 3. 正常寻路：使用 move_to_end（面向觐见装置）
@@ -2456,12 +2456,12 @@ class UniverseUtils:
                     move_direction = directions[dir_idx % len(directions)]
                     dir_idx += 1
         
-                # 5. 移动一小段
+                # 4. 移动一小段
                 key_mouse_manager.press(move_direction, 0.25)
                 CUS_LOGGER.debug(f"向 {move_direction} 走0.25秒")
                 key_mouse_manager.wait()
         
-                # 6. 如果在移动过程中碰到了交互（f 键），尝试按下并退出
+                # 5. 如果在移动过程中碰到了交互（f 键），尝试按下并退出
                 if self.good_f()[0]:
                     key_mouse_manager.press('f', force=True)
                     if self.nof(must_be='event'):
