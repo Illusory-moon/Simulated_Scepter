@@ -536,6 +536,21 @@
         ]
     },
     {
+        "name": "月卡",
+        "trigger":{
+            "text": "列车补给",
+            "box": [880, 1039, 55, 97],
+            "interval": 2,
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "position": [900, 1000]
+            }
+        ]
+    },
+    {
         "name": "备战开始",
         "trigger":{
             "text": "推荐信息",
@@ -742,12 +757,25 @@
         "name": "关闭积分奖励",
         "trigger":{
             "text": "积分奖励",
-            "box": [119, 253, 271, 308],
+            "box": [77, 192, 327, 359],
             "redundancy": 30
         },
         "actions":
         [   {
                 "press": "esc"
+            }
+        ]
+    },
+    {
+        "name": "积分线已更新",
+        "trigger":{
+            "text": "积分线已更新",
+            "box": [871, 1043, 521, 554],
+            "redundancy": 30
+        },
+        "actions":
+        [   {
+                "position": [900, 1000]
             }
         ]
     },
@@ -772,20 +800,6 @@
         "actions":
         [
             "is_run"
-        ]
-    },
-    {
-        "name": "列车补给",
-        "trigger": {
-            "text": "列车补给",
-            "box": [880, 1039, 55, 97],
-            "interval": 2,
-            "redundancy": 5
-        },
-        "actions": [
-            {
-                "position": [1200, 1000]
-            }
         ]
     }
 ]
