@@ -565,22 +565,25 @@ class IronBloodUniverse(SimulatedUniverse):
             self.click_text(text="放弃", box=[1221, 1276, 967, 998])
     def select_go(self):
         num = extract_number(match_numbers_in_region(self.screen))
-        retry=True
         if num is not None:
             num=int(num)
             if num%8==0:
                 self.kill_count=num//8
-                retry=False
             else:
-                CUS_LOGGER.warning("异常的被动效果参数")
-        if retry:
-            time.sleep(2)
-            num = extract_number(match_numbers_in_region(self.get_screen()))
-            if num is None or int(num)%8!=0:
+                CUS_LOGGER.warning("不能整除8的参数")
                 return
-            else:
-                num = int(num)
-                self.kill_count = num // 8
+        else:
+            CUS_LOGGER.warning("未知的被动效果参数")
+            return
+        time.sleep(2)#阻塞式等待播完动画，有待优化
+        num = extract_number(match_numbers_in_region(self.get_screen()))
+        if num is None or int(num)%8!=0:
+            return
+        else:
+            num = int(num)
+            kill_count=num // 8
+            if kill_count!=self.kill_count:
+                return
         CUS_LOGGER.debug(f"当前击杀数{self.kill_count}")
         self.set_kill_num(str(self.kill_count))
         key_mouse_manager.clean()
