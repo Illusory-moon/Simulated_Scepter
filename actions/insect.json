@@ -780,6 +780,32 @@
         ]
     },
     {
+        "name": "开始游戏",
+        "trigger":{
+            "text": "开始游戏",
+            "box": [872, 1067, 814, 864],
+            "redundancy": 30
+        },
+        "actions":
+        [   {
+                "position": [900, 1000]
+            }
+        ]
+    },
+    {
+        "name": "开始游戏2",
+        "trigger":{
+            "text": "点击进入",
+            "box": [905, 1012, 996, 1033],
+            "redundancy": 30
+        },
+        "actions":
+        [   {
+                "position": [900, 1000]
+            }
+        ]
+    },
+    {
         "name": "大世界",
         "trigger":{
             "photo": "smartphone",
