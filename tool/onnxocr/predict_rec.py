@@ -303,7 +303,7 @@ class TextRecognizer(PredictBase):
             # img = np.expand_dims(img, axis=0)
             # print(img.shape)
             input_feed = self.get_input_feed(self.rec_input_name, norm_img_batch)
-            outputs = self.rec_onnx_session.run(self.rec_output_name, input_feed=input_feed)
+            outputs = self.safe_run(self.rec_onnx_session, self.rec_output_name, input_feed=input_feed)
 
             preds = outputs[0]
 

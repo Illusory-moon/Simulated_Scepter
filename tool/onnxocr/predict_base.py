@@ -1,4 +1,5 @@
 from onnxruntime import get_available_providers,SessionOptions,InferenceSession
+from tool.log import CUS_LOGGER
 
 class PredictBase(object):
     def __init__(self, cpu=False):
@@ -14,6 +15,26 @@ class PredictBase(object):
 
         return onnx_session
 
+    def safe_run(self, session, output_names, input_feed):
+        """
+        Wrapper for session.run() that handles DML encoding errors.
+        DML provider error messages may contain non-UTF-8 bytes, which
+        onnxruntime fails to decode, raising UnicodeDecodeError instead
+        of a proper exception. Extract and log the real DML error, then retry.
+        """
+        try:
+            return session.run(output_names, input_feed)
+        except UnicodeDecodeError as e:
+            raw_bytes = e.object if isinstance(e.object, bytes) else b''
+            # Only keep ASCII portion of the DML error — the garbled tail is junk
+            safe_msg = raw_bytes.decode('ascii', errors='backslashreplace')
+            CUS_LOGGER.error(f"DML执行失败, 原始错误:\n{safe_msg}")
+            try:
+                return session.run(output_names, input_feed)
+            except UnicodeDecodeError:
+                CUS_LOGGER.warning("DML重试仍失败, 回退到CPU执行本次推理")
+                cpu_session = InferenceSession(session._model_path, providers=['CPUExecutionProvider'])
+                return cpu_session.run(output_names, input_feed)
 
     def get_output_name(self, onnx_session):
         """
