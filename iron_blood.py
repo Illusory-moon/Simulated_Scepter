@@ -67,18 +67,17 @@ class IronBloodUniverse(SimulatedUniverse):
     
     def restart_recording(self):
         if self.record and self.cut_video and self.YKItDYvq3FpnOYx:
-            self.max_limited=0 if self.max_limited is None else self.max_limited
-            need_del=self.del_record_time and self.del_record_time>self.kill_count+self.max_limited
-            CUS_LOGGER.debug(f"是否可删除{need_del},限制数目{self.del_record_time}，当前数目{self.kill_count+self.max_limited}")
+            need_del=self.del_record_time and self.del_record_time>self.kill_count
+            CUS_LOGGER.debug(f"是否可删除{need_del},限制数目{self.del_record_time}，当前数目{self.kill_count}")
             self.recorder.stop_recording(need_del)
             time.sleep(0.8)
             self.recorder.start_recording(self.count)
             self.update_state("re_start")
+        self.kill_count = 0
     def end_of_university(self):
         super().end_of_university()
         self.need_end=False
         self.init_map()
-        self.max_limited = 0 if self.max_limited is None else self.max_limited
         if self.kill_count>=39:
             CUS_LOGGER.info("恭喜，您获得了铁血战士！")
             CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
@@ -299,7 +298,6 @@ class IronBloodUniverse(SimulatedUniverse):
                     self.pos_map=cv.imread(target_path)
                     CUS_LOGGER.debug("已从地图获取目标路径点%s" % self.target)
                 self.rotation, d = self.pos_predictor.update_minimap_data(self.screen)
-                self.init_ang = 270 + d
             elif (not find) and self.first_save_map and create:
                 # 录制模式，保存初始小地图
                 self.first_save_map=False
@@ -380,7 +378,7 @@ class IronBloodUniverse(SimulatedUniverse):
         CUS_LOGGER.debug('构建图后的节点 (索引，类型，相似度，中心 x, 中心 y):')
         for n in self.nodes:
             CUS_LOGGER.debug(f"  {n['idx']}: {n['name']} sim={n.get('similarity', 0):.3f} center=({n['cx']:.1f},{n['cy']:.1f})")
-        path, total_weight, end_idx = max_weight_path(self.nodes, self.edges, start_idx)
+        path, self.expectation_weight, end_idx = max_weight_path(self.nodes, self.edges, start_idx)
         if not path:
             CUS_LOGGER.error("未找到有效路径，可能是起点位于最右端或图构建失败")
             raise NoMatchError
@@ -393,14 +391,12 @@ class IronBloodUniverse(SimulatedUniverse):
             }
             if len(path)>1:
                 self.next_node=path[1]
-            CUS_LOGGER.debug(f'路径理论期望值：total_weight={total_weight:.3f}')
+            CUS_LOGGER.debug(f'路径理论期望值：{self.expectation_weight:.3f}')
             CUS_LOGGER.debug(f'路径理论最小值：{sum(weight_ranges.get(n['name'], (0, 0))[0] for n in path)}')
             CUS_LOGGER.debug(f'路径理论最大值：{sum(weight_ranges.get(n['name'], (0, 0))[1] for n in path)}')
             self.max_limited=0
             self.max_change_count=0
-            best_path, _, _, _, _, _ = evaluate_best_single_replacement(
-                self.nodes, self.edges, start_idx, t=0.3 if self.plane_floor == 3 else 0.2)
-            for i,n in enumerate(best_path):
+            for i,n in enumerate(path):
                 #下一个注定无法改变
                 if i==1:
                     self.max_limited +=weight_ranges.get(n['name'], (0, 0))[1]
@@ -430,7 +426,7 @@ class IronBloodUniverse(SimulatedUniverse):
                 CUS_LOGGER.debug(f'  距离起点的最长步数 k={k}')
                 CUS_LOGGER.debug(f'  原始增量 delta={delta:.3f}')
                 CUS_LOGGER.debug(f'  期权调整后增量 (1-0.2)^{k} × {delta:.3f} = {discounted_delta:.3f}')
-                CUS_LOGGER.debug(f'替换后路径总权重：{best_weight:.3f} (原权重：{total_weight:.3f})')
+                CUS_LOGGER.debug(f'替换后路径总权重：{best_weight:.3f} (原权重：{self.expectation_weight:.3f})')
                 highlight = b
                 alt_path = best_path
                 baseline_ids = [n["idx"] for n in path]
@@ -450,7 +446,7 @@ class IronBloodUniverse(SimulatedUniverse):
                 }
                 orig_min = sum(weight_ranges.get(n['name'], (0, 0))[0] for n in path)
                 orig_max = sum(weight_ranges.get(n['name'], (0, 0))[1] for n in path)
-                CUS_LOGGER.debug(f'\n原路径理论期望值：{total_weight:.3f} (min={orig_min}, max={orig_max})')
+                CUS_LOGGER.debug(f'\n原路径理论期望值：{self.expectation_weight:.3f} (min={orig_min}, max={orig_max})')
                 if baseline_ids == new_ids and b is not None:
                     if next((node for node in self.nodes if node['idx'] == b), None):
                         # 获取目标类型的权重范围
