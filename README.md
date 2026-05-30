@@ -180,3 +180,21 @@ F5/‘停止任务’按钮停止运行。
 ## 相关开源项目
 - **[Auto_Simulated_Universe](https://github.com/CHNZYX/Auto_Simulated_Universe/)** - 本项目核心轮子，基于此项目大幅重构
 - **[StarRailCopilot](https://github.com/LmeSzinc/StarRailCopilot/)** - 先进的状态机架构启发，地图高精度定位
+
+## 特别鸣谢
+### 贡献者
+
+感谢以下贡献者对本项目做出的贡献
+
+<a>
+
+  <img src="https://contrib.rocks/image?repo=syfoud/Simulated_Scepter" />
+
+</a>
+
+### 所有赞助者
+
+您的支持就是作者开发和维护项目的动力！
+
+### And 每一位点star支持的你：
+[![Star History](https://api.star-history.com/svg?repos=syfoud/Simulated_Scepter&type=Date)](https://star-history.com/#syfoud/Simulated_Scepter&Date)
