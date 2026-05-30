@@ -102,7 +102,6 @@ class UniverseUtils:
         self.target_type = -1
         self.f_time = 0
         self.slow = 0
-        self.init_ang = 0
         self.allow_e = 1
         self.quan = 0
         self.bai_e=0

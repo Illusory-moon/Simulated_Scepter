@@ -279,7 +279,6 @@ class SimulatedUniverse(UniverseUtils):
                             self.pos_map=cv.imread(target_path)
                             CUS_LOGGER.info(f"对象「{factor}」将沿坐标组{self.target}轨迹运动")
                         self.rotation, d = self.pos_predictor.update_minimap_data(self.screen)
-                        self.init_ang = 270 + d
                 elif self.floor not in [1,6]:
                     self.upx=0
                     self.upy=0
