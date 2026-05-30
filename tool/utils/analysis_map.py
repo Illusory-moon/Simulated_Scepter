@@ -318,7 +318,7 @@ def evaluate_best_single_replacement(nodes, edges, start_idx, t=0.2):
     return best_path, best_weight, best_end_idx, best_replace_idx, float(best_delta), float(best_discounted_delta)
 
 
-def compute_start_point_from_crop(image, crop_coords=(55, 63, 92, 104),th=0.6):
+def compute_start_point_from_crop(image, mode=2,th=0.9):
     """通过裁剪图像并将裁剪区域与完整图像进行模板匹配来计算起点。
 
     Args:
@@ -333,17 +333,28 @@ def compute_start_point_from_crop(image, crop_coords=(55, 63, 92, 104),th=0.6):
     """
     if image is None:
         return None
+    if mode==2:
+        crop_coords = [55, 63, 92, 104]
+    else:
+        crop_coords =[1003, 929, 1035, 965]
     x1, y1, x2, y2 = crop_coords
     tpl = image[y1:y2, x1:x2].copy()
     tpl_gray = cv2.cvtColor(tpl, cv2.COLOR_BGR2GRAY)
+    if mode==2:
+        new_w = int(tpl_gray.shape[1] / 1.05)
+        new_h = int(tpl_gray.shape[0] / 1.05)
+    else:
+        new_w = int(tpl_gray.shape[1] * 1.15)
+        new_h = int(tpl_gray.shape[0] * 1.15)
+    tpl_gray = cv2.resize(tpl_gray, (new_w, new_h))
     search_gray = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2GRAY)
     res = cv2.matchTemplate(
         cv2.bitwise_and(search_gray, search_gray, mask=find_image_in_folder(f'gray_image/', 'head_mask')), tpl_gray,
         cv2.TM_CCOEFF_NORMED)
     _, max_val, _, max_loc = cv2.minMaxLoc(res)
     mx, my = max_loc
-    cx = mx + tpl.shape[1] / 2.0
-    cy = my + tpl.shape[0] / 2.0
+    cx = mx + tpl_gray.shape[1] / 2.0
+    cy = my + tpl_gray.shape[0] / 2.0
     CUS_LOGGER.debug(f'角色匹配得分={max_val:.3f}')
     if max_val > th:
         return float(cx), float(cy)
