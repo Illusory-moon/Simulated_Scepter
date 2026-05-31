@@ -247,7 +247,7 @@ class IronBloodUniverse(SimulatedUniverse):
             return state
         else:
             return 0
-    def map_data_load(self,create=True):
+    def map_data_load(self,create=False):
         create = self.debug and create
         self.big_map_init = True
         # 寻路模式，匹配最接近的地图
