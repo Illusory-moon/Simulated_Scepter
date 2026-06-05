@@ -519,6 +519,7 @@ class SimulatedUniverse(UniverseUtils):
         if self.check("team4", 0.5797, 0.2389):
             dx = 0.9266 - 0.8552
             dy = 0.8194 - 0.6741
+            time.sleep(1)
             for i in self.order:
                 key_mouse_manager.click(
                     0.9266 - dx * ((i - 1) % 3), 0.8194 - dy * ((i - 1) // 3)
