@@ -123,15 +123,14 @@ class IronBloodUniverse(SimulatedUniverse):
             except  Exception as e:
                 CUS_LOGGER.error(f"写入文件失败{e}")
             # 追加记录轮回次数和击杀数到另一个文件
-            if self.debug:
-                record_file = "config/backup/kill_record.txt"
-                try:
-                    os.makedirs("config/backup", exist_ok=True)
-                    with open(record_file, "a", encoding="utf-8") as file:
-                        file.write(f"轮回次数:{self.count}, 击杀数:{self.kill_count}\n")
-                        file.close()
-                except Exception as e:
-                    CUS_LOGGER.error(f"写入击杀记录文件失败{e}")
+            record_file = "config/backup/kill_record.txt"
+            try:
+                os.makedirs("config/backup", exist_ok=True)
+                with open(record_file, "a", encoding="utf-8") as file:
+                    file.write(f"轮回次数:{self.count}, 击杀数:{self.kill_count}\n")
+                    file.close()
+            except Exception as e:
+                CUS_LOGGER.error(f"写入击杀记录文件失败{e}")
         self.count = new_cnt
     def normal(self):
         bk_lst_changed = self.last_interact_time
