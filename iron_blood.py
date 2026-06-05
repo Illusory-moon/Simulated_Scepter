@@ -562,6 +562,35 @@ class IronBloodUniverse(SimulatedUniverse):
         else:
             #不是肉体帝候一律放弃
             self.click_text(text="放弃", box=[1221, 1276, 967, 998])
+    def choose_bless(self):
+        for _ in range(4):
+            img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
+            if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
+                break
+            CUS_LOGGER.debug("未识别到命途")
+            if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
+                return 1
+        img_up = self.get_small_interaction_img(x=0.5047, y=0.5491, mask="mask_bless", fresh=True)
+        res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
+        img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
+        res_down = self.ts.split_and_find(self.tk.secondary, img_down, mode="bless")
+        if res_up[1] == 2:
+            CUS_LOGGER.debug("识别到具体祝福")
+            key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+            key_mouse_manager.wait()
+        elif res_down[1] >= 2:
+            CUS_LOGGER.debug("识别到匹配命途")
+            key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
+            key_mouse_manager.wait()
+        elif self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False,allow_fail=True):
+            CUS_LOGGER.debug("未识别到具体祝福,随便选一个")
+            key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+            key_mouse_manager.wait()
+        self.click_text(text="确认",box=[1663, 1719, 949, 979],need_fresh=False,ocr_line=True,warning=True)
+        key_mouse_manager.wait()
+        if self.quan:
+            self.use_e()
+        return 1
     def select_go(self):
         num = extract_number(match_numbers_in_region(self.screen))
         if num is not None:
