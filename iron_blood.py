@@ -278,7 +278,7 @@ class IronBloodUniverse(SimulatedUniverse):
                     if not os.path.exists(self.map_file):
                         os.mkdir(self.map_file)
                 find = False
-                if self.debug:
+                if self.debug and create:
                     record=True
             elif self.now_map !=-1 and "m" in str(self.now_map):
                 CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
