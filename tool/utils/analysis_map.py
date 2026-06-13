@@ -323,43 +323,175 @@ def compute_start_point_from_crop(image, mode=2,th=0.9):
 
     Args:
         image: 原始图像（BGR 或灰度）
-        crop_coords: 裁剪坐标 (left, top, right, bottom)，单位像素
+        mode: 2=正常执行位面(小裁剪区缩小), 3=中途打开地图界面(大裁剪区放大)
+        th: 匹配阈值
 
     Returns:
         匹配位置的中心坐标 (cx, cy)，失败则返回 None
-
-    Notes:
-        - 为避免裁剪区域与自身匹配，在运行模板匹配前会先掩码原图像中的裁剪区域。
     """
     if image is None:
         return None
-    if mode==2:
-        crop_coords = [55, 63, 92, 104]
+    if mode == 2:
+        crop_list = [[55, 63, 92, 104], [58, 159, 94, 199]]#1p与2p角色的位置
     else:
-        crop_coords =[1003, 929, 1035, 965]
-    x1, y1, x2, y2 = crop_coords
-    tpl = image[y1:y2, x1:x2].copy()
-    tpl_gray = cv2.cvtColor(tpl, cv2.COLOR_BGR2GRAY)
-    if mode==2:
-        new_w = int(tpl_gray.shape[1] / 1.05)
-        new_h = int(tpl_gray.shape[0] / 1.05)
-    else:
-        new_w = int(tpl_gray.shape[1] * 1.15)
-        new_h = int(tpl_gray.shape[0] * 1.15)
-    tpl_gray = cv2.resize(tpl_gray, (new_w, new_h))
-    search_gray = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2GRAY)
-    res = cv2.matchTemplate(
-        cv2.bitwise_and(search_gray, search_gray, mask=find_image_in_folder(f'gray_image/', 'head_mask')), tpl_gray,
-        cv2.TM_CCOEFF_NORMED)
-    _, max_val, _, max_loc = cv2.minMaxLoc(res)
-    mx, my = max_loc
-    cx = mx + tpl_gray.shape[1] / 2.0
-    cy = my + tpl_gray.shape[0] / 2.0
-    CUS_LOGGER.debug(f'角色匹配得分={max_val:.3f}')
-    if max_val > th:
-        return float(cx), float(cy)
-    else:
-        return None
+        crop_list = [[1003, 929, 1035, 965]]
+
+    for crop_coords in crop_list:
+        x1, y1, x2, y2 = crop_coords
+        tpl = image[y1:y2, x1:x2].copy()
+        tpl_gray = cv2.cvtColor(tpl, cv2.COLOR_BGR2GRAY)
+        if mode == 2:
+            new_w = int(tpl_gray.shape[1] / 1.05)
+            new_h = int(tpl_gray.shape[0] / 1.05)
+        else:
+            new_w = int(tpl_gray.shape[1] * 1.15)
+            new_h = int(tpl_gray.shape[0] * 1.15)
+        tpl_gray = cv2.resize(tpl_gray, (new_w, new_h))
+        search_gray = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2GRAY)
+        res = cv2.matchTemplate(
+            cv2.bitwise_and(search_gray, search_gray, mask=find_image_in_folder(f'gray_image/', 'head_mask')), tpl_gray,
+            cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(res)
+        mx, my = max_loc
+        cx = mx + tpl_gray.shape[1] / 2.0
+        cy = my + tpl_gray.shape[0] / 2.0
+        CUS_LOGGER.debug(f'角色匹配 crop={crop_coords} 得分={max_val:.3f}')
+        if max_val > th:
+            return float(cx), float(cy)
+    return None
+
+
+# ---- 角标检测配置 ----
+# 角标模板需放置在 PATHS["image"]（即 resource/imgs/）目录下
+# 通过 load_img() 预加载到内存缓存，通过 find_image_in_folder 获取
+# 后续新增角标只需在此列表追加 name 即可
+CORNER_MARKER_DEFS = [
+    {'name': 'pig1', 'threshold': 0.7},
+    {'name': 'pig2', 'threshold': 0.7},
+    {'name': 'pig3', 'threshold': 0.7},
+    {'name': 'pig4', 'threshold': 0.7},
+    {'name': 'reinforce1', 'threshold': 0.9},
+    {'name': 'reinforce2', 'threshold': 0.9},
+    {'name': 'alienation1', 'threshold': 0.9},
+    {'name': 'alienation2', 'threshold': 0.9},
+]
+
+
+def detect_corner_markers(color_image, matches, marker_defs=None, max_dist=80.0):
+    """在彩色原图上检测角标，并关联到最近的地图节点。
+
+    使用彩色模板匹配（非灰度/Canny），因为角标具有颜色区分度。
+
+    Args:
+        color_image: 原始彩色截图 (BGR)
+        matches: match_multiple_targets 返回的匹配列表
+        marker_defs: 角标定义列表，默认使用 CORNER_MARKER_DEFS
+        max_dist: 角标中心与节点中心的最大距离（像素），超出则忽略关联
+
+    Returns:
+        corner_results: 检测到的角标列表 [{'name':..., 'location':(x,y), 'size':(w,h),
+                         'similarity':..., 'node_idx':...}, ...]
+        同时就地修改 matches 中对应的节点，添加 'corner_marker' 属性（完整 dict）。
+    """
+    if marker_defs is None:
+        marker_defs = CORNER_MARKER_DEFS
+
+    if color_image is None or not matches:
+        for m in matches:
+            m.pop('corner_marker', None)
+        return []
+
+    # 第一步：全局彩色模板匹配，收集所有候选
+    all_boxes = []
+    all_scores = []
+    all_names = []
+
+    for mdef in marker_defs:
+        tpl = find_image_in_folder('', mdef['name'])
+        if tpl is None:
+            CUS_LOGGER.warning(f'[角标检测] 无法从缓存加载模板: {mdef["name"]}')
+            continue
+        th, tw = tpl.shape[:2]
+        res = cv2.matchTemplate(color_image, tpl, cv2.TM_CCOEFF_NORMED)
+        ys, xs = np.where(res >= mdef['threshold'])
+        for x, y in zip(xs, ys):
+            score = float(res[y, x])
+            all_boxes.append([int(x), int(y), tw, th])
+            all_scores.append(score)
+            all_names.append(mdef['name'])
+
+    if not all_boxes:
+        for m in matches:
+            m.pop('corner_marker', None)
+        return []
+
+    # 第二步：NMS 去重（同一角标可能被多个模板匹配到）
+    boxes_np = np.array(all_boxes, dtype=np.float32)
+    scores_np = np.array(all_scores, dtype=np.float32)
+    indices = cv2.dnn.NMSBoxes(
+        bboxes=boxes_np.tolist(),
+        scores=scores_np.tolist(),
+        score_threshold=0.5,
+        nms_threshold=0.3
+    )
+    if isinstance(indices, tuple) and len(indices) == 0:
+        for m in matches:
+            m.pop('corner_marker', None)
+        return []
+    if isinstance(indices, (list, tuple)):
+        if len(indices) > 0 and isinstance(indices[0], (list, tuple)):
+            indices = indices[0]
+    elif hasattr(indices, 'flatten'):
+        indices = indices.flatten()
+
+    # 按相似度降序
+    kept = []
+    for idx in indices:
+        idx = int(idx)
+        kept.append({
+            'name': all_names[idx],
+            'location': (all_boxes[idx][0], all_boxes[idx][1]),
+            'size': (all_boxes[idx][2], all_boxes[idx][3]),
+            'similarity': round(all_scores[idx], 3),
+        })
+    kept.sort(key=lambda r: r['similarity'], reverse=True)
+
+    # 第三步：将每个角标关联到最近的节点
+    for c in kept:
+        cx = c['location'][0] + c['size'][0] / 2.0
+        cy = c['location'][1] + c['size'][1] / 2.0
+        best_idx = None
+        best_dist = float('inf')
+        for i, m in enumerate(matches):
+            mx = m['location'][0] + m['size'][0] / 2.0
+            my = m['location'][1] + m['size'][1] / 2.0
+            dist = ((cx - mx) ** 2 + (cy - my) ** 2) ** 0.5
+            if dist < best_dist:
+                best_dist = dist
+                best_idx = i
+        c['node_idx'] = best_idx
+        c['node_dist'] = round(best_dist, 1)
+
+    # 第四步：每个节点最多一个角标，保留相似度最高的
+    for m in matches:
+        m.pop('corner_marker', None)
+
+    node_assigned = {}  # node_idx -> best corner marker
+    for c in kept:
+        ni = c['node_idx']
+        if ni is None or c['node_dist'] > max_dist:
+            continue
+        if ni not in node_assigned or c['similarity'] > node_assigned[ni]['similarity']:
+            node_assigned[ni] = c
+
+    # 写入节点属性（存储完整角标信息以便可视化框出实际位置）
+    corner_results = []
+    for ni, c in node_assigned.items():
+        matches[ni]['corner_marker'] = c
+        corner_results.append(c)
+
+    CUS_LOGGER.debug(f'角标检测完成，发现 {len(corner_results)} 个角标')
+    return corner_results
 
 
 def display_matches(image, matches, path=None, highlight_idx=None, save_path=None, font_size_override=None,
@@ -395,6 +527,14 @@ def display_matches(image, matches, path=None, highlight_idx=None, save_path=Non
         cx, cy = int(round(x + w / 2.0)), int(round(y + h / 2.0));
         cv2.circle(vis, (cx, cy), 4, (0, 255, 0), -1)
         label = f"{i}:{EN_TO_CN.get(name, name)}:{m.get('similarity', 0)}"
+        cm = m.get('corner_marker', None)
+        if cm:
+            cm_name = cm.get('name', '') if isinstance(cm, dict) else str(cm)
+            label += f' [{cm_name}]'
+            if isinstance(cm, dict):
+                cmx, cmy = cm['location']
+                cmw, cmh = cm['size']
+                cv2.rectangle(vis, (int(cmx), int(cmy)), (int(cmx + cmw), int(cmy + cmh)), (0, 200, 255), 2)
         texts_to_draw.append((label, (int(x), int(y) - 6)))
     if alt_path and len(alt_path) >= 2:
         pts = []
