@@ -84,7 +84,7 @@ sqlite3 config/backup/map_visits.db "SELECT * FROM map_visits ORDER BY visit_cou
 
 下载解压目录不允许有中文路径！！
 # 下载 | Download 
-方法一：前往交流群直接下载打包好的发行版（推荐）* ![](https://img.shields.io/badge/QQ%201群-1072802257-4e4c97)
+方法一：前往交流群直接下载打包好的发行版（推荐）* ![](https://img.shields.io/badge/QQ%201群[已满]-1072802257-4e4c97)* ![](https://img.shields.io/badge/QQ%202群-870863632-4e4c97)
 
 方法二：自行下载源码本地部署，没接触过python的，请忽视下述教程，可以直接前往交流群下载相关资源
 

@@ -143,7 +143,7 @@ class QMainWindowLog(QMainWindowLoadUI):
             color_level=4,
             time=False)
         GLOBAL.PRINT_TO_UI.emit(
-            text="项目开源地址:https://github.com/syfoud/Simulated_Scepter 交流群:1072802257",
+            text="项目开源地址:https://github.com/syfoud/Simulated_Scepter 一群:1072802257（已满）二群:870863632",
             color_level=3,
             time=False)
 
