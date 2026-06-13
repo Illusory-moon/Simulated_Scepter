@@ -12,7 +12,7 @@ from route import PATHS
 from simul import SimulatedUniverse
 from tool.log import CUS_LOGGER, log_emitter
 from tool.public_ocr import load_actions, merge_text
-from tool.utils.Error import NoMatchError
+from tool.utils.Error import NoMatchError, NoBossError
 from tool.utils.analysis_map import match_multiple_targets, build_rightward_graph, compute_start_point_from_crop, \
     max_weight_path, display_matches, evaluate_best_single_replacement, compute_all_max_steps
 from tool.utils.image_tool import find_image_by_name
@@ -365,6 +365,15 @@ class IronBloodUniverse(SimulatedUniverse):
         CUS_LOGGER.debug(f"当前起点坐标{start}")
         for i, m in enumerate(matches):
             CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}")
+        boss_head_x = [m['location'][0] for m in matches if m['name'] in ('boss', 'head')]
+        if boss_head_x:
+            rightmost = max(boss_head_x)
+            matches = [m for m in matches if m['location'][0] <= rightmost]
+            CUS_LOGGER.debug(f"过滤boss/head右侧节点后，剩余 {len(matches)} 个匹配")
+            for i, m in enumerate(matches):
+                CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}")
+        else:
+            raise NoBossError
         if mode == 3:
             self.nodes, self.edges, start_idx = build_rightward_graph(
                 matches, start=start,
