@@ -344,14 +344,20 @@ class IronBloodUniverse(SimulatedUniverse):
         self.click_text(text="击败该首领",box=[1108, 1385, 267, 290])
         self.click_text(text="确认选择",box=[1633, 1733, 961, 990])
     def try_analysis_map(self,mode=1):
-        if self.debug:
-            self.save_screen(not_now=True)
+        # if self.debug:
+        #     self.save_screen(not_now=True)
         image = self.screen
         matches = match_multiple_targets(image, mode)
-        CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配:")
+        CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
         if len(matches)==0:
-            CUS_LOGGER.warning("未匹配到任何图标，可能是误识别")
-            raise NoMatchError
+            CUS_LOGGER.warning("未匹配到任何地图图标却错误进入寻路阶段，可能是误识别")
+            self.save_screen(not_now=True)
+            self.save_screen()
+            CUS_LOGGER.warning("刷新截图缓冲区后最后一次尝试匹配地图图标")
+            matches = match_multiple_targets(image, mode)
+            CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
+            if len(matches) == 0:
+                raise NoMatchError
         if mode==2:
             start=compute_start_point_from_crop(image)
             if start is None:
