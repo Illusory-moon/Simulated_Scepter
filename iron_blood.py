@@ -358,6 +358,12 @@ class IronBloodUniverse(SimulatedUniverse):
             CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
             if len(matches) == 0:
                 raise NoMatchError
+        # 检测角标（pig/reinforce/alienation等），关联到最近节点
+        corner_results = detect_corner_markers(image, matches)
+        if corner_results:
+            CUS_LOGGER.debug(f'检测到 {len(corner_results)} 个角标')
+            for cr in corner_results:
+                CUS_LOGGER.debug(f"  {cr['name']} sim={cr['similarity']:.3f} -> 节点{cr['node_idx']}({matches[cr['node_idx']]['name']}) dist={cr['node_dist']}")
         if mode==2:
             start=compute_start_point_from_crop(image)
             if start is None:
@@ -397,6 +403,7 @@ class IronBloodUniverse(SimulatedUniverse):
             CUS_LOGGER.error("未找到有效路径，可能是起点位于最右端或图构建失败")
             raise NoMatchError
         self.start_nodes=path[0]
+        self.path = path
         if path:
             weight_ranges = {
                 'event': (0, 1), 'wait': (0, 0), 'trade': (0, 0), 'trade2': (0, 0), 'adventure': (0, 0),
