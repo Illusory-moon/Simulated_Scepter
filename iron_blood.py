@@ -640,6 +640,9 @@ class IronBloodUniverse(SimulatedUniverse):
         key_mouse_manager.keyUp("w")
         key_mouse_manager.wait()
         if self.click_text(text="选择移动目标", box=[1609, 1759, 965, 996],click=False,allow_fail=True):
+            if self.click_text(text="点击空白处关闭", box=[876, 1047, 1008, 1035],click=False,allow_fail=True):
+                CUS_LOGGER.info("「下一世，真理定会解明，死生……将有序流转。」")
+                return
             self.try_analysis_map(mode=2)
             if self.next_node is not None:
                 self.start_nodes=self.next_node
