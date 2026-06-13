@@ -518,7 +518,7 @@ class IronBloodUniverse(SimulatedUniverse):
     def select_strange(self):
         img = self.get_small_interaction_img(x=0.5000, y=0.7333, mask="mask_strange", fresh=True)
         res = self.ts.split_strange(img)
-        if len(res)==0:
+        if len(res[0])==0:
             CUS_LOGGER.warning("那黄金的血液,救世的希望,原来......")
             return
         value =-1
