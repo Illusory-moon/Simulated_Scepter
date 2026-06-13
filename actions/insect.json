@@ -367,6 +367,7 @@
         "trigger":{
             "text": "被动效果",
             "box": [205, 296, 826, 855],
+            "interval": 1,
             "redundancy": 30
         },
         "actions":
@@ -379,7 +380,7 @@
         "trigger":{
             "text": "选择生效目标",
             "box": [803, 961, 128, 159],
-            "interval": 3,
+            "interval": 5,
             "redundancy": 30
         },
         "actions":
@@ -526,7 +527,7 @@
         "trigger":{
             "text": "首次通关奖励",
             "box": [1195, 1343, 235, 266],
-            "interval": 2,
+            "interval": 3,
             "redundancy": 30
         },
         "actions":

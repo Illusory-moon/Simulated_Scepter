@@ -12,9 +12,9 @@ from route import PATHS
 from simul import SimulatedUniverse
 from tool.log import CUS_LOGGER, log_emitter
 from tool.public_ocr import load_actions, merge_text
-from tool.utils.Error import NoMatchError
+from tool.utils.Error import NoMatchError, NoBossError
 from tool.utils.analysis_map import match_multiple_targets, build_rightward_graph, compute_start_point_from_crop, \
-    max_weight_path, display_matches, evaluate_best_single_replacement, compute_all_max_steps
+    max_weight_path, display_matches, evaluate_best_single_replacement, compute_all_max_steps, detect_corner_markers
 from tool.utils.image_tool import find_image_by_name
 from tool.utils.minimap_util import MINIMAP_RADIUS, get_minimap, re_get_position
 from tool.utils.ocr_num import match_numbers_in_region, extract_number
@@ -146,6 +146,15 @@ class IronBloodUniverse(SimulatedUniverse):
             if not self.bai_e and self.check("bai_e", 0.0625,0.7092):
                 key_mouse_manager.press("1")
                 self.bai_e = 1
+            # 当前节点为祝福猪节点时切2号位并重置黄泉/白厄状态
+            start_node = getattr(self, 'start_nodes', None)
+            if start_node is not None:
+                cm = (start_node.get('orig') or {}).get('corner_marker')
+                if cm and cm.get('name') in ('pig1', 'pig2'):
+                    CUS_LOGGER.info("梦中那刺骨的愤怒与对自我的憎恨仍在震动着他的心。")
+                    key_mouse_manager.press("2")
+                    self.quan = 0
+                    self.bai_e = 0
             #上次交互时间
             self.last_interact_time = bk_lst_changed
             # 刚进图，初始化一些数据
@@ -278,7 +287,7 @@ class IronBloodUniverse(SimulatedUniverse):
                     if not os.path.exists(self.map_file):
                         os.mkdir(self.map_file)
                 find = False
-                if self.debug:
+                if self.debug and create:
                     record=True
             elif self.now_map !=-1 and "m" in str(self.now_map):
                 CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
@@ -344,14 +353,26 @@ class IronBloodUniverse(SimulatedUniverse):
         self.click_text(text="击败该首领",box=[1108, 1385, 267, 290])
         self.click_text(text="确认选择",box=[1633, 1733, 961, 990])
     def try_analysis_map(self,mode=1):
-        if self.debug:
-            self.save_screen(not_now=True)
+        # if self.debug:
+        #     self.save_screen(not_now=True)
         image = self.screen
         matches = match_multiple_targets(image, mode)
-        CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配:")
+        CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
         if len(matches)==0:
-            CUS_LOGGER.warning("未匹配到任何图标，可能是误识别")
-            raise NoMatchError
+            CUS_LOGGER.warning("未匹配到任何地图图标却错误进入寻路阶段，可能是误识别")
+            self.save_screen(not_now=True)
+            self.save_screen()
+            CUS_LOGGER.warning("刷新截图缓冲区后最后一次尝试匹配地图图标")
+            matches = match_multiple_targets(image, mode)
+            CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
+            if len(matches) == 0:
+                raise NoMatchError
+        # 检测角标（pig/reinforce/alienation等），关联到最近节点
+        corner_results = detect_corner_markers(image, matches)
+        if corner_results:
+            CUS_LOGGER.debug(f'检测到 {len(corner_results)} 个角标')
+            for cr in corner_results:
+                CUS_LOGGER.debug(f"  {cr['name']} sim={cr['similarity']:.3f} -> 节点{cr['node_idx']}({matches[cr['node_idx']]['name']}) dist={cr['node_dist']}")
         if mode==2:
             start=compute_start_point_from_crop(image)
             if start is None:
@@ -364,7 +385,18 @@ class IronBloodUniverse(SimulatedUniverse):
             start=None
         CUS_LOGGER.debug(f"当前起点坐标{start}")
         for i, m in enumerate(matches):
-            CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}")
+            cm = m.get('corner_marker', None)
+            cm_str = f' [角标:{cm["name"]}]' if cm else ''
+            CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}{cm_str}")
+        boss_head_x = [m['location'][0] for m in matches if m['name'] in ('boss', 'head')]
+        if boss_head_x:
+            rightmost = max(boss_head_x)
+            matches = [m for m in matches if m['location'][0] <= rightmost]
+            CUS_LOGGER.debug(f"过滤boss/head右侧节点后，剩余 {len(matches)} 个匹配")
+            for i, m in enumerate(matches):
+                CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}")
+        else:
+            raise NoBossError
         if mode == 3:
             self.nodes, self.edges, start_idx = build_rightward_graph(
                 matches, start=start,
@@ -382,6 +414,7 @@ class IronBloodUniverse(SimulatedUniverse):
             CUS_LOGGER.error("未找到有效路径，可能是起点位于最右端或图构建失败")
             raise NoMatchError
         self.start_nodes=path[0]
+        self.path = path
         if path:
             weight_ranges = {
                 'event': (0, 1), 'wait': (0, 0), 'trade': (0, 0), 'trade2': (0, 0), 'adventure': (0, 0),
@@ -496,7 +529,7 @@ class IronBloodUniverse(SimulatedUniverse):
     def select_strange(self):
         img = self.get_small_interaction_img(x=0.5000, y=0.7333, mask="mask_strange", fresh=True)
         res = self.ts.split_strange(img)
-        if len(res)==0:
+        if len(res[0])==0:
             CUS_LOGGER.warning("那黄金的血液,救世的希望,原来......")
             return
         value =-1
@@ -559,8 +592,30 @@ class IronBloodUniverse(SimulatedUniverse):
             else:
                 CUS_LOGGER.info("所以你才变成了这副模样：残缺的神像…悲哀的薪柴。")
                 self.click_text(text="放弃", box=[1221, 1276, 967, 998])
+        elif "战争" in text:
+            try:
+                self.try_analysis_map(mode=2)
+            except NoMatchError:
+                return
+            path_ids = {n['idx'] for n in self.path}
+            has_pig = lambda n: ((n.get('orig') or {}).get('corner_marker') or {}).get('name') in ('pig1', 'pig2')
+            # 第一优先级：path上最靠前的pig节点；第二优先级：不在path的最靠左pig节点
+            target_node = (
+                next((n for n in self.path if has_pig(n)), None)
+                or min((n for n in self.nodes if n['idx'] not in path_ids and has_pig(n)),
+                       key=lambda n: n['cx'], default=None)
+            )
+            if target_node is not None:
+                x, y = int(target_node["cx"]), int(target_node["cy"])
+                key_mouse_manager.click(x, y)
+                key_mouse_manager.wait()
+                self.click_text(text="确认目标", box=[1635, 1735, 968, 996])
+            else:
+                #战争崇拜无猪可改，放弃
+                CUS_LOGGER.info("「放心，我会替你照顾。」")
+                self.click_text(text="放弃", box=[1221, 1276, 967, 998])
         else:
-            #不是肉体帝候一律放弃
+            #其它节点一律放弃
             self.click_text(text="放弃", box=[1221, 1276, 967, 998])
     def choose_bless(self):
         for _ in range(4):
@@ -618,6 +673,9 @@ class IronBloodUniverse(SimulatedUniverse):
         key_mouse_manager.keyUp("w")
         key_mouse_manager.wait()
         if self.click_text(text="选择移动目标", box=[1609, 1759, 965, 996],click=False,allow_fail=True):
+            if self.click_text(text="点击空白处关闭", box=[876, 1047, 1008, 1035],click=False,allow_fail=True):
+                CUS_LOGGER.info("「下一世，真理定会解明，死生……将有序流转。」")
+                return
             self.try_analysis_map(mode=2)
             if self.next_node is not None:
                 self.start_nodes=self.next_node
