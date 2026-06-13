@@ -525,6 +525,7 @@ class SimulatedUniverse(UniverseUtils):
                     0.9266 - dx * ((i - 1) % 3), 0.8194 - dy * ((i - 1) // 3)
                 )
         key_mouse_manager.click(0.1635, 0.1056)
+        key_mouse_manager.wait()
     def select_fate(self):
         click_x = [0.02, 0.98]
         n = 4  # 重试次数
