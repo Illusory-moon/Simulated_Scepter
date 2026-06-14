@@ -584,6 +584,8 @@ class IronBloodUniverse(SimulatedUniverse):
                 self.try_analysis_map(mode=2)
             except NoMatchError:
                 return
+            except NoBossError:
+                return
             if self.replace_idx is not None:
                 x,y=int(self.nodes[self.replace_idx]["cx"]),int(self.nodes[self.replace_idx]["cy"])
                 key_mouse_manager.click(x,y)
@@ -596,6 +598,8 @@ class IronBloodUniverse(SimulatedUniverse):
             try:
                 self.try_analysis_map(mode=2)
             except NoMatchError:
+                return
+            except NoBossError:
                 return
             path_ids = {n['idx'] for n in self.path}
             has_pig = lambda n: ((n.get('orig') or {}).get('corner_marker') or {}).get('name') in ('pig1', 'pig2')
