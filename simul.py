@@ -185,9 +185,9 @@ class SimulatedUniverse(UniverseUtils):
         else:
             remain = 0
             remain_round = "∞"
+            CUS_LOGGER.info(f'当仁不让。{factor}将肩负世界，直至此身焚灭。')
         CUS_LOGGER.info(f"世界演算模拟完成！本轮已迭代次数：{self.my_cnt},总计已迭代次数:{self.count} 剩余:{remain_round}次, 已执行：{tm // 60}小时{tm % 60}分钟  平均{tm // self.my_cnt}分钟一次"+ (f"预计剩余{remain // 60}小时{remain % 60}分钟" if remain!=0 else ""))
         if self.check_bonus == 0 and self.my_cnt >= self.nums > 0:
-            CUS_LOGGER.info(f'当仁不让。{factor}将肩负世界，直至此身焚灭。')
             self.end = 1
         CUS_LOGGER.info(f'{factor}再度踏上轮回……')
         self.update_floor(1)
@@ -1225,7 +1225,8 @@ class SimulatedUniverse(UniverseUtils):
                 self.recorder.stop_recording()
             except Exception as e:
                 CUS_LOGGER.error(f"停止录制时发生错误: {e}")
-
+        self.save_screen(not_now=True)
+        self.save_screen()
         self.map_thread = None
 
 

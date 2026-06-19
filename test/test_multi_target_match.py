@@ -41,7 +41,8 @@ def match_multiple_targets(processed_image, mode=1, threshold=0.5):
             continue
         th, tw = tpl.shape[:2]
         res = cv2.matchTemplate(processed_image, tpl, cv2.TM_CCOEFF_NORMED)
-        ys, xs = np.where(res >= threshold)
+        cur_threshold = 0.8 if name == 'blank' else threshold
+        ys, xs = np.where(res >= cur_threshold)
         if xs.size == 0:
             continue
 
@@ -576,7 +577,7 @@ def detect_corner_markers(color_image, matches, marker_defs=None, max_dist=80.0)
 if __name__ == '__main__':
     load_img()
     # 指定测试图像（可修改为其他图片路径进行单模块测试）
-    test_image = cv2.imread('20260611_153204.png')
+    test_image = cv2.imread('20260615_223210.png')
     mode = 2
 
     # --- match_multiple_targets ---

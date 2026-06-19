@@ -80,7 +80,12 @@ class IronBloodUniverse(SimulatedUniverse):
         self.init_map()
         if self.kill_count>=39:
             CUS_LOGGER.info("恭喜，您获得了铁血战士！")
-            CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
+            if self.count>10000:
+                CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
+            elif self.count>1000:
+                CUS_LOGGER.info("…不必考量本心，不必渴求胜利，只须知道，铁血战士——让人感到愤怒！")
+            elif self.count>100:
+                CUS_LOGGER.info("无所谓，旅途本就会改变一个人。")
             self.stop()
 
 
@@ -579,6 +584,9 @@ class IronBloodUniverse(SimulatedUniverse):
         text = self.ts.find_with_box(box=[557, 747, 447, 474], forward=True, re_screen=False)
         text = merge_text(text) if len(text) else ""
         CUS_LOGGER.debug(f"当前效果{text}")
+        if self.click_text(text="选择移动目标", box=[1609, 1759, 965, 996], click=False, allow_fail=True):
+            CUS_LOGGER.info("是带着无法被改变的过往，背负它走向未来的决心。")
+            return
         if "肉体" in text:
             try:
                 self.try_analysis_map(mode=2)
@@ -618,7 +626,7 @@ class IronBloodUniverse(SimulatedUniverse):
                 #战争崇拜无猪可改，放弃
                 CUS_LOGGER.info("「放心，我会替你照顾。」")
                 self.click_text(text="放弃", box=[1221, 1276, 967, 998])
-        else:
+        elif "毁灭" in text:
             #其它节点一律放弃
             self.click_text(text="放弃", box=[1221, 1276, 967, 998])
     def choose_bless(self):
@@ -679,6 +687,7 @@ class IronBloodUniverse(SimulatedUniverse):
         if self.click_text(text="选择移动目标", box=[1609, 1759, 965, 996],click=False,allow_fail=True):
             if self.click_text(text="点击空白处关闭", box=[876, 1047, 1008, 1035],click=False,allow_fail=True):
                 CUS_LOGGER.info("「下一世，真理定会解明，死生……将有序流转。」")
+                key_mouse_manager.wait()
                 return
             self.try_analysis_map(mode=2)
             if self.next_node is not None:
