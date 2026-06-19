@@ -38,7 +38,8 @@ def match_multiple_targets(processed_image, mode=1, threshold=0.5):
             continue
         th, tw = tpl.shape[:2]
         res = cv2.matchTemplate(processed_image, tpl, cv2.TM_CCOEFF_NORMED)
-        ys, xs = np.where(res >= threshold)
+        cur_threshold = 0.8 if name == 'blank' else threshold
+        ys, xs = np.where(res >= cur_threshold)
         if xs.size == 0:
             continue
         
