@@ -80,7 +80,12 @@ class IronBloodUniverse(SimulatedUniverse):
         self.init_map()
         if self.kill_count>=39:
             CUS_LOGGER.info("恭喜，您获得了铁血战士！")
-            CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
+            if self.count>10000:
+                CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
+            elif self.count>1000:
+                CUS_LOGGER.info("…不必考量本心，不必渴求胜利，只须知道，铁血战士——让人感到愤怒！")
+            elif self.count>100:
+                CUS_LOGGER.info("无所谓，旅途本就会改变一个人。")
             self.stop()
 
 
