@@ -1225,7 +1225,8 @@ class SimulatedUniverse(UniverseUtils):
                 self.recorder.stop_recording()
             except Exception as e:
                 CUS_LOGGER.error(f"停止录制时发生错误: {e}")
-
+        self.save_screen(not_now=True)
+        self.save_screen()
         self.map_thread = None
 
 
