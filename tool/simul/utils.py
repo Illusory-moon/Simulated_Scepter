@@ -102,7 +102,6 @@ class UniverseUtils:
         self.target_type = -1
         self.f_time = 0
         self.slow = 0
-        self.init_ang = 0
         self.allow_e = 1
         self.quan = 0
         self.bai_e=0
@@ -711,7 +710,7 @@ class UniverseUtils:
         key_mouse_manager.press("m", 0.2)
         return 1
 
-    def good_f(self):
+    def good_f(self,run=True):
         """
         不是"沉浸", "紧锁", "复活", "下载"的交互
         """
@@ -727,7 +726,7 @@ class UniverseUtils:
         if text is not None:
             CUS_LOGGER.info(f'响应：「一▇▇▇▇徒劳的▇▇▇{text}▇▇▇。」')
         CUS_LOGGER.debug(f"交互最佳结果判断{text is not None and not is_killed}")
-        if not (text is not None and not is_killed):
+        if not (text is not None and not is_killed) and run:
             key_mouse_manager.keyDown("w")
             key_mouse_manager.wait()
         t_end=time.time()
@@ -833,7 +832,7 @@ class UniverseUtils:
             return True
         else:
             return False
-    def move_to_shop(self,threshold = 0.9):
+    def move_to_shop(self,threshold = 0.925):
         self.get_screen()
         if not self.is_run():
             return False
@@ -1936,16 +1935,16 @@ class UniverseUtils:
                 CUS_LOGGER.info("响应：「一道无足轻重的伤疤。」")
                 return
             if time.time()-init_time>run_wait_time:
-                CUS_LOGGER.warning(f"警告：等待时间超时,"+"不" if not self.has_target else ""+"存在「毁灭」目标")
+                CUS_LOGGER.warning(f"警告：等待时间超时,"+("不" if not self.has_target else "")+"存在「毁灭」目标")
                 self.stop_move=1
                 key_mouse_manager.keyUp("w")
                 self.mini_state+=2
                 if self.mini_state>=7:
-                    self.last_interact_time = 0
+                    # self.last_interact_time = 0
                     self.should_update_map = False
-                    key_mouse_manager.press('esc')
-                    key_mouse_manager.wait()
-                    self.update_state("ui")
+                    # key_mouse_manager.press('esc')
+                    # key_mouse_manager.wait()
+                    # self.update_state("ui")
                     return
                 if self.has_target:
                     key_mouse_manager.press('s',0.3)
@@ -2116,16 +2115,16 @@ class UniverseUtils:
                 CUS_LOGGER.info("那些你誓言要拯救的人子…如今在你眼里，他们的性命恐怕与蝼蚁无异吧？")
                 return
             if time.time()-init_time>run_wait_time:
-                CUS_LOGGER.warning(f"警告：等待时间超时,"+"不" if not self.has_target else ""+"存在「毁灭」目标")
+                CUS_LOGGER.warning(f"警告：等待时间超时,"+("不" if not self.has_target else "")+"存在「毁灭」目标")
                 self.stop_move=1
                 key_mouse_manager.keyUp("w")
                 self.mini_state+=2
                 if self.mini_state>=7:
-                    self.last_interact_time = 0
+                    # self.last_interact_time = 0
                     self.should_update_map = False
-                    key_mouse_manager.press('esc')
-                    key_mouse_manager.wait()
-                    self.update_state("ui")
+                    # key_mouse_manager.press('esc')
+                    # key_mouse_manager.wait()
+                    # self.update_state("ui")
                     return
                 if self.has_target:
                     key_mouse_manager.press('s',0.3)
@@ -2151,17 +2150,18 @@ class UniverseUtils:
                 self.get_screen()
                 if self.target_type==2:
                     CUS_LOGGER.info(f"可是，告诉我……若当真如此，我们又为何会步入相同的结局？")
-                    if self.good_f()[0]:
+                    if self.good_f(run=False)[0]:
                         key_mouse_manager.press('f',force= True)
                         if self.nof(must_be='event'):
                             self.should_update_map = False
+                            self.mini_state+=2
                             return
                 if (self.is_find_end==1 or first) and self.mini_state > 2:
                     if self.move_to_end(mode=0,device=1):
                         i="w"
                 elif self.move_to_event(rest=True):
                     i="w"
-                if self.good_f()[0]:
+                if self.good_f(run=False)[0]:
                     key_mouse_manager.press('f',force= True)
                     if self.nof(must_be='event'):
                         self.should_update_map = False
@@ -2250,15 +2250,15 @@ class UniverseUtils:
                 CUS_LOGGER.info("警告：进度无法更新,检测到其它界面,退出循环")
                 return
             if time.time()-init_time>run_wait_time:
-                CUS_LOGGER.warning(f"警告：等待时间超时,"+"不" if not self.has_target else ""+"存在「毁灭」目标")
+                CUS_LOGGER.warning(f"警告：等待时间超时,"+("不" if not self.has_target else "")+"存在「毁灭」目标")
                 key_mouse_manager.keyUp("w")
                 self.mini_state+=2
                 if self.mini_state>=7:
-                    self.last_interact_time = 0
+                    # self.last_interact_time = 0
                     self.should_update_map = False
-                    key_mouse_manager.press('esc')
-                    key_mouse_manager.wait()
-                    self.update_state("ui")
+                    # key_mouse_manager.press('esc')
+                    # key_mouse_manager.wait()
+                    # self.update_state("ui")
                     return
                 break
         key_mouse_manager.keyUp("w")
@@ -2376,16 +2376,16 @@ class UniverseUtils:
                 CUS_LOGGER.info("你已无力为继了…半神。把火种，交给我。让你我…尽快结束痛苦。")
                 return
             if time.time()-init_time>run_wait_time:
-                CUS_LOGGER.warning(f"警告：等待时间超时,"+"不" if not self.has_target else ""+"存在「毁灭」目标")
+                CUS_LOGGER.warning(f"警告：等待时间超时,"+("不" if not self.has_target else "")+"存在「毁灭」目标")
                 self.stop_move=1
                 key_mouse_manager.keyUp("w")
                 self.mini_state+=2
                 if self.mini_state>=7:
-                    self.last_interact_time = 0
+                    # self.last_interact_time = 0
                     self.should_update_map = False
-                    key_mouse_manager.press('esc')
-                    key_mouse_manager.wait()
-                    self.update_state("ui")
+                    # key_mouse_manager.press('esc')
+                    # key_mouse_manager.wait()
+                    # self.update_state("ui")
                     return
                 if self.has_target:
                     key_mouse_manager.press('s',0.3)
@@ -2411,7 +2411,7 @@ class UniverseUtils:
                 self.get_screen()
                 if self.target_type==2:
                     CUS_LOGGER.info(f"……直到，逆转「再创世」揭示的残酷未来。")
-                    if self.good_f()[0]:
+                    if self.good_f(run=False)[0]:
                         key_mouse_manager.press('f',force= True)
                         key_mouse_manager.keyUp('w')
                         if self.nof(must_be='event'):
@@ -2422,7 +2422,7 @@ class UniverseUtils:
                         i="w"
                 elif self.move_to_shop():
                     i="w"
-                if self.good_f()[0]:
+                if self.good_f(run=False)[0]:
                     key_mouse_manager.press('f',force= True)
                     if self.nof(must_be='event'):
                         self.should_update_map = False
@@ -2598,15 +2598,15 @@ class UniverseUtils:
                 CUS_LOGGER.info("哪怕是微不足道的注脚，也会在故事里留下自己的印记。")
                 return
             if time.time()-init_time>run_wait_time:
-                CUS_LOGGER.warning(f"警告：等待时间超时,"+"不" if not self.has_target else ""+"存在「毁灭」目标")
+                CUS_LOGGER.warning(f"警告：等待时间超时,"+("不" if not self.has_target else "")+"存在「毁灭」目标")
                 self.stop_move=1
                 key_mouse_manager.keyUp("w")
                 if self.mini_state>=7:
-                    self.last_interact_time = 0
+                    # self.last_interact_time = 0
                     self.should_update_map = False
-                    key_mouse_manager.press('esc')
-                    key_mouse_manager.wait()
-                    self.update_state("ui")
+                    # key_mouse_manager.press('esc')
+                    # key_mouse_manager.wait()
+                    # self.update_state("ui")
                     return
                 self.mini_state+=2
                 break

@@ -103,7 +103,6 @@ class UniverseUtils:
         self.mini_target = 0
         self.f_time = 0
         self.slow = 0
-        self.init_ang = 0
         self.allow_e = 1
         self.quan = 0
         self.img_map = dict()

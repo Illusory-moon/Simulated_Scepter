@@ -367,7 +367,7 @@
         "trigger":{
             "text": "被动效果",
             "box": [205, 296, 826, 855],
-            "interval": 3.5,
+            "interval": 1,
             "redundancy": 30
         },
         "actions":
@@ -380,7 +380,7 @@
         "trigger":{
             "text": "选择生效目标",
             "box": [803, 961, 128, 159],
-            "interval": 3,
+            "interval": 5,
             "redundancy": 30
         },
         "actions":
@@ -527,12 +527,27 @@
         "trigger":{
             "text": "首次通关奖励",
             "box": [1195, 1343, 235, 266],
-            "interval": 2,
+            "interval": 3,
             "redundancy": 30
         },
         "actions":
         [
             "begin_universe"
+        ]
+    },
+    {
+        "name": "月卡",
+        "trigger":{
+            "text": "列车补给",
+            "box": [880, 1039, 55, 97],
+            "interval": 2,
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "position": [900, 1000]
+            }
         ]
     },
     {
@@ -742,12 +757,51 @@
         "name": "关闭积分奖励",
         "trigger":{
             "text": "积分奖励",
-            "box": [119, 253, 271, 308],
+            "box": [77, 192, 327, 359],
             "redundancy": 30
         },
         "actions":
         [   {
                 "press": "esc"
+            }
+        ]
+    },
+    {
+        "name": "积分线已更新",
+        "trigger":{
+            "text": "积分线已更新",
+            "box": [871, 1043, 521, 554],
+            "redundancy": 30
+        },
+        "actions":
+        [   {
+                "position": [900, 1000]
+            }
+        ]
+    },
+    {
+        "name": "开始游戏",
+        "trigger":{
+            "text": "开始游戏",
+            "box": [872, 1067, 814, 864],
+            "redundancy": 30
+        },
+        "actions":
+        [   {
+                "position": [900, 1000]
+            }
+        ]
+    },
+    {
+        "name": "开始游戏2",
+        "trigger":{
+            "text": "点击进入",
+            "box": [905, 1012, 996, 1033],
+            "redundancy": 30
+        },
+        "actions":
+        [   {
+                "position": [900, 1000]
             }
         ]
     },

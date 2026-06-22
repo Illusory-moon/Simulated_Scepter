@@ -319,12 +319,27 @@ def color_similarity_2d(image, color):
     return positive
 def RotationRemapData():
     d = MINIMAP_RADIUS * 2
-    mx = np.zeros((d, d), dtype=np.float32)
-    my = np.zeros((d, d), dtype=np.float32)
+    half_d = d / 2.0
+
+    # Precompute cos/sin for each angle (d values, outside the hot loop).
+    # Each call result is stored immediately — never embedded in arithmetic.
+    _cos = math.cos
+    _sin = math.sin
+    _pi = math.pi
+    cos_vals = np.empty(d, dtype=np.float32)
+    sin_vals = np.empty(d, dtype=np.float32)
+    for j in range(d):
+        angle = (2.0 * _pi * j) / d
+        cos_vals[j] = _cos(angle)
+        sin_vals[j] = _sin(angle)
+
+    # Build remap tables: only float arithmetic, no function calls inside the loop.
+    mx = np.empty((d, d), dtype=np.float32)
+    my = np.empty((d, d), dtype=np.float32)
     for i in range(d):
-        for j in range(d):
-            mx[i, j] = d / 2 + (i / 2) * math.cos(2 * math.pi * j / d)
-            my[i, j] = d / 2 + (i / 2) * math.sin(2 * math.pi * j / d)
+        radius = i / 2.0
+        mx[i, :] = half_d + radius * cos_vals
+        my[i, :] = half_d + radius * sin_vals
     return mx, my
 def copy_image(src):
     """

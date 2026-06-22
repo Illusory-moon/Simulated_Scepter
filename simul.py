@@ -185,9 +185,9 @@ class SimulatedUniverse(UniverseUtils):
         else:
             remain = 0
             remain_round = "∞"
+            CUS_LOGGER.info(f'当仁不让。{factor}将肩负世界，直至此身焚灭。')
         CUS_LOGGER.info(f"世界演算模拟完成！本轮已迭代次数：{self.my_cnt},总计已迭代次数:{self.count} 剩余:{remain_round}次, 已执行：{tm // 60}小时{tm % 60}分钟  平均{tm // self.my_cnt}分钟一次"+ (f"预计剩余{remain // 60}小时{remain % 60}分钟" if remain!=0 else ""))
         if self.check_bonus == 0 and self.my_cnt >= self.nums > 0:
-            CUS_LOGGER.info(f'当仁不让。{factor}将肩负世界，直至此身焚灭。')
             self.end = 1
         CUS_LOGGER.info(f'{factor}再度踏上轮回……')
         self.update_floor(1)
@@ -279,7 +279,6 @@ class SimulatedUniverse(UniverseUtils):
                             self.pos_map=cv.imread(target_path)
                             CUS_LOGGER.info(f"对象「{factor}」将沿坐标组{self.target}轨迹运动")
                         self.rotation, d = self.pos_predictor.update_minimap_data(self.screen)
-                        self.init_ang = 270 + d
                 elif self.floor not in [1,6]:
                     self.upx=0
                     self.upy=0
@@ -495,11 +494,13 @@ class SimulatedUniverse(UniverseUtils):
         if self.check("team4", 0.5797, 0.2389):
             dx = 0.9266 - 0.8552
             dy = 0.8194 - 0.6741
+            time.sleep(1)
             for i in self.order:
                 key_mouse_manager.click(
                     0.9266 - dx * ((i - 1) % 3), 0.8194 - dy * ((i - 1) // 3)
                 )
         key_mouse_manager.click(0.1635, 0.1056)
+        key_mouse_manager.wait()
     def select_fate(self):
         click_x = [0.02, 0.98]
         n = 4  # 重试次数
@@ -1199,7 +1200,8 @@ class SimulatedUniverse(UniverseUtils):
                 self.recorder.stop_recording()
             except Exception as e:
                 CUS_LOGGER.error(f"停止录制时发生错误: {e}")
-
+        self.save_screen(not_now=True)
+        self.save_screen()
         self.map_thread = None
 
 

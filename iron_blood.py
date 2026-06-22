@@ -12,9 +12,9 @@ from route import PATHS
 from simul import SimulatedUniverse
 from tool.log import CUS_LOGGER, log_emitter
 from tool.public_ocr import load_actions, merge_text
-from tool.utils.Error import NoMatchError
+from tool.utils.Error import NoMatchError, NoBossError
 from tool.utils.analysis_map import match_multiple_targets, build_rightward_graph, compute_start_point_from_crop, \
-    max_weight_path, display_matches, evaluate_best_single_replacement, compute_all_max_steps
+    max_weight_path, display_matches, evaluate_best_single_replacement, compute_all_max_steps, detect_corner_markers
 from tool.utils.image_tool import find_image_by_name
 from tool.utils.minimap_util import MINIMAP_RADIUS, get_minimap, re_get_position
 from tool.utils.ocr_num import match_numbers_in_region, extract_number
@@ -67,21 +67,25 @@ class IronBloodUniverse(SimulatedUniverse):
     
     def restart_recording(self):
         if self.record and self.cut_video and self.YKItDYvq3FpnOYx:
-            self.max_limited=0 if self.max_limited is None else self.max_limited
-            need_del=self.del_record_time and self.del_record_time>self.kill_count+self.max_limited
-            CUS_LOGGER.debug(f"是否可删除{need_del},限制数目{self.del_record_time}，当前数目{self.kill_count+self.max_limited}")
+            need_del=self.del_record_time and self.del_record_time>self.kill_count
+            CUS_LOGGER.debug(f"是否可删除{need_del},限制数目{self.del_record_time}，当前数目{self.kill_count}")
             self.recorder.stop_recording(need_del)
             time.sleep(0.8)
             self.recorder.start_recording(self.count)
             self.update_state("re_start")
+        self.kill_count = 0
     def end_of_university(self):
         super().end_of_university()
         self.need_end=False
         self.init_map()
-        self.max_limited = 0 if self.max_limited is None else self.max_limited
         if self.kill_count>=39:
             CUS_LOGGER.info("恭喜，您获得了铁血战士！")
-            CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
+            if self.count>10000:
+                CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
+            elif self.count>1000:
+                CUS_LOGGER.info("…不必考量本心，不必渴求胜利，只须知道，铁血战士——让人感到愤怒！")
+            elif self.count>100:
+                CUS_LOGGER.info("无所谓，旅途本就会改变一个人。")
             self.stop()
 
 
@@ -124,15 +128,14 @@ class IronBloodUniverse(SimulatedUniverse):
             except  Exception as e:
                 CUS_LOGGER.error(f"写入文件失败{e}")
             # 追加记录轮回次数和击杀数到另一个文件
-            if self.debug:
-                record_file = "config/backup/kill_record.txt"
-                try:
-                    os.makedirs("config/backup", exist_ok=True)
-                    with open(record_file, "a", encoding="utf-8") as file:
-                        file.write(f"轮回次数:{self.count}, 击杀数:{self.kill_count}\n")
-                        file.close()
-                except Exception as e:
-                    CUS_LOGGER.error(f"写入击杀记录文件失败{e}")
+            record_file = "config/backup/kill_record.txt"
+            try:
+                os.makedirs("config/backup", exist_ok=True)
+                with open(record_file, "a", encoding="utf-8") as file:
+                    file.write(f"轮回次数:{self.count}, 击杀数:{self.kill_count}\n")
+                    file.close()
+            except Exception as e:
+                CUS_LOGGER.error(f"写入击杀记录文件失败{e}")
         self.count = new_cnt
     def normal(self):
         bk_lst_changed = self.last_interact_time
@@ -148,6 +151,15 @@ class IronBloodUniverse(SimulatedUniverse):
             if not self.bai_e and self.check("bai_e", 0.0625,0.7092):
                 key_mouse_manager.press("1")
                 self.bai_e = 1
+            # 当前节点为祝福猪节点时切2号位并重置黄泉/白厄状态
+            start_node = getattr(self, 'start_nodes', None)
+            if start_node is not None:
+                cm = (start_node.get('orig') or {}).get('corner_marker')
+                if cm and cm.get('name') in ('pig1', 'pig2'):
+                    CUS_LOGGER.info("梦中那刺骨的愤怒与对自我的憎恨仍在震动着他的心。")
+                    key_mouse_manager.press("2")
+                    self.quan = 0
+                    self.bai_e = 0
             #上次交互时间
             self.last_interact_time = bk_lst_changed
             # 刚进图，初始化一些数据
@@ -248,7 +260,7 @@ class IronBloodUniverse(SimulatedUniverse):
             return state
         else:
             return 0
-    def map_data_load(self,create=True):
+    def map_data_load(self,create=False):
         create = self.debug and create
         self.big_map_init = True
         # 寻路模式，匹配最接近的地图
@@ -280,7 +292,7 @@ class IronBloodUniverse(SimulatedUniverse):
                     if not os.path.exists(self.map_file):
                         os.mkdir(self.map_file)
                 find = False
-                if self.debug:
+                if self.debug and create:
                     record=True
             elif self.now_map !=-1 and "m" in str(self.now_map):
                 CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
@@ -299,7 +311,6 @@ class IronBloodUniverse(SimulatedUniverse):
                     self.pos_map=cv.imread(target_path)
                     CUS_LOGGER.debug("已从地图获取目标路径点%s" % self.target)
                 self.rotation, d = self.pos_predictor.update_minimap_data(self.screen)
-                self.init_ang = 270 + d
             elif (not find) and self.first_save_map and create:
                 # 录制模式，保存初始小地图
                 self.first_save_map=False
@@ -347,27 +358,50 @@ class IronBloodUniverse(SimulatedUniverse):
         self.click_text(text="击败该首领",box=[1108, 1385, 267, 290])
         self.click_text(text="确认选择",box=[1633, 1733, 961, 990])
     def try_analysis_map(self,mode=1):
-        if self.debug:
-            self.save_screen(not_now=True)
+        # if self.debug:
+        #     self.save_screen(not_now=True)
         image = self.screen
         matches = match_multiple_targets(image, mode)
-        CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配:")
+        CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
         if len(matches)==0:
-            CUS_LOGGER.warning("未匹配到任何图标，可能是误识别")
-            raise NoMatchError
+            CUS_LOGGER.warning("未匹配到任何地图图标却错误进入寻路阶段，可能是误识别")
+            self.save_screen(not_now=True)
+            self.save_screen()
+            CUS_LOGGER.warning("刷新截图缓冲区后最后一次尝试匹配地图图标")
+            matches = match_multiple_targets(image, mode)
+            CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
+            if len(matches) == 0:
+                raise NoMatchError
+        # 检测角标（pig/reinforce/alienation等），关联到最近节点
+        corner_results = detect_corner_markers(image, matches)
+        if corner_results:
+            CUS_LOGGER.debug(f'检测到 {len(corner_results)} 个角标')
+            for cr in corner_results:
+                CUS_LOGGER.debug(f"  {cr['name']} sim={cr['similarity']:.3f} -> 节点{cr['node_idx']}({matches[cr['node_idx']]['name']}) dist={cr['node_dist']}")
         if mode==2:
             start=compute_start_point_from_crop(image)
             if start is None:
-                start = compute_start_point_from_crop(image,th=0.5)
+                start = compute_start_point_from_crop(image,th=0.6)
         elif mode==3:
-            start = compute_start_point_from_crop(image,[1003,929,1035,965])
+            start = compute_start_point_from_crop(image,mode=mode)
             if start is None:
-                start = compute_start_point_from_crop(image, [1003, 929, 1035, 965],th=0.5)
+                start = compute_start_point_from_crop(image, mode,th=0.6)
         else:
             start=None
         CUS_LOGGER.debug(f"当前起点坐标{start}")
         for i, m in enumerate(matches):
-            CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}")
+            cm = m.get('corner_marker', None)
+            cm_str = f' [角标:{cm["name"]}]' if cm else ''
+            CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}{cm_str}")
+        boss_head_x = [m['location'][0] for m in matches if m['name'] in ('boss', 'head')]
+        if boss_head_x:
+            rightmost = max(boss_head_x)
+            matches = [m for m in matches if m['location'][0] <= rightmost]
+            CUS_LOGGER.debug(f"过滤boss/head右侧节点后，剩余 {len(matches)} 个匹配")
+            for i, m in enumerate(matches):
+                CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}")
+        else:
+            raise NoBossError
         if mode == 3:
             self.nodes, self.edges, start_idx = build_rightward_graph(
                 matches, start=start,
@@ -380,11 +414,12 @@ class IronBloodUniverse(SimulatedUniverse):
         CUS_LOGGER.debug('构建图后的节点 (索引，类型，相似度，中心 x, 中心 y):')
         for n in self.nodes:
             CUS_LOGGER.debug(f"  {n['idx']}: {n['name']} sim={n.get('similarity', 0):.3f} center=({n['cx']:.1f},{n['cy']:.1f})")
-        path, total_weight, end_idx = max_weight_path(self.nodes, self.edges, start_idx)
+        path, self.expectation_weight, end_idx = max_weight_path(self.nodes, self.edges, start_idx)
         if not path:
             CUS_LOGGER.error("未找到有效路径，可能是起点位于最右端或图构建失败")
             raise NoMatchError
         self.start_nodes=path[0]
+        self.path = path
         if path:
             weight_ranges = {
                 'event': (0, 1), 'wait': (0, 0), 'trade': (0, 0), 'trade2': (0, 0), 'adventure': (0, 0),
@@ -393,14 +428,12 @@ class IronBloodUniverse(SimulatedUniverse):
             }
             if len(path)>1:
                 self.next_node=path[1]
-            CUS_LOGGER.debug(f'路径理论期望值：total_weight={total_weight:.3f}')
+            CUS_LOGGER.debug(f'路径理论期望值：{self.expectation_weight:.3f}')
             CUS_LOGGER.debug(f'路径理论最小值：{sum(weight_ranges.get(n['name'], (0, 0))[0] for n in path)}')
             CUS_LOGGER.debug(f'路径理论最大值：{sum(weight_ranges.get(n['name'], (0, 0))[1] for n in path)}')
             self.max_limited=0
             self.max_change_count=0
-            best_path, _, _, _, _, _ = evaluate_best_single_replacement(
-                self.nodes, self.edges, start_idx, t=0.3 if self.plane_floor == 3 else 0.2)
-            for i,n in enumerate(best_path):
+            for i,n in enumerate(path):
                 #下一个注定无法改变
                 if i==1:
                     self.max_limited +=weight_ranges.get(n['name'], (0, 0))[1]
@@ -430,7 +463,7 @@ class IronBloodUniverse(SimulatedUniverse):
                 CUS_LOGGER.debug(f'  距离起点的最长步数 k={k}')
                 CUS_LOGGER.debug(f'  原始增量 delta={delta:.3f}')
                 CUS_LOGGER.debug(f'  期权调整后增量 (1-0.2)^{k} × {delta:.3f} = {discounted_delta:.3f}')
-                CUS_LOGGER.debug(f'替换后路径总权重：{best_weight:.3f} (原权重：{total_weight:.3f})')
+                CUS_LOGGER.debug(f'替换后路径总权重：{best_weight:.3f} (原权重：{self.expectation_weight:.3f})')
                 highlight = b
                 alt_path = best_path
                 baseline_ids = [n["idx"] for n in path]
@@ -450,7 +483,7 @@ class IronBloodUniverse(SimulatedUniverse):
                 }
                 orig_min = sum(weight_ranges.get(n['name'], (0, 0))[0] for n in path)
                 orig_max = sum(weight_ranges.get(n['name'], (0, 0))[1] for n in path)
-                CUS_LOGGER.debug(f'\n原路径理论期望值：{total_weight:.3f} (min={orig_min}, max={orig_max})')
+                CUS_LOGGER.debug(f'\n原路径理论期望值：{self.expectation_weight:.3f} (min={orig_min}, max={orig_max})')
                 if baseline_ids == new_ids and b is not None:
                     if next((node for node in self.nodes if node['idx'] == b), None):
                         # 获取目标类型的权重范围
@@ -501,7 +534,7 @@ class IronBloodUniverse(SimulatedUniverse):
     def select_strange(self):
         img = self.get_small_interaction_img(x=0.5000, y=0.7333, mask="mask_strange", fresh=True)
         res = self.ts.split_strange(img)
-        if len(res)==0:
+        if len(res[0])==0:
             CUS_LOGGER.warning("那黄金的血液,救世的希望,原来......")
             return
         value =-1
@@ -551,10 +584,15 @@ class IronBloodUniverse(SimulatedUniverse):
         text = self.ts.find_with_box(box=[557, 747, 447, 474], forward=True, re_screen=False)
         text = merge_text(text) if len(text) else ""
         CUS_LOGGER.debug(f"当前效果{text}")
+        if self.click_text(text="选择移动目标", box=[1609, 1759, 965, 996], click=False, allow_fail=True):
+            CUS_LOGGER.info("是带着无法被改变的过往，背负它走向未来的决心。")
+            return
         if "肉体" in text:
             try:
                 self.try_analysis_map(mode=2)
             except NoMatchError:
+                return
+            except NoBossError:
                 return
             if self.replace_idx is not None:
                 x,y=int(self.nodes[self.replace_idx]["cx"]),int(self.nodes[self.replace_idx]["cy"])
@@ -564,33 +602,93 @@ class IronBloodUniverse(SimulatedUniverse):
             else:
                 CUS_LOGGER.info("所以你才变成了这副模样：残缺的神像…悲哀的薪柴。")
                 self.click_text(text="放弃", box=[1221, 1276, 967, 998])
-        else:
-            #不是肉体帝候一律放弃
+        elif "战争" in text:
+            try:
+                self.try_analysis_map(mode=2)
+            except NoMatchError:
+                return
+            except NoBossError:
+                return
+            path_ids = {n['idx'] for n in self.path}
+            has_pig = lambda n: ((n.get('orig') or {}).get('corner_marker') or {}).get('name') in ('pig1', 'pig2')
+            # 第一优先级：path上最靠前的pig节点；第二优先级：不在path的最靠左pig节点
+            target_node = (
+                next((n for n in self.path if has_pig(n)), None)
+                or min((n for n in self.nodes if n['idx'] not in path_ids and has_pig(n)),
+                       key=lambda n: n['cx'], default=None)
+            )
+            if target_node is not None:
+                x, y = int(target_node["cx"]), int(target_node["cy"])
+                key_mouse_manager.click(x, y)
+                key_mouse_manager.wait()
+                self.click_text(text="确认目标", box=[1635, 1735, 968, 996])
+            else:
+                #战争崇拜无猪可改，放弃
+                CUS_LOGGER.info("「放心，我会替你照顾。」")
+                self.click_text(text="放弃", box=[1221, 1276, 967, 998])
+        elif "毁灭" in text:
+            #其它节点一律放弃
             self.click_text(text="放弃", box=[1221, 1276, 967, 998])
+    def choose_bless(self):
+        for _ in range(4):
+            img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask", fresh=True)
+            if self.ts.split_and_find(self.tk.fates, img_down)[1] or self._stop:
+                break
+            CUS_LOGGER.debug("未识别到命途")
+            if not self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False):
+                return 1
+        img_up = self.get_small_interaction_img(x=0.5047, y=0.5491, mask="mask_bless", fresh=True)
+        res_up = self.ts.split_and_find(self.tk.prior_bless, img_up, bless_skip=self.tk.skip)
+        img_down = self.get_small_interaction_img(x=0.5042, y=0.3204, mask="mask")
+        res_down = self.ts.split_and_find(self.tk.secondary, img_down, mode="bless")
+        if res_up[1] == 2:
+            CUS_LOGGER.debug("识别到具体祝福")
+            key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+            key_mouse_manager.wait()
+        elif res_down[1] >= 2:
+            CUS_LOGGER.debug("识别到匹配命途")
+            key_mouse_manager.click(*self.calc_point((0.5042, 0.3204), res_down[0]))
+            key_mouse_manager.wait()
+        elif self.click_text(text="选择祝福",box=[60, 222, 0, 113],click=False,ocr_line=False,warning=False,allow_fail=True):
+            CUS_LOGGER.debug("未识别到具体祝福,随便选一个")
+            key_mouse_manager.click(*self.calc_point((0.5047, 0.5491), res_up[0]))
+            key_mouse_manager.wait()
+        self.click_text(text="确认",box=[1663, 1719, 949, 979],need_fresh=False,ocr_line=True,warning=True)
+        key_mouse_manager.wait()
+        if self.quan:
+            self.use_e()
+        return 1
     def select_go(self):
         num = extract_number(match_numbers_in_region(self.screen))
-        retry=True
         if num is not None:
             num=int(num)
             if num%8==0:
                 self.kill_count=num//8
-                retry=False
             else:
-                CUS_LOGGER.warning("异常的被动效果参数")
-        if retry:
-            time.sleep(2)
-            num = extract_number(match_numbers_in_region(self.get_screen()))
-            if num is None or int(num)%8!=0:
+                CUS_LOGGER.warning("不能整除8的参数")
                 return
-            else:
-                num = int(num)
-                self.kill_count = num // 8
+        else:
+            CUS_LOGGER.warning("未知的被动效果参数")
+            return
+        time.sleep(2)#阻塞式等待播完动画，有待优化
+        num = extract_number(match_numbers_in_region(self.get_screen()))
+        if num is None or int(num)%8!=0:
+            return
+        else:
+            num = int(num)
+            kill_count=num // 8
+            if kill_count!=self.kill_count:
+                return
         CUS_LOGGER.debug(f"当前击杀数{self.kill_count}")
         self.set_kill_num(str(self.kill_count))
         key_mouse_manager.clean()
         key_mouse_manager.keyUp("w")
         key_mouse_manager.wait()
         if self.click_text(text="选择移动目标", box=[1609, 1759, 965, 996],click=False,allow_fail=True):
+            if self.click_text(text="点击空白处关闭", box=[876, 1047, 1008, 1035],click=False,allow_fail=True):
+                CUS_LOGGER.info("「下一世，真理定会解明，死生……将有序流转。」")
+                key_mouse_manager.wait()
+                return
             self.try_analysis_map(mode=2)
             if self.next_node is not None:
                 self.start_nodes=self.next_node

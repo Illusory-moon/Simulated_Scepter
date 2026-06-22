@@ -9,3 +9,5 @@ class NormalEndError(Exception):
     pass
 class NoMatchError(Exception):
     pass
+class NoBossError(Exception):
+    pass

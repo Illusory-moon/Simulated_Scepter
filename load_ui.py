@@ -54,6 +54,8 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
         self.tabWidget.setTabVisible(4, False)
         self.label_7.setVisible(False)
         self.Diver_debug_checkbox.setVisible(False)
+        self.Simul_debug_checkbox.setVisible(False)
+        self.debug_checkox2.setVisible(False)
         self.Diver_speed_checkbox.setVisible(False)
         self.Diver_weekly_checkbox.setVisible(False)
         self.Diver_cpu_checkbox.setVisible(False)
