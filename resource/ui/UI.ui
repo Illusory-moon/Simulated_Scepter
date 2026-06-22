@@ -732,6 +732,13 @@ border:none</string>
                 </widget>
                </item>
                <item>
+                <widget class="QPushButton" name="currency_war_btn">
+                 <property name="text">
+                  <string>环保大使叽米</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
                 <widget class="QPushButton" name="calibrate_btn">
                  <property name="text">
                   <string>校准角度</string>
