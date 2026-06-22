@@ -112,6 +112,8 @@ class SimulatedCurrency(CurrencyUtils):
         self.default_json_path = "actions/currencywar.json"
         self.default_json = load_actions(self.default_json_path)
         self.action_history = []
+        #策略最大刷新次数
+        self.max_refresh = 1
         self.tk = text_keys()
         if debug != 2:
             #似乎是避免鼠标越界的一个标志
@@ -321,6 +323,11 @@ class SimulatedCurrency(CurrencyUtils):
                 selected_idx = 1
                 CUS_LOGGER.warning("未匹配到任何优先级策略，默认选择第一个选项")
         
+        if "银金彩" in texts:
+            self.max_refresh = 3
+        else:
+            self.max_refresh = 1
+
         # 点击选中的选项（点击其中心位置）
         #    计算每个选项的中心像素坐标
         centers = []
@@ -337,6 +344,7 @@ class SimulatedCurrency(CurrencyUtils):
             box=[1053, 1108, 967, 998],
             click=True,
         )
+        self.select_bless_count = 0
         time.sleep(0.1)
 
         CUS_LOGGER.info("投资环境选择完成")
@@ -367,10 +375,9 @@ class SimulatedCurrency(CurrencyUtils):
             self.click_text(text="确认", box=[948, 1005, 968, 999], click=True)
             return 1
 
-        max_refresh = 3  # 最多刷新3次
         selected_idx = -1
 
-        for attempt in range(max_refresh + 1):  # 0次正常识别 + 最多3次刷新后识别
+        for attempt in range(self.max_refresh + 1):  # 0次正常识别 + 最多3次刷新后识别
             self.ts.forward(self.get_screen())
         # 识别当前三个选项
             texts = []
@@ -397,12 +404,13 @@ class SimulatedCurrency(CurrencyUtils):
                     return -1
 
             # 没找到，如果还没达到最大刷新次数，点击刷新
-            if attempt < max_refresh:
+            if attempt < self.max_refresh:
                 CUS_LOGGER.info(f"第 {attempt+1} 次未匹配，点击刷新")
                 key_mouse_manager.click(384, 879)
                 key_mouse_manager.click(868, 879)
                 key_mouse_manager.click(1380, 879)
-                time.sleep(0.8)  # 等待刷新完成
+                time.sleep(1.5)  # 等待刷新完成
+                self.ts.forward(self.get_screen())
                 # 继续下一次循环，重新识别
             else:
                 # 已达到最大刷新次数，仍未匹配
@@ -423,17 +431,17 @@ class SimulatedCurrency(CurrencyUtils):
         
         self.update_state("escshop")
         self.click_text(text="确认", box=[948, 1005, 968, 999], click=True)
-        time.sleep(3)
+        time.sleep(5)
         CUS_LOGGER.info("投资策略选择完成")
         need_esc = False
         self.ts.forward(self.get_screen())
         if self.click_text(text="备战阶段", box=[240, 332, 57, 85], click=False, allow_fail=True):
             CUS_LOGGER.info("检测到'备战阶段'，按 ESC 重开")
             key_mouse_manager.press('esc')
-            need_esc = True
-        elif self.click_text(text="战斗", box=[569, 608, 80, 104], click=False, allow_fail=True):
-            CUS_LOGGER.info("检测到'战斗'，按 ESC 重开")
-            need_esc = True
+            self.ts.forward(self.get_screen())
+            if self.click_text(text="战斗", box=[569, 608, 80, 104], click=False, allow_fail=True):
+                CUS_LOGGER.info("检测到'战斗'，按 ESC 重开")
+                need_esc = True
 
         if need_esc:
             key_mouse_manager.press('esc')
