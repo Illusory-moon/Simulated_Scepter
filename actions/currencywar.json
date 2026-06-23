@@ -312,6 +312,31 @@
         ]
     },
     {
+        "name": "盛会之星",
+        "trigger":{
+            "text": "请选择强化角色",
+            "box": [1415, 1565, 495, 522],
+            "interval": 2,
+            "redundancy": 30
+        },
+        "actions":
+        [   
+            
+            {
+                "set_state": "star"
+            },
+            {
+                "position": [921, 345]
+            },
+            {
+                "position": [1491, 563]
+            },
+            {
+                "set_state": "startbattle"
+            }
+        ]
+    },
+    {
         "name": "自动战斗检测",
         "trigger":{
             "photo": "c",
