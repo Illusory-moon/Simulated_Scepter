@@ -565,7 +565,7 @@ class IronBloodUniverse(SimulatedUniverse):
             key_mouse_manager.click(0.1365, 0.1093)
             key_mouse_manager.wait()
         else:
-            can_use_list=list({0, 1, 2} - set(black_index_list))
+            can_use_list=[i for i in range(len(res[0])) if i not in black_index_list]
             if len(can_use_list)>0:
                 CUS_LOGGER.debug(f"任意选择第{can_use_list[0]}个奇物")
                 key_mouse_manager.click(*self.calc_point((0.5000, 0.7333), res[0][can_use_list[0]]))
