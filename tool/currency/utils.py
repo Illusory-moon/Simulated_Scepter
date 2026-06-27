@@ -35,7 +35,6 @@ from tool.utils.minimap_util import get_minimap, MINIMAP_RADIUS, POSITION_SEARCH
 from tool.utils.mminimap import PositionPredict
 
 def set_forground():
-    config.read()
     try:
         pythoncom.CoInitialize()
         shell = win32com.client.Dispatch("WScript.Shell")
@@ -140,14 +139,7 @@ class CurrencyUtils:
         #位置预测
         self.pos_predictor=PositionPredict()
         set_forground()
-        # 用户选择的命途
-        for i in range(len(config.fates)):
-            if config.fates[i] == self.fate:
-                self.my_fate = i
-        if self.my_fate == -1:
-            CUS_LOGGER.warning("info有误，自动选择巡猎命途    错误：" + self.fate)
-            self.my_fate = 4
-        self.tk = text_keys(self.my_fate)
+        self.tk = text_keys()
         self.debug, self.find = 0, 1
         self.bx, self.by = 1920, 1080
         CUS_LOGGER.warning("我会等待那一天的到来。一直等待下去。总有一天……会有人翻开这近乎「永恒」的一页……(等待游戏窗口)")
