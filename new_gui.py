@@ -53,6 +53,7 @@ class MainWindow(QMainWindowLog):
         self.setup_keyboard_listener()
         # 确保热键回调中的 GUI 操作排队回主线程执行
         self.hotkey_pressed.connect(self.handle_key_pressed, Qt.QueuedConnection)
+        self.calibration_finished.connect(self.show_calibration_result)
         log_emitter.show_error_signal.connect(self.show_error_message)
         log_emitter.find_path_state_signal.connect(self.set_find_path_state)
         log_emitter.kill_num_signal.connect(self.set_kill_num)

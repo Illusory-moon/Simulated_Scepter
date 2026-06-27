@@ -51,7 +51,7 @@ def main(ang=[1,1,3], su=None):
             lst_ang = now_ang
         ang_list = np.array(ang_list)
         # 十/3次转身的角度
-        CUS_LOGGER.deubg(f"基本角度变化: {ang_list}")
+        CUS_LOGGER.debug(f"基本角度变化: {ang_list}")
         ax = 0
         ay = 0
         for j in ang_list:
