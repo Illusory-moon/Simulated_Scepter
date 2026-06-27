@@ -10,9 +10,6 @@
         [
             {
                 "press": "f"
-            },
-            {
-                "sleep": 1
             }
         ]
     },
@@ -168,10 +165,7 @@
         },
         "actions":
         [   
-            {"position":[1512, 984]},
-            {
-                "set_state": "select_envir"
-            }
+            {"position":[1512, 984]}
         ]
     },
     {
@@ -223,8 +217,7 @@
             "text": "投资环境",
             "box": [897, 1018, 80, 114],
             "interval": 5,
-            "redundancy":30,
-            "condition": "select_envir"
+            "redundancy":30
         },
         "actions":[
             "select_envir",
@@ -235,26 +228,79 @@
         "trigger":{
             "text": "请选择投资策略",
             "box": [857, 1060, 84, 115],
-            "interval": 10,
+            "interval": 5,
             "redundancy":30
         },
         "actions":[
             "select_bless"
         ]
+    },{
+        "name": "盛会之星",
+        "trigger":{
+            "text": "请选择强化角色",
+            "box": [1415, 1565, 495, 522],
+            "interval": 2,
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "position": [921, 345]
+            },
+            {
+                "position": [1491, 563]
+            }
+        ]
     },
     {
-        "name":"出战",
+        "name": "啊哈大悦",
         "trigger":{
-            "text":"出战",
-            "box":[1784, 1852, 730, 770],
-            "interval" : 7, 
-            "redundancy":60,
-            "condition":"startbattle"
+            "text": "查看详情",
+            "box": [625, 717, 329, 356],
+            "interval": 2,
+            "redundancy": 30
         },
-        "actions":[
+        "actions":
+        [   
             {
-                "position": [1818, 750]
+                "position": [663, 290]
             }
+        ]
+    },
+    {
+        "name": "独家代言",
+        "trigger":{
+            "text": "查看详情",
+            "box": [625, 1008, 329, 356],
+            "interval": 2,
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "position": [809, 291]
+            }
+        ]
+    },
+    {
+        "name": "前台区域无角色",
+        "trigger":{
+            "text": "前台区域无角色",
+            "box": [816, 1104, 512, 539],
+            "interval": 2,
+            "redundancy": 30
+        },
+        "actions":
+        [   
+            { "set_state": "none" },
+            {
+                "position": [978, 671]
+            },
+            {"sleep":1},
+            {
+                "press": "esc"
+            },
+            { "set_state": "startbattle" }  
         ]
     },
     {
@@ -266,7 +312,6 @@
             "redundancy":30
         },
         "actions":[
-            { "sleep": 2 },
             {
                 "position": [965, 698]
             },
@@ -282,7 +327,7 @@
             "condition":"1-1"
         },
         "actions":[
-            { "sleep": 5 },
+            {"sleep":5},
             {
                 "drag": [0.7703, 0.1569, 0.6107, 0.6306]
             },
@@ -294,6 +339,21 @@
             },
             {
                 "set_state": "startbattle"
+            }
+        ]
+    },
+    {
+        "name":"出战",
+        "trigger":{
+            "text":"出战",
+            "box":[1784, 1852, 730, 770],
+            "interval" : 3, 
+            "redundancy":60,
+            "condition":"startbattle"
+        },
+        "actions":[
+            {
+                "position": [1818, 750]
             }
         ]
     },
@@ -311,31 +371,7 @@
             }
         ]
     },
-    {
-        "name": "盛会之星",
-        "trigger":{
-            "text": "请选择强化角色",
-            "box": [1415, 1565, 495, 522],
-            "interval": 2,
-            "redundancy": 30
-        },
-        "actions":
-        [   
-            
-            {
-                "set_state": "star"
-            },
-            {
-                "position": [921, 345]
-            },
-            {
-                "position": [1491, 563]
-            },
-            {
-                "set_state": "startbattle"
-            }
-        ]
-    },
+    
     {
         "name": "自动战斗检测",
         "trigger":{
