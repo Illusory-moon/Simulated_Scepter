@@ -16,6 +16,7 @@ from tool.utils.image_tool import load_all_images_from_directory, find_image_by_
 load_all_images_from_directory()
 from tool.simul.config import config as config_simul
 from tool.diver.config import config as config_diver
+from currencywar import CurrencyWar
 
 from align_angle import main as align_angle_main
 from logger_printer import QMainWindowLog
@@ -129,6 +130,7 @@ class MainWindow(QMainWindowLog):
         self.run_simul_btn.clicked.connect(self.run_simul)
         self.run_diver_btn.clicked.connect(self.run_diver)
         self.iron_blood_btn.clicked.connect(self.run_iron_blood)
+        self.currency_war_btn.clicked.connect(self.run_currency_war)
         self.calibrate_btn.clicked.connect(self.calibrate)
         self.test_btn.clicked.connect(self.test)
         self.print_btn.clicked.connect(self.test_2)
@@ -504,6 +506,19 @@ class MainWindow(QMainWindowLog):
     def run_iron_blood(self):
         def task():
             su = IronBloodUniverse()
+            self.current_task = su
+            su.start()
+
+        try:
+            self.start_task(task)
+        except RuntimeError as r:
+            QMessageBox.warning(self, "警告", str(r))
+        except Exception as e:
+            QMessageBox.critical(self, "错误", str(e))
+
+    def run_currency_war (self):
+        def task ():
+            su = CurrencyWar()
             self.current_task = su
             su.start()
 
