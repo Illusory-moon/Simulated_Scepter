@@ -577,7 +577,7 @@ def detect_corner_markers(color_image, matches, marker_defs=None, max_dist=80.0)
 if __name__ == '__main__':
     load_img()
     # 指定测试图像（可修改为其他图片路径进行单模块测试）
-    test_image = cv2.imread('20260615_223210.png')
+    test_image = cv2.imread('20260619224236.png')
     mode = 2
 
     # --- match_multiple_targets ---
@@ -594,11 +594,11 @@ if __name__ == '__main__':
     if mode == 2:
         start = compute_start_point_from_crop(test_image)
         if start is None:
-            start = compute_start_point_from_crop(test_image, th=0.6)
+            start = compute_start_point_from_crop(test_image, th=0.7)
     elif mode == 3:
         start = compute_start_point_from_crop(test_image, mode=mode)
         if start is None:
-            start = compute_start_point_from_crop(test_image, mode, th=0.6)
+            start = compute_start_point_from_crop(test_image, mode, th=0.7)
     else:
         start = None
     print(f"当前起点坐标{start}")

@@ -381,11 +381,11 @@ class IronBloodUniverse(SimulatedUniverse):
         if mode==2:
             start=compute_start_point_from_crop(image)
             if start is None:
-                start = compute_start_point_from_crop(image,th=0.6)
+                start = compute_start_point_from_crop(image,th=0.7)
         elif mode==3:
             start = compute_start_point_from_crop(image,mode=mode)
             if start is None:
-                start = compute_start_point_from_crop(image, mode,th=0.6)
+                start = compute_start_point_from_crop(image, mode,th=0.7)
         else:
             start=None
         CUS_LOGGER.debug(f"当前起点坐标{start}")
