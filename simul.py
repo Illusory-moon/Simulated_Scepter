@@ -189,7 +189,6 @@ class SimulatedUniverse(UniverseUtils):
         CUS_LOGGER.info(f"世界演算模拟完成！本轮已迭代次数：{self.my_cnt},总计已迭代次数:{self.count} 剩余:{remain_round}次, 已执行：{tm // 60}小时{tm % 60}分钟  平均{tm // self.my_cnt}分钟一次"+ (f"预计剩余{remain // 60}小时{remain % 60}分钟" if remain!=0 else ""))
         if self.check_bonus == 0 and self.my_cnt >= self.nums > 0:
             self.end = 1
-        CUS_LOGGER.info(f'{factor}再度踏上轮回……')
         self.update_floor(1)
         self.update_state("end")
 
@@ -524,6 +523,7 @@ class SimulatedUniverse(UniverseUtils):
                 key_mouse_manager.click(
                     0.9266 - dx * ((i - 1) % 3), 0.8194 - dy * ((i - 1) // 3)
                 )
+                key_mouse_manager.sleep(0.5)
         key_mouse_manager.click(0.1635, 0.1056)
         key_mouse_manager.wait()
     def select_fate(self):
@@ -616,7 +616,7 @@ class SimulatedUniverse(UniverseUtils):
         if self.floor >= 13:
             self.update_floor(12)
     def confirm_yes(self):
-        if self.click_text(text="确认",click=False):
+        if self.click_text(text="确认",click=False,delay=1,after_delay=1):
             key_mouse_manager.click(self.tx, self.ty)
             key_mouse_manager.wait()
         return 0

@@ -63,6 +63,7 @@ class IronBloodUniverse(SimulatedUniverse):
         self.max_interact_time=self.opt.get("max_interact_time", 40)
         self.area=""
         self.now_map=-1
+        self.fail_match_count = 0
         CUS_LOGGER.info("宇宙的中心有一团火种,它愈烧愈旺,直至燃尽整片星河。")
     
     def restart_recording(self):
@@ -74,12 +75,12 @@ class IronBloodUniverse(SimulatedUniverse):
             self.recorder.start_recording(self.count)
             self.update_state("re_start")
         self.kill_count = 0
+        self.fail_match_count=0
     def end_of_university(self):
         super().end_of_university()
         self.need_end=False
         self.init_map()
         if self.kill_count>=39:
-            CUS_LOGGER.info("恭喜，您获得了铁血战士！")
             if self.count>10000:
                 CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
             elif self.count>1000:
@@ -87,6 +88,9 @@ class IronBloodUniverse(SimulatedUniverse):
             elif self.count>100:
                 CUS_LOGGER.info("无所谓，旅途本就会改变一个人。")
             self.stop()
+            CUS_LOGGER.info("恭喜，您获得了铁血战士！")
+        else:
+            CUS_LOGGER.info(f'{factor}再度踏上轮回……')
 
 
     def update_count(self, read=True):
@@ -417,7 +421,12 @@ class IronBloodUniverse(SimulatedUniverse):
         path, self.expectation_weight, end_idx = max_weight_path(self.nodes, self.edges, start_idx)
         if not path:
             CUS_LOGGER.error("未找到有效路径，可能是起点位于最右端或图构建失败")
-            raise NoMatchError
+            self.fail_match_count += 1
+            if self.fail_match_count>=5:
+                raise NoMatchError
+            else:
+                time.sleep(1)
+                return
         self.start_nodes=path[0]
         self.path = path
         if path:
@@ -610,11 +619,12 @@ class IronBloodUniverse(SimulatedUniverse):
             except NoBossError:
                 return
             path_ids = {n['idx'] for n in self.path}
+            start_cx = self.start_nodes['cx']
             has_pig = lambda n: ((n.get('orig') or {}).get('corner_marker') or {}).get('name') in ('pig1', 'pig2')
-            # 第一优先级：path上最靠前的pig节点；第二优先级：不在path的最靠左pig节点
+            # 第一优先级：path上最靠前的pig节点；第二优先级：不在path且在起点右侧的最靠左pig节点
             target_node = (
                 next((n for n in self.path if has_pig(n)), None)
-                or min((n for n in self.nodes if n['idx'] not in path_ids and has_pig(n)),
+                or min((n for n in self.nodes if n['idx'] not in path_ids and has_pig(n) and n['cx'] >= start_cx),
                        key=lambda n: n['cx'], default=None)
             )
             if target_node is not None:
