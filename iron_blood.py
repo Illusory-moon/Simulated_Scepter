@@ -63,6 +63,7 @@ class IronBloodUniverse(SimulatedUniverse):
         self.max_interact_time=self.opt.get("max_interact_time", 40)
         self.area=""
         self.now_map=-1
+        self.fail_match_count = 0
         CUS_LOGGER.info("宇宙的中心有一团火种,它愈烧愈旺,直至燃尽整片星河。")
     
     def restart_recording(self):
@@ -74,6 +75,7 @@ class IronBloodUniverse(SimulatedUniverse):
             self.recorder.start_recording(self.count)
             self.update_state("re_start")
         self.kill_count = 0
+        self.fail_match_count=0
     def end_of_university(self):
         super().end_of_university()
         self.need_end=False
@@ -417,7 +419,12 @@ class IronBloodUniverse(SimulatedUniverse):
         path, self.expectation_weight, end_idx = max_weight_path(self.nodes, self.edges, start_idx)
         if not path:
             CUS_LOGGER.error("未找到有效路径，可能是起点位于最右端或图构建失败")
-            raise NoMatchError
+            self.fail_match_count += 1
+            if self.fail_match_count>=5:
+                raise NoMatchError
+            else:
+                time.sleep(1)
+                return
         self.start_nodes=path[0]
         self.path = path
         if path:
