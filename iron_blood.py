@@ -81,7 +81,6 @@ class IronBloodUniverse(SimulatedUniverse):
         self.need_end=False
         self.init_map()
         if self.kill_count>=39:
-            CUS_LOGGER.info("恭喜，您获得了铁血战士！")
             if self.count>10000:
                 CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
             elif self.count>1000:
@@ -89,6 +88,9 @@ class IronBloodUniverse(SimulatedUniverse):
             elif self.count>100:
                 CUS_LOGGER.info("无所谓，旅途本就会改变一个人。")
             self.stop()
+            CUS_LOGGER.info("恭喜，您获得了铁血战士！")
+        else:
+            CUS_LOGGER.info(f'{factor}再度踏上轮回……')
 
 
     def update_count(self, read=True):
