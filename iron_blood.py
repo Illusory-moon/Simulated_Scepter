@@ -617,11 +617,12 @@ class IronBloodUniverse(SimulatedUniverse):
             except NoBossError:
                 return
             path_ids = {n['idx'] for n in self.path}
+            start_cx = self.start_nodes['cx']
             has_pig = lambda n: ((n.get('orig') or {}).get('corner_marker') or {}).get('name') in ('pig1', 'pig2')
-            # 第一优先级：path上最靠前的pig节点；第二优先级：不在path的最靠左pig节点
+            # 第一优先级：path上最靠前的pig节点；第二优先级：不在path且在起点右侧的最靠左pig节点
             target_node = (
                 next((n for n in self.path if has_pig(n)), None)
-                or min((n for n in self.nodes if n['idx'] not in path_ids and has_pig(n)),
+                or min((n for n in self.nodes if n['idx'] not in path_ids and has_pig(n) and n['cx'] >= start_cx),
                        key=lambda n: n['cx'], default=None)
             )
             if target_node is not None:
