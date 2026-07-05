@@ -128,7 +128,7 @@ class SimulatedCurrency(CurrencyUtils):
     def is_one (self):
         box = [752, 1060, 378, 409]
         try:
-            text_list = self.ts.find_with_box (box)
+            text_list = self.ts.find_with_box (box, forward=1)
             merged = merge_text (text_list)
             CUS_LOGGER.info (f"OCR 识别结果: {merged}")
             return "开局时获得" in merged
@@ -138,13 +138,17 @@ class SimulatedCurrency(CurrencyUtils):
 
     def select_difficulty_start (self):
         max_attempts = 30
-        for attempts in range (max_attempts):
+        for _ in range (max_attempts):
+            self.get_screen()
             if self.is_one ():
                 CUS_LOGGER.info ("已识别到难度1")
+                key_mouse_manager.operation_queue.clear()
+                key_mouse_manager.click (1692, 965)   # “开始对局”按钮坐标
+                self.update_state("startbattle")          # 直接进入战斗状态
                 return True
             CUS_LOGGER.info ("等待选择难度1")
             key_mouse_manager.drag (0.4615, 0.2450, 0.4615, 0.9000)
-            time.sleep(0.1)   # 等待界面稳定
+            time.sleep(0.3)   # 等待界面稳定
         CUS_LOGGER.warning ("等待选择难度1")
         return
     

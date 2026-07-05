@@ -136,9 +136,6 @@
         },
         "actions":
         [   
-            {
-                "set_state": "currency_room"
-            },
             "select_difficulty_start"
         ]
     },
@@ -148,7 +145,8 @@
             "text": "开局时获得",
             "box": [752, 1060, 378, 409],
             "interval": 1,
-            "redundancy": 30
+            "redundancy": 30,
+            "condition": "difficulty_select"
         },
         "actions":
         [   
