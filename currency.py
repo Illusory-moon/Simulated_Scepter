@@ -5,6 +5,7 @@ import numpy as np
 import time
 import cv2
 import os
+import yaml
 
 from tool.GLOBAL import key_mouse_manager, factor
 from tool import GLOBAL, EXTRA
@@ -50,6 +51,7 @@ class SimulatedCurrency(CurrencyUtils):
         self.max_refresh = 1
         #运行次数
         self.count = 0
+        self.bonus_rounds_remaining = 0  # 剩余奖励轮次数
         self.tk = text_keys ()
         
         self.ENVIR_BOXES = [[266, 610, 375, 413], [780, 1134, 375, 414], [1314, 1645, 373, 413]]
@@ -69,6 +71,30 @@ class SimulatedCurrency(CurrencyUtils):
         with EXTRA.FILE_LOCK:
             with open(settings_path, mode="r", encoding="UTF-8") as file:
                 data = json.load(file)
+
+        # 读取货币战争专用配置
+        currency_config_file = PATHS["root"] + "\\config\\config\\currency_config.yml"
+        currency_example_file = PATHS["root"] + "\\config\\config\\currency_config_example.yml"
+        if not os.path.exists(currency_config_file):
+            if os.path.exists(currency_example_file):
+                shutil.copy2(currency_example_file, currency_config_file)
+            else:
+                # 如果示例文件也不存在，创建一个默认的
+                os.makedirs(os.path.dirname(currency_config_file), exist_ok=True)
+                with open(currency_config_file, "w", encoding="utf-8") as f:
+                    f.write("# 货币战争模块配置文件\n")
+                    f.write("# 在第几面结束后退出（默认第1面）\n")
+                    f.write("exit_after_plane: 1\n")
+
+        # 加载配置
+        try:
+            with open(currency_config_file, "r", encoding="utf-8", errors="ignore") as f:
+                currency_config = yaml.safe_load(f) or {}
+                self.exit_plane = currency_config.get("exit_after_plane", 1)
+                CUS_LOGGER.info(f"货币战争退出位面设置为: 第{self.exit_plane}面")
+        except Exception as e:
+            CUS_LOGGER.warning(f"读取货币战争配置失败，使用默认退出位面1: {e}")
+            self.exit_plane = 1
 
         self.record = data.get("recording_state", True)
 
@@ -155,6 +181,8 @@ class SimulatedCurrency(CurrencyUtils):
     def auto_battle(self):
         # 需要打开自动战斗
         key_mouse_manager.press("v")
+
+    
     
     def select_envir (self):
         CUS_LOGGER.info ("=== 进入投资环境选择阶段===")
@@ -226,89 +254,136 @@ class SimulatedCurrency(CurrencyUtils):
             click=True,
         )
         self.select_bless_count = 0
+        self.bonus_rounds_remaining = 0
         time.sleep (0.1)
         CUS_LOGGER.info ("投资环境选择完成")
         return 1
     
+    def detect_has_icon(self, roi):
+        """
+        检测 ROI 中是否有图标（通过图像复杂度判断）
+        返回 True：有图标（未解锁），False：无图标（已解锁）
+        """
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        std = np.std(gray)
+        CUS_LOGGER.debug(f"标准差: {std:.2f}")
+        # 有图标时标准差 > 15，纯色背景时标准差 < 8
+        # 这个阈值可以调整，你先用 10 测试
+        return std > 10, std
+    
     def select_bless (self):
         """选择投资策略：第一次直接选中间，后续匹配必选'环保大使叽米'，否则选中间"""
-        self.select_bless_count += 1
+        
         CUS_LOGGER.info(f"=== 第 {self.select_bless_count} 次进入 select_bless ===")
         time.sleep (1)
         self.ts.forward (self.get_screen ())
         # 三个选项的 box
         boxes = self.BLESS_BOXES
-        # 第一次：直接选中间
-        if self.select_bless_count == 1:
-            CUS_LOGGER.info("第一次选择，直接选中间")
-            cx = (boxes[1][0] + boxes[1][1]) // 2
-            cy = (boxes[1][2] + boxes[1][3]) // 2
-            key_mouse_manager.click (cx, cy)
-            time.sleep (0.1)
-            self.click_text (text="确认", box=[948, 1005, 968, 999], click=True)
-            return 1
 
-        selected_idx = -1
-
-        for attempt in range (self.max_refresh + 1):  # 0次正常识别 + 最多3次刷新后识别
-            self.ts.forward (self.get_screen ())
-        # 识别当前三个选项
-            texts = self.recognize_options(self.BLESS_BOXES)
-            CUS_LOGGER.info (f"第 {attempt} 次识别结果: {texts}")
-            
-            # 检查是否包含必选
-            for idx, text in enumerate (texts):
-                if "环保大使叽米" in text:
-                    selected_idx = idx
-                    CUS_LOGGER.info(f"匹配到必选，选择选项{idx+1}")
-                    self.stop()
-                    return -1
-
-            # 没找到，如果还没达到最大刷新次数，点击刷新
-            if attempt < self.max_refresh:
-                CUS_LOGGER.info(f"第 {attempt+1} 次未匹配，点击刷新")
-                key_mouse_manager.click (384, 869)
-                key_mouse_manager.click (868, 869)
-                key_mouse_manager.click (1380, 869)
-                time.sleep (1.5)  # 等待刷新完成
-                self.ts.forward(self.get_screen())
-                # 继续下一次循环，重新识别
-            else:
-                # 已达到最大刷新次数，仍未匹配
-                CUS_LOGGER.warning ("刷新3次后仍未匹配到必选，默认选中间")
-                selected_idx = 1  # 默认中间
-
-        # 点击选中的选项
         centers = []
         for box in boxes:
             cx = (box[0] + box[1]) // 2
             cy = (box[2] + box[3]) // 2
             centers.append((cx, cy))
 
-        key_mouse_manager.click (centers[selected_idx][0], centers[selected_idx][1])
-        time.sleep (0.1)
+        texts = self.recognize_options (self.BLESS_BOXES)
+        CUS_LOGGER.info (f"OCR 识别结果: {texts}")
 
-        # 点击确认
-        
-        self.update_state ("escshop")
-        self.click_text (text = "确认", box = [948, 1005, 968, 999], click = True)
-        time.sleep (5)
-        CUS_LOGGER.info ("投资策略选择完成")
-        need_esc = False
-        self.ts.forward (self.get_screen())
-        if self.click_text (text = "备战阶段", box = [240, 332, 57, 85], click = False, allow_fail = True):
-            CUS_LOGGER.info ("检测到'备战阶段'，按 ESC 重开")
-            key_mouse_manager.press ('esc')
-            self.ts.forward (self.get_screen ())
-            if self.click_text (text = "战斗", box = [569, 608, 80, 104], click = False, allow_fail = True):
-                CUS_LOGGER.info ("检测到'战斗'，按 ESC 重开")
-                need_esc = True
+        if self.select_bless_count < self.exit_plane:
 
-        if need_esc:
-            key_mouse_manager.press ('esc')
-            time.sleep (0.5)
+            selected_idx = -1
+
+            for attempt in range (self.max_refresh + 1):  # 0次正常识别 + 最多3次刷新后识别
+                self.ts.forward (self.get_screen ())
+                # ---- 调试：保存三个选项区域 ----
+                debug_dir = os.path.join(os.getcwd(), "temp")
+                os.makedirs(debug_dir, exist_ok=True)
+
+                # 三个选项的矩形区域（像素坐标）
+                roi_boxes = [
+                    [617, 641, 219, 241],
+                    [1116, 1141, 219, 241],
+                    [1616, 1639, 219, 241]
+                ]
+                target_centers = []
+                for box in roi_boxes:
+                    cx = (box[0] + box[1]) / 2 / self.xx
+                    cy = (box[2] + box[3]) / 2 / self.yy
+                    target_centers.append((cx, cy))
+
+                for idx, box in enumerate(roi_boxes):
+                    x1, x2, y1, y2 = box
+                    roi = self.screen[y1:y2, x1:x2]
+                    
+                    # 调用标准差检测
+                    has_icon, std = self.detect_has_icon(roi)
+                    CUS_LOGGER.info(f"选项{idx+1} 是否有图标: {has_icon} (标准差: {std:.2f})")  # 如果需要打印具体值
+                    if has_icon:
+                        # 检测到图标 → 未解锁 → 选中它！
+                        selected_idx = idx
+                        CUS_LOGGER.info(f"第{attempt}次检测到未解锁图标，选中选项{idx+1}")
+                        break
+                if selected_idx != -1:
+                    if "黄金投资" in texts[selected_idx] or "白银投资" in texts[selected_idx]:
+                        self.bonus_rounds_remaining = 2  # 赠送 2 次选择
+                        CUS_LOGGER.info("检测到特殊投资，设置奖励轮次数: 2")
+                    break
+                
+                # 如果没找到未解锁的，刷新...
+                if attempt < self.max_refresh:
+                    CUS_LOGGER.info(f"第 {attempt+1} 次未匹配，点击刷新")
+                    key_mouse_manager.click(384, 869)
+                    key_mouse_manager.click(868, 869)
+                    key_mouse_manager.click(1380, 869)
+                    time.sleep(1.5)
+                    self.ts.forward(self.get_screen())
+                else:
+                    # 刷新三次都没找到未解锁的 → 可能全部已解锁，随便选一个
+                    CUS_LOGGER.warning("刷新后仍未找到未解锁图标，默认选中间")
+                    selected_idx = 1
+
+            # 点击选中的选项
+            
+
+            key_mouse_manager.click (centers[selected_idx][0], centers[selected_idx][1])
+            time.sleep (0.1)
+
+            # 点击确认
             self.update_state ("escshop")
-        self.update_state ("startbattle")
+            self.click_text (text = "确认", box = [948, 1005, 968, 999], click = True)
+            time.sleep (5)
+            CUS_LOGGER.info ("投资策略选择完成")
+            self.ts.forward (self.get_screen())
+        self.select_bless_count += 1
+        if self.bonus_rounds_remaining > 0:
+            self.select_bless_count -= 1
+            self.bonus_rounds_remaining -= 1
+            CUS_LOGGER.info(f"抵消一次特殊投资，剩余奖励次数: {self.bonus_rounds_remaining}")
+        self.update_state ("escshop")
+        
+        CUS_LOGGER.info(f"比较: {self.select_bless_count} < {self.exit_plane} ? {self.select_bless_count < self.exit_plane}")
+
+        if self.select_bless_count >= self.exit_plane:
+            CUS_LOGGER.info(f"达到退出位面（{self.exit_plane}面），按两次 ESC 退出当前对局，然后重开")
+            key_mouse_manager.press('esc') #关闭商店
+            time.sleep(1)
+            self.ts.forward (self.get_screen ())
+
+            if self.exit_plane == 1:
+                battle_box = [724, 760, 77, 104]
+            elif self.exit_plane in (2, 3):
+                battle_box = [569, 608, 80, 104]
+            else:
+                # 默认使用第一个（保险）
+                battle_box = [724, 760, 77, 104]
+
+            if self.click_text (text = "战斗", box = battle_box, click = False, allow_fail = True):
+                CUS_LOGGER.info ("检测到'战斗'，按 ESC 重开")
+                key_mouse_manager.press('esc')
+                time.sleep(1)
+            else:
+                self.update_state ("startbattle")
+        
         return 1
 
     def run_static (self, json_path = None, json_file = None, action_list = []) -> (str, int):
