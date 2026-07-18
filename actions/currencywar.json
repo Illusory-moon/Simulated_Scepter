@@ -101,11 +101,16 @@
             "interval": 1,
             "redundancy": 30
         },
-        "actions":
-        [   
+        "actions": [
+            { 
+                "position": [153, 418] 
+            },
             {
-                "position": [153, 418]
-            }
+                "sleep": 1 
+            },               
+            {
+                "set_state": "switched" 
+            }   
         ]
     },{
         "name": "进入超频博弈",
@@ -113,7 +118,8 @@
             "text": "进入超频博弈",
             "box": [1563, 1711, 946, 973],
             "interval": 1,
-            "redundancy": 30
+            "redundancy": 30,
+            "condition": "switched"
         },
         "actions":
         [   
@@ -123,20 +129,6 @@
             {
                 "set_state": "difficulty_select"
             }
-        ]
-    },
-    {
-        "name": "选择难度",
-        "trigger":{
-            "text": "敌人难度",
-            "box": [499, 588, 987, 1014],
-            "interval": 5,
-            "redundancy": 30,
-            "condition": "difficulty_select"
-        },
-        "actions":
-        [   
-            "select_difficulty_start"
         ]
     },
     {
@@ -151,6 +143,20 @@
         "actions":
         [   
             {"position":[1692, 965]}
+        ]
+    },
+    {
+        "name": "选择难度",
+        "trigger":{
+            "text": "敌人难度",
+            "box": [499, 588, 987, 1014],
+            "interval": 5,
+            "redundancy": 30,
+            "condition": "difficulty_select"
+        },
+        "actions":
+        [   
+            "select_difficulty_start"
         ]
     },
     {
@@ -247,6 +253,24 @@
             },
             {
                 "position": [1491, 563]
+            }
+        ]
+    },
+    {
+        "name": "领航员",
+        "trigger":{
+            "text": "请选择强化角色",
+            "box": [1415, 1565, 529, 556],
+            "interval": 2,
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "position": [1008, 376]
+            },
+            {
+                "position": [1490, 597]
             }
         ]
     },
