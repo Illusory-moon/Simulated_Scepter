@@ -734,7 +734,7 @@ border:none</string>
                <item>
                 <widget class="QPushButton" name="currency_war_btn">
                  <property name="text">
-                  <string>环保大使叽米</string>
+                  <string>货币战争自动收集</string>
                  </property>
                 </widget>
                </item>
