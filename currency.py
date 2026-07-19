@@ -385,6 +385,7 @@ class SimulatedCurrency(CurrencyUtils):
             else:
                 self.update_state ("startbattle")
         
+        self.update_state ("startbattle")
         return 1
 
     def run_static (self, json_path = None, json_file = None, action_list = []) -> (str, int):
