@@ -3,10 +3,12 @@ import os
 import numpy as np
 import win32gui
 
+from tool.utils.game_window import canonical_game_title
+
 
 def get_hwnd_and_text():
     hwnd = win32gui.GetForegroundWindow()
-    Text = win32gui.GetWindowText(hwnd)
+    Text = canonical_game_title(hwnd) or win32gui.GetWindowText(hwnd)
     return hwnd,Text
 
 

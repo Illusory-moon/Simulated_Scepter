@@ -31,6 +31,15 @@ from tool.simul.text_key import text_keys
 from tool.thread import ThreadWithException
 from tool.timer import timer
 from tool.utils.get_win_rect import get_window_rect
+from tool.utils.game_window import (
+    BASE_HEIGHT,
+    BASE_WIDTH,
+    CLOUD_WINDOW_KIND,
+    find_game_window,
+    get_client_screen_rect,
+    is_supported_resolution,
+    set_game_foreground,
+)
 from tool.utils.image_tool import find_image_by_name, find_image_in_folder
 from tool.utils.minimap_util import get_minimap, MINIMAP_RADIUS, mask_minimap_outside, deal_minimap, re_get_position, POSITION_SEARCH_SCALE, crop, POSITION_MINIMAP_SCALE
 from tool.utils.mminimap import PositionPredict
@@ -47,10 +56,7 @@ def set_forground():
             shell.SendKeys(" ")  # Undocks my focus from Python IDLE
         else:
             shell.SendKeys("")
-        game_nd = win32gui.FindWindow("UnityWndClass", "崩坏：星穹铁道")
-        if game_nd == 0:
-            game_nd = win32gui.FindWindow(None, "云·星穹铁道")
-        win32gui.SetForegroundWindow(game_nd)
+        set_game_foreground()
     except:
         pass
 
@@ -179,17 +185,25 @@ class UniverseUtils:
         self.order = config.order
         self.sct = Screen()
     def get_xy(self):
-        hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
-        Text = win32gui.GetWindowText(hwnd)
-        self.x0, self.y0, self.x1, self.y1 = win32gui.GetClientRect(hwnd)
-        self.xx = self.x1 - self.x0
-        self.yy = self.y1 - self.y0
-        # self.x0, self.y0, self.x1, self.y1 = win32gui.GetWindowRect(hwnd)
-        self.x0, self.y0, self.x1, self.y1 = get_window_rect(hwnd)
+        game_window = find_game_window(prefer_foreground=True)
+        if game_window is None:
+            time.sleep(0.3)
+            return 0
+        hwnd = game_window.hwnd
+        Text = game_window.title
+        self.game_hwnd = hwnd
+        self.game_window_kind = game_window.kind
+        self.xx = game_window.client_width
+        self.yy = game_window.client_height
+        if game_window.kind == CLOUD_WINDOW_KIND:
+            self.x0, self.y0, self.x1, self.y1 = get_client_screen_rect(hwnd)
+        else:
+            # 本地客户端保留原有的 DWM 边框和超宽屏裁剪逻辑。
+            self.x0, self.y0, self.x1, self.y1 = get_window_rect(hwnd)
         self.full = self.x0 == 0 and self.y0 == 0
         self.x0 = max(0, self.x1 - self.xx)  # + 9 * self.full
         self.y0 = max(0, self.y1 - self.yy)  # + 9 * self.full
-        if (
+        if game_window.kind != CLOUD_WINDOW_KIND and (
                 (self.xx == 1920 or self.yy == 1080)
                 and self.xx >= 1920
                 and self.yy >= 1080
@@ -199,6 +213,21 @@ class UniverseUtils:
             self.x1 -= (self.xx - 1920) // 2
             self.y1 -= (self.yy - 1080) // 2
             self.xx, self.yy = 1920, 1080
+        if not is_supported_resolution(game_window.kind, self.xx, self.yy):
+            if game_window.kind == CLOUD_WINDOW_KIND:
+                CUS_LOGGER.error(
+                    f"云游戏窗口大小错误 {self.xx} {self.yy}，"
+                    f"请将窗口调整到接近{BASE_WIDTH}*{BASE_HEIGHT}"
+                )
+            else:
+                CUS_LOGGER.error(f"分辨率错误 {self.xx} {self.yy} 请设为1920*1080")
+            time.sleep(0.3)
+            return 0
+        if game_window.kind == CLOUD_WINDOW_KIND:
+            # 算法坐标系固定为 1920x1080；云浏览器少量边框差异在这里归一化。
+            self.x1 = self.x0 + BASE_WIDTH
+            self.y1 = self.y0 + BASE_HEIGHT
+            self.xx, self.yy = BASE_WIDTH, BASE_HEIGHT
         self.scx = self.xx / self.bx
         self.scy = self.yy / self.by
         dc = win32gui.GetWindowDC(hwnd)
@@ -221,15 +250,8 @@ class UniverseUtils:
         # x01y01:窗口左上右下坐标
         # xx yy:窗口大小
         # scx scy:当前窗口和基准窗口（1920*1080）缩放大小比例
-        if Text == "崩坏：星穹铁道" or Text == "云·星穹铁道":
-            time.sleep(1)
-            if self.xx != 1920 or self.yy != 1080:
-                CUS_LOGGER.error(f"分辨率错误 {self.xx} {self.yy} 请设为1920*1080")
-            return 1
-        else:
-            time.sleep(0.3)
-            CUS_LOGGER.info(f"继续，燃烧下去……哪怕燃尽…自己的一切。")
-            return 0
+        time.sleep(1)
+        return 1
     def gen_hotkey_img(self,hotkey="e",bg=PATHS["image"]+"/f_bg.jpg"):
         img=find_image_in_folder('key/', hotkey)
         if img is None:
@@ -594,7 +616,7 @@ class UniverseUtils:
         self.last_path_state_time = current_time
         log_emitter.find_path_state_signal.emit(text)
 
-    def get_blank_state(self):
+    def get_blank_state(self, save_debug_dir=None):
         local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True, rotation=True, center_radius=90)
         #作用是筛选掉蓝色，但会意外筛去一些颜色
         # local_screen = local_screen - cv.bitwise_and(local_screen, local_screen,mask=cv.inRange(cv.cvtColor(local_screen, cv.COLOR_BGR2HSV),np.array([80, 0, 0]), np.array([110, 255, 255])))
@@ -605,6 +627,24 @@ class UniverseUtils:
         bw_map[(np.sum((local_screen - np.array([210, 210, 210])) ** 2, axis=-1) <= 9000) & (grey_map > 200)] = 255
         non_black_pixels = np.count_nonzero(bw_map)
         CUS_LOGGER.debug(f"非黑像素点数量：{non_black_pixels}")
+
+        # 保存调试图像，用于判断阈值是否合适
+        if save_debug_dir and non_black_pixels < 250:
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            tag = f"blank_{non_black_pixels}_{timestamp}"
+            save_debug_dir=os.path.join(save_debug_dir, f"{tag}")
+            os.makedirs(save_debug_dir, exist_ok=True)
+            cv.imwrite(os.path.join(save_debug_dir, f"minimap.png"), local_screen)
+            cv.imwrite(os.path.join(save_debug_dir, f"bwmap.png"), bw_map)
+            cv.imwrite(os.path.join(save_debug_dir, f"greymap.png"), grey_map)
+            with open(os.path.join(save_debug_dir, f"params.txt"), "w", encoding="utf-8") as fp:
+                fp.write(f"non_black_pixels = {non_black_pixels}\n")
+                fp.write(f"threshold = 250\n")
+                fp.write(f"verdict = reference_lines_too_few (参考线太少，进入无地图寻路)\n")
+                fp.write(f"grey_threshold = np.array([55, 55, 55]), dist <= 4800\n")
+                fp.write(f"white_threshold = np.array([210, 210, 210]), dist <= 9000\n")
+                fp.write(f"dilate_kernel = 5x5, iterations=1\n")
+
         return non_black_pixels
     @timer
     def get_bw_map(self, local_screen=None,re_screen=1):
@@ -1049,7 +1089,7 @@ class UniverseUtils:
         else:
             CUS_LOGGER.warning('……那我偏偏，绝不顺从……')
         return ava
-    def save_screen(self, save_path=r"./temp",force=False,not_now=False):
+    def save_screen(self, save_path="/temp/",force=False,not_now=False):
         """
         获取截图并保存到指定路径
         :param save_path: 保存截图的路径
@@ -1059,7 +1099,7 @@ class UniverseUtils:
             sc=self.screen
         else:
             sc = self.get_screen()
-        save_path = PATHS["root"]+"/temp/"
+        save_path = PATHS["root"]+save_path
         try:
             os.mkdir(save_path)
         except:
@@ -1084,7 +1124,7 @@ class UniverseUtils:
             if 20<abs(self.rotation-d)<340 and mode !=1:
                 # cv.imshow("now", self.screen)
                 if self.debug:
-                    self.save_screen(not_now=True)
+                    self.save_screen(not_now=True,save_path=f"/temp/angle/")
                 CUS_LOGGER.error(f"角度误差过大视角{self.rotation}朝向{d}模式{mode}")
                 # raise BigAngError(f"角度误差过大视角{self.rotation}朝向{d}")
                 d = self.rotation
@@ -1222,7 +1262,7 @@ class UniverseUtils:
                             CUS_LOGGER.info(f"找到新的敌对目标点：{recent_loc}，共检测到{len(enemy_coords)}个敌人，按距离排序")
                         else:
                             self.set_path_state("未找到红色敌人！！！")
-                            self.save_screen(not_now= True)
+                            self.save_screen(not_now= True,save_path=f"/temp/no_red1/")
                             # self.save_screen(not_now=True)
                             has_not_found_red= True
                             # self.target_loc, type = self.get_recent_target()
@@ -1746,7 +1786,7 @@ class UniverseUtils:
                                 self.get_screen()
                                 if predict(self.screen, enemy=True, item=False)['enemy'] is not None:
                                     CUS_LOGGER.info("检测到待击杀目标")
-                                    self.save_screen(not_now=True)
+                                    self.save_screen(not_now=True,save_path=f"/temp/kill/")
                                     break
 
                     if self.quan:
@@ -2551,7 +2591,7 @@ class UniverseUtils:
                                 if predict(self.screen, enemy=True, item=False)['enemy'] is not None:
                                     CUS_LOGGER.info(f"或者，兑现命运的不止他们。只是{factor}已记不清了。")
                                     if self.debug:
-                                        self.save_screen(not_now=True)
+                                        self.save_screen(not_now=True,save_path=f"/temp/kill/")
                                     break
 
                     if self.quan:
@@ -2837,7 +2877,7 @@ class UniverseUtils:
                     else:
                         CUS_LOGGER.info(f"真是如出一辙啊，就像{factor}过去认识的许多个他们……既狡猾…又天真。")
                         if self.debug:
-                            self.save_screen(not_now=True)
+                            self.save_screen(not_now=True,save_path=f"/temp/no_red2/")
                         has_not_found_red = True
                         # self.target_loc, type = self.get_recent_target()
                     if has_not_found_red:

@@ -16,8 +16,13 @@ from tool.utils.Error import NoMatchError, NoBossError
 from tool.utils.analysis_map import match_multiple_targets, build_rightward_graph, compute_start_point_from_crop, \
     max_weight_path, display_matches, evaluate_best_single_replacement, compute_all_max_steps, detect_corner_markers
 from tool.utils.image_tool import find_image_by_name
-from tool.utils.minimap_util import MINIMAP_RADIUS, get_minimap, re_get_position
-from tool.utils.ocr_num import match_numbers_in_region, extract_number
+from tool.utils.minimap_util import MINIMAP_RADIUS, deal_minimap, get_minimap, re_get_position
+from tool.utils.ocr_num import (
+    extract_number,
+    match_cheat_count_in_region,
+    match_numbers_in_region,
+    match_roll_count_in_region,
+)
 from tool.utils.tool import find_latest_modified_file
 from tool.window_recorder import WindowRecorder
 
@@ -35,6 +40,25 @@ class IronBloodUniverse(SimulatedUniverse):
         super().__init__(find=True,speed=False,consumable=False, slow=False,debug=self.opt.get("debug", True), nums=self.opt.get("max_run_time", 0))
         self.plane_floor = -1
         self.need_record = False
+        self.record_event_map_enabled = bool(
+            self.debug and self.opt.get("record_event_map", False)
+        )
+        self.record_map_contexts = {}
+        for map_kind, directory_name in (
+                ("event", "event_nmaps"),
+                ("rest", "rest_nmaps"),
+                ("trade", "trade_nmaps")):
+            map_root = os.path.join(PATHS["image"], directory_name)
+            os.makedirs(map_root, exist_ok=True)
+            self.record_map_contexts[map_kind] = (
+                map_root,
+                self._load_map_templates(map_root),
+            )
+        if self.record_event_map_enabled:
+            roots = "、".join(
+                context[0] for context in self.record_map_contexts.values()
+            )
+            CUS_LOGGER.debug(f"特殊地图录图模式已开启，各类地图将分别保存至{roots}")
         self.default_json_path = "actions/insect.json"
         self.default_json = load_actions(self.default_json_path)
         
@@ -53,16 +77,19 @@ class IronBloodUniverse(SimulatedUniverse):
         self.next_node = None
         self.max_limited = None
         self.kill_count =0
+        self.run_start_time = time.time()
         self.need_end=False
         self.record = self.opt.get("recording_iron_blood", True)
         self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",window_class_name="UnityWndClass",see_time=self.opt.get("record_add_label", True), offsets=[10, 50, 10, 10], overlay_map=self.opt.get("record_add_label", True) and self._show_map, simul_instance=self)
         self.early_stop=self.opt.get("early_stop", False)
         self.first_plane_count=self.opt.get("first_plane", 14)
         self.second_plane_count=self.opt.get("second_plane", 31)
+        self.first_plane_min_weight=self.opt.get("first_plane_min_weight", 6)
         self.del_record_time=self.opt.get("del_record_time", 31)
         self.max_interact_time=self.opt.get("max_interact_time", 40)
         self.area=""
         self.now_map=-1
+        self.new_node = True
         self.fail_match_count = 0
         CUS_LOGGER.info("宇宙的中心有一团火种,它愈烧愈旺,直至燃尽整片星河。")
     
@@ -78,9 +105,20 @@ class IronBloodUniverse(SimulatedUniverse):
         self.fail_match_count=0
     def end_of_university(self):
         super().end_of_university()
+        elapsed = int(time.time() - self.run_start_time)
+        record_file = "config/backup/kill_record.txt"
+        try:
+            if self.plane_floor==3:
+                self.kill_count+=1
+            os.makedirs("config/backup", exist_ok=True)
+            with open(record_file, "a", encoding="utf-8") as file:
+                file.write(f"轮回次数:{self.count}, 击杀数:{self.kill_count}, 用时:{elapsed // 60}分{elapsed % 60}秒\n")
+        except Exception as e:
+            CUS_LOGGER.error(f"写入击杀记录文件失败{e}")
+        self.run_start_time = time.time()  # 开始下一局计时
         self.need_end=False
         self.init_map()
-        if self.kill_count>=39:
+        if self.kill_count>=40:
             if self.count>10000:
                 CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
             elif self.count>1000:
@@ -131,15 +169,6 @@ class IronBloodUniverse(SimulatedUniverse):
                     file.close()
             except  Exception as e:
                 CUS_LOGGER.error(f"写入文件失败{e}")
-            # 追加记录轮回次数和击杀数到另一个文件
-            record_file = "config/backup/kill_record.txt"
-            try:
-                os.makedirs("config/backup", exist_ok=True)
-                with open(record_file, "a", encoding="utf-8") as file:
-                    file.write(f"轮回次数:{self.count}, 击杀数:{self.kill_count}\n")
-                    file.close()
-            except Exception as e:
-                CUS_LOGGER.error(f"写入击杀记录文件失败{e}")
         self.count = new_cnt
     def normal(self):
         bk_lst_changed = self.last_interact_time
@@ -210,11 +239,14 @@ class IronBloodUniverse(SimulatedUniverse):
                         # 无先验寻路
                         self.get_path_only_minimap(True)
                 elif "事件" in self.area or "奖励" in self.area:
-                    self.get_event_only_minimap()
+                    if self.record_special_map_or_navigate(self.get_event_only_minimap):
+                        return 1
                 elif "休整" in self.area:
-                    self.get_rest_only_minimap()
+                    if self.record_special_map_or_navigate(self.get_rest_only_minimap):
+                        return 1
                 elif "交易" in self.area:
-                    self.get_shop_only_minimap()
+                    if self.record_special_map_or_navigate(self.get_shop_only_minimap):
+                        return 1
                 elif "冒险" in self.area:
                     # if not self.big_map_init:
                     #     self.map_data_load()
@@ -264,19 +296,125 @@ class IronBloodUniverse(SimulatedUniverse):
             return state
         else:
             return 0
-    def map_data_load(self,create=False):
+    def get_record_map_context(self):
+        """根据当前区域返回其专属录图目录和地图模板集合。"""
+        if "事件" in self.area or "奖励" in self.area:
+            map_kind = "event"
+        elif "休整" in self.area:
+            map_kind = "rest"
+        elif "交易" in self.area:
+            map_kind = "trade"
+        else:
+            return None
+        return self.record_map_contexts.get(map_kind)
+
+    def record_special_map_or_navigate(self, navigate):
+        """特殊地图未知时录图，已有记录或开关关闭时执行原寻路。"""
+        context = self.get_record_map_context()
+        if not self.record_event_map_enabled or context is None:
+            navigate()
+            return False
+        if not self.big_map_init:
+            key_mouse_manager.clean()
+            key_mouse_manager.keyUp("w")
+            key_mouse_manager.wait()
+            if self._stop:
+                return True
+            # 每张特殊地图独立计算裁剪范围并保存初始小地图。
+            self.cut_pos = None
+            self.first_save_map = True
+            map_root, image_maps = context
+            self.find, self.need_record, state = self.map_data_load(
+                create=True,
+                map_root=map_root,
+                image_maps=image_maps,
+            )
+            if self._stop or not state:
+                return True
+        if self.need_record:
+            self.recording_map()
+        else:
+            navigate()
+        return False
+
+    @staticmethod
+    def _load_map_templates(map_root):
+        """加载某一类地图的初始小地图，不与其它地图集合混用。"""
+        templates = {}
+        if not os.path.isdir(map_root):
+            return templates
+        for map_name in os.listdir(map_root):
+            init_path = os.path.join(map_root, map_name, "init.jpg")
+            if not os.path.isfile(init_path):
+                continue
+            image = cv.imread(init_path)
+            if image is None:
+                continue
+            image = deal_minimap(image, is_minimap=True)
+            templates[map_name] = cv.resize(
+                image, None, fx=0.5, fy=0.5, interpolation=cv.INTER_CUBIC
+            )
+        return templates
+
+    @staticmethod
+    def _match_map_templates(img, templates):
+        """在指定地图集合中匹配，确保事件地图不会匹配到战斗地图。"""
+        local = deal_minimap(img, is_minimap=True)
+        local = cv.resize(
+            local, None, fx=0.5, fy=0.5, interpolation=cv.INTER_CUBIC
+        )
+        max_sim = -1
+        matched_map = -1
+        for map_name, search_image in templates.items():
+            if (search_image.shape[0] < local.shape[0]
+                    or search_image.shape[1] < local.shape[1]):
+                continue
+            result = cv.matchTemplate(search_image, local, cv.TM_CCOEFF_NORMED)
+            _, similarity, _, _ = cv.minMaxLoc(result)
+            if similarity > max_sim:
+                max_sim = similarity
+                matched_map = map_name
+        return matched_map, max_sim
+
+    @staticmethod
+    def _new_map_directory(map_root):
+        """建立不重名的待完善地图目录，并返回带分隔符的路径。"""
+        while True:
+            map_name = "my_" + str(random.randint(0, 99999))
+            map_file = os.path.join(map_root, map_name)
+            try:
+                os.makedirs(map_file)
+                return map_name, map_file + os.sep
+            except FileExistsError:
+                continue
+
+    def map_data_load(self, create=False, map_root=None, image_maps=None):
         create = self.debug and create
+        if map_root is None:
+            context = None
+            if getattr(self, "record_event_map_enabled", False):
+                context = self.get_record_map_context()
+            if context is None:
+                map_root = os.path.join(PATHS["image"], "nmaps")
+            else:
+                map_root, context_images = context
+                if image_maps is None:
+                    image_maps = context_images
+        image_maps = self.img_map if image_maps is None else image_maps
         self.big_map_init = True
         # 寻路模式，匹配最接近的地图
         self.stop_move = False
         find = True
         record=False
         #参考线太少毫无定位价值，则直接采用无地图寻路
-        if self.get_blank_state()>250:
+        if self.get_blank_state(save_debug_dir=os.path.join(PATHS["root"], "temp", "blank_state"))>250:
             tm=time.time()
             max_map,max_sim=-1,-1
             while time.time()-tm<2:
-                self.now_map, self.now_map_sim = self.match_scr(get_minimap(self.get_screen(), radius=MINIMAP_RADIUS,copy=True))
+                self.now_map, self.now_map_sim = self._match_map_templates(
+                    get_minimap(self.get_screen(), radius=MINIMAP_RADIUS, copy=True),
+                    image_maps,
+                )
                 if self.now_map_sim>max_sim:
                     max_map=self.now_map
                     max_sim=self.now_map_sim
@@ -289,21 +427,21 @@ class IronBloodUniverse(SimulatedUniverse):
                 time.sleep(3)
                 return find,record,False
             CUS_LOGGER.debug(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
-            if (self.debug and self.now_map_sim < 0.5) or self.now_map_sim < 0.35:
+            if (self.debug and self.now_map_sim < 0.4) or self.now_map_sim < 0.35:
                 CUS_LOGGER.warning(f"相似度过低,疑似未找到匹配地图,匹配地图{self.now_map}")
                 if create:
-                    self.map_file =PATHS["image"]+ "/nmaps/my_" + str(random.randint(0, 99999)) + "/"
-                    if not os.path.exists(self.map_file):
-                        os.mkdir(self.map_file)
+                    self.now_map, self.map_file = self._new_map_directory(map_root)
                 find = False
                 if self.debug and create:
                     record=True
             elif self.now_map !=-1 and "m" in str(self.now_map):
                 CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
-                self.map_file = PATHS["image"] + "/nmaps/" + self.now_map + "/"
+                self.map_file = os.path.join(map_root, str(self.now_map)) + os.sep
                 record = True
             if find:
-                files,x,y,map_num,self.upx,self.upy,target_path = find_latest_modified_file(f"{PATHS['image']}/nmaps/{self.now_map}/")
+                files,x,y,map_num,self.upx,self.upy,target_path = find_latest_modified_file(
+                    os.path.join(map_root, str(self.now_map)).replace("\\", "/") + "/"
+                )
                 self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
                 self.debug_map =None
                 self.now_loc = (x, y)
@@ -319,7 +457,15 @@ class IronBloodUniverse(SimulatedUniverse):
                 # 录制模式，保存初始小地图
                 self.first_save_map=False
                 CUS_LOGGER.warning("未找到匹配地图")
-                cv.imwrite(self.map_file + "init.jpg", get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True))
+                initial_map = get_minimap(
+                    self.screen, radius=MINIMAP_RADIUS, copy=True
+                )
+                cv.imwrite(self.map_file + "init.jpg", initial_map)
+                # 立即加入当前独立集合，避免同一次运行中重复创建同一地图。
+                template = deal_minimap(initial_map, is_minimap=True)
+                image_maps[str(self.now_map)] = cv.resize(
+                    template, None, fx=0.5, fy=0.5, interpolation=cv.INTER_CUBIC
+                )
                 self.best_match=self.pos_predictor.match_multiple_maps(self.screen,0)
                 self.start_pos=self.best_match['position']
             if record:
@@ -369,8 +515,8 @@ class IronBloodUniverse(SimulatedUniverse):
         CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
         if len(matches)==0:
             CUS_LOGGER.warning("未匹配到任何地图图标却错误进入寻路阶段，可能是误识别")
-            self.save_screen(not_now=True)
-            self.save_screen()
+            self.save_screen(not_now=True,save_path=f"/temp/bigmaperror/")
+            self.save_screen(save_path=f"/temp/bigmaperror/")
             CUS_LOGGER.warning("刷新截图缓冲区后最后一次尝试匹配地图图标")
             matches = match_multiple_targets(image, mode)
             CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
@@ -438,8 +584,8 @@ class IronBloodUniverse(SimulatedUniverse):
             if len(path)>1:
                 self.next_node=path[1]
             CUS_LOGGER.debug(f'路径理论期望值：{self.expectation_weight:.3f}')
-            CUS_LOGGER.debug(f'路径理论最小值：{sum(weight_ranges.get(n['name'], (0, 0))[0] for n in path)}')
-            CUS_LOGGER.debug(f'路径理论最大值：{sum(weight_ranges.get(n['name'], (0, 0))[1] for n in path)}')
+            CUS_LOGGER.debug(f"路径理论最小值：{sum(weight_ranges.get(n['name'], (0, 0))[0] for n in path)}")
+            CUS_LOGGER.debug(f"路径理论最大值：{sum(weight_ranges.get(n['name'], (0, 0))[1] for n in path)}")
             self.max_limited=0
             self.max_change_count=0
             for i,n in enumerate(path):
@@ -506,7 +652,7 @@ class IronBloodUniverse(SimulatedUniverse):
                     orig_max = sum(weight_ranges.get(n['name'], (0, 0))[1] for n in best_path)
 
                 CUS_LOGGER.debug(f'新路径理论期望值：{best_weight:.3f} (min={orig_min}, max={orig_max})')
-            display_matches(image, matches, path=path, highlight_idx=highlight, save_path=True,
+            display_matches(image, matches, path=path, highlight_idx=highlight, save_path=False,
                          font_size_override=14, alt_path=alt_path)
     def initing_map(self):
         key_mouse_manager.keyUp("w")
@@ -520,6 +666,12 @@ class IronBloodUniverse(SimulatedUniverse):
             CUS_LOGGER.warning("多么绝妙的巧合。你我都心知肚明。")
             return
         self.try_analysis_map(1)
+        if self.early_stop and self.gwypzmgzcndqlp:
+            CUS_LOGGER.debug(f"当前一面最低期望{self.first_plane_min_weight}，识别到开局期望{self.expectation_weight}")
+            if self.plane_floor==1 and self.expectation_weight < self.first_plane_min_weight:
+                CUS_LOGGER.warning("如果不能将此世从「毁灭」中拯救它，那就让寰宇在愤怒中燃烧吧......")
+                self.need_end=True
+        self.save_screen(save_path=f"/temp/map{self.plane_floor}/")
         for _ in range(5):
             self.click_text(text="进入位面", box=[907, 1009, 857, 891])
         key_mouse_manager.wait()
@@ -720,11 +872,18 @@ class IronBloodUniverse(SimulatedUniverse):
                     CUS_LOGGER.debug(f"当前极限值{self.kill_count + self.max_limited}无法达到第二位面推荐值{self.second_plane_count},终止本次演算")
         else:
             self.click_text(text="确认移动", box=[1611, 1759, 964, 998])
+            self.new_node=True
     def calculated_roll(self):
         if self.nodes is None or self.plane_floor==-1:
             self.click_target(find_image_by_name("inmap"), 0.9, flag=False, click=True)
             key_mouse_manager.wait()
             return
+        roll_count = match_roll_count_in_region(self.screen)
+        if roll_count is not None:
+            CUS_LOGGER.debug(f"当前重投次数: {roll_count}")
+        cheat_count = match_cheat_count_in_region(self.screen)
+        if cheat_count is not None:
+            CUS_LOGGER.debug(f"当前作弊次数: {cheat_count}")
         if not self.check("fast_roll", 0.1281,0.9074, threshold=0.9):
             self.click_text(text="快速投掷", box=[1700, 1823, 80, 117])
         if self.plane_floor in [2,3]:
@@ -773,6 +932,59 @@ class IronBloodUniverse(SimulatedUniverse):
             for _ in range(5):
                 self.click_text(text="点击空白", box=[872, 1048, 729, 1015],warning=False)
         key_mouse_manager.press("esc")
+    def select_secret(self):
+        tx, ty = self.tx, self.ty
+        success = False
+        CUS_LOGGER.info("没错，我们会尽己所能将其诠释：比世界的命运更为沉重之物……")
+        tm=time.time()
+        for i in range(1,9):
+            if self.check(f"fate{i}", 0.1828, 0.5000, mask="mask_event", threshold=0.965, fresh=True):
+                success=True
+                break
+        if success:
+            success=False
+            while time.time()-tm<1.5:
+                if self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965,fresh=True):
+                    success = True
+                    break
+        else:
+            self.click_text(text="秘闻", box=[197, 233, 887, 906])
+        if success:
+            CUS_LOGGER.info("原来那浑身着火的恶魔，满脑子幻想的都是要成为「救世主」哪！")
+            key_mouse_manager.click(self.tx, self.ty)
+        else:
+            CUS_LOGGER.info("「救世主」…在命运三相神谕的语境下，这张牌意味着谐调和完美无缺。")
+            key_mouse_manager.click(tx, ty)
+            key_mouse_manager.click(0.1167, ty - 0.1139)
+    def select_event(self):
+        super().select_event()
+        if self.new_node:
+            event_name = self.ts.find_with_box(box=[191, 750, 963, 998], forward=True, re_screen=False)
+            if len(event_name)==0:
+                self.save_screen(not_now=True,save_path=f"/temp/event/")
+            if self.area!="":
+                try:
+                    db_file = "config/backup/node_log.db"
+                    os.makedirs("config/backup", exist_ok=True)
+                    conn = sqlite3.connect(db_file)
+                    cursor = conn.cursor()
+                    cursor.execute('''CREATE TABLE IF NOT EXISTS node_log (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        created_at TEXT DEFAULT (datetime('now','localtime')),
+                        data TEXT
+                    )''')
+                    data = {
+                        "area": self.area,
+                        "event": event_name,
+                        "plane_floor": self.plane_floor,
+                    }
+                    cursor.execute('INSERT INTO node_log (data) VALUES (?)',
+                                   (json.dumps(data, ensure_ascii=False),))
+                    conn.commit()
+                    conn.close()
+                except Exception as e:
+                    CUS_LOGGER.error(f"写入节点日志失败: {e}")
+            self.new_node=False
     @staticmethod
     def set_kill_num(num):
         log_emitter.kill_num_signal.emit(num)

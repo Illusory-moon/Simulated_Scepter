@@ -732,6 +732,13 @@ border:none</string>
                 </widget>
                </item>
                <item>
+                <widget class="QPushButton" name="finger_snap_btn">
+                 <property name="text">
+                  <string>弹指一挥（实验性框架）</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
                 <widget class="QPushButton" name="currency_war_btn">
                  <property name="text">
                   <string>货币战争自动收集</string>
@@ -1112,6 +1119,16 @@ border:none</string>
                 </widget>
                </item>
                <item>
+                <widget class="QCheckBox" name="record_event_map_checkbox">
+                 <property name="visible">
+                  <bool>false</bool>
+                 </property>
+                 <property name="text">
+                  <string>事件/休整/交易地图录图模式</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
                 <widget class="QLabel" name="label_27">
                  <property name="text">
                   <string>高级用户功能</string>
@@ -1201,6 +1218,20 @@ border:none</string>
                </item>
                <item>
                 <widget class="QLineEdit" name="Iron_blood_second_plane_input"/>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_min_weight">
+               <item>
+                <widget class="QLabel" name="label_min_weight">
+                 <property name="text">
+                  <string>第一面最低期望权重</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="Iron_blood_first_plane_min_weight_input"/>
                </item>
               </layout>
              </item>

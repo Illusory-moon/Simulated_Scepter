@@ -28,6 +28,7 @@ from collections import defaultdict
 
 from tool.public_ocr import load_actions, clean_text, merge_text
 from tool.utils.image_tool import find_image_by_name
+from tool.utils.tool import get_hwnd_and_text
 from tool.window_recorder import WindowRecorder
 
 # 版本号
@@ -119,8 +120,7 @@ class DivergentUniverse(UniverseUtils):
         while True:
             if self._stop:
                 break
-            hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
-            Text = win32gui.GetWindowText(hwnd)
+            hwnd, Text = get_hwnd_and_text()
             warn_game = False
             cnt = 0
             while Text != "崩坏：星穹铁道" and Text != "云·星穹铁道" and not self._stop:
@@ -134,8 +134,7 @@ class DivergentUniverse(UniverseUtils):
                 cnt += 1
                 if cnt == 1200:
                     set_forground()
-                hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
-                Text = win32gui.GetWindowText(hwnd)
+                hwnd, Text = get_hwnd_and_text()
             if self._stop:
                 break
             # self.click_target('imgs/zz.jpg',0.9,True) # 如果需要输出某张图片在游戏窗口中的坐标，可以用这个

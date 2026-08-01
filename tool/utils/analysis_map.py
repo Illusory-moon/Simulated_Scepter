@@ -156,7 +156,67 @@ def build_rightward_graph(matches, start=None, max_gap=90.0, max_overlap=40.0, m
         start_idx = leftmost['idx']
 
     return nodes, edges, start_idx
+def build_rightward_graph2(matches, start=None, max_gap=90.0, max_overlap=40.0, max_dy=120.0):
+    """构建一个只能向右走（右 / 右上 / 右下）的有向图并返回节点与边。
 
+    Args:
+        matches (list): match_multiple_targets 的输出列表，元素包含 'name','location','size','similarity'
+        start: 可选的起点索引或 (x,y) 坐标；若为 None 则选最左侧节点作为起点
+        max_gap: 最大允许的水平空隙（像素）
+        max_overlap: 最大允许的水平重叠（像素）
+        max_dy: 最大允许的垂直偏移（像素）
+    Returns:
+        nodes: 节点字典列表，包含键：idx,name,cx,cy,w,h,weight,orig
+        edges: 字典 idx -> 子节点 idx 列表
+        start_idx: 选定的起点索引
+    """
+    weight_map = {
+        'event': 2, 'wait': 0, 'trade': 1, 'trade2': 1, 'adventure': 1,
+        'reward': 3,'reward2': 3, 'battle': 0, 'elite': 0, 'bugevent': 0.5,
+        'bugbattle': 0, 'head': 0, 'boss': 0, 'blank': 0
+    }
+    if not matches:
+        return [], {}, None
+    nodes = []
+    for i, m in enumerate(matches):
+        x, y = m.get('location', (0, 0))
+        w, h = m.get('size', (0, 0))
+        cx = float(x) + float(w) / 2.0
+        cy = float(y) + float(h) / 2.0
+        nodes.append({'idx': i, 'name': m.get('name'), 'cx': cx, 'cy': cy, 'w': w, 'h': h,
+                      'weight': float(weight_map.get(m.get('name'), 0)), 'similarity': float(m.get('similarity', 0)),
+                      'orig': m})
+
+    if start is not None:
+        sx, sy = start[0], start[1]
+        nodes.append({'idx': len(nodes), 'name': 'start', 'cx': float(sx), 'cy': float(sy), 'w': 50, 'h': 50,
+                      'weight': 0.0, 'similarity': 0.0, 'orig': None})
+
+    # 构建只向右的边（基本要求：b.cx > a.cx），并按邻近约束过滤。
+    edges = {n['idx']: [] for n in nodes}
+    for a in nodes:
+        a_left = a['cx'] - a['w'] / 2.0
+        a_right = a['cx'] + a['w'] / 2.0
+        for b in nodes:
+            if b['cx'] <= a['cx']:
+                continue
+            b_left = b['cx'] - b['w'] / 2.0
+            gap = b_left - a_right  # 正值表示两框之间的空隙，负值表示重叠
+            dy = abs(b['cy'] - a['cy'])
+            if dy > max_dy:
+                continue
+            if gap > max_gap or gap < -max_overlap:
+                continue
+            edges[a['idx']].append(b['idx'])
+
+    # 选择起点：如果 start 有效则使用；否则取最左侧的
+    if start is not None:
+        start_idx = len(nodes) - 1
+    else:
+        leftmost = min(nodes, key=lambda n: (n['cx'], n['cy']))
+        start_idx = leftmost['idx']
+
+    return nodes, edges, start_idx
 
 def max_weight_path(nodes, edges, start_idx, x_tol=1e-6):
     """在有向无环图上（边只指向右边）求从 start 到最右端点的最大权重路径。
@@ -319,7 +379,8 @@ def evaluate_best_single_replacement(nodes, edges, start_idx, t=0.2):
     return best_path, best_weight, best_end_idx, best_replace_idx, float(best_delta), float(best_discounted_delta)
 
 
-def compute_start_point_from_crop(image, mode=2,th=0.9):
+def compute_start_point_from_crop(image, mode=2, th=0.9,
+                                  return_details=False):
     """通过裁剪图像并将裁剪区域与完整图像进行模板匹配来计算起点。
 
     Args:
@@ -328,10 +389,12 @@ def compute_start_point_from_crop(image, mode=2,th=0.9):
         th: 匹配阈值
 
     Returns:
-        匹配位置的中心坐标 (cx, cy)，失败则返回 None
+        默认返回匹配位置的中心坐标 (cx, cy)，失败则返回 None。
+        return_details=True 时返回 ``(center, details)``，其中 details
+        带有实际用于匹配的起点头像裁剪框，供 GUI 直接复用该原图裁片。
     """
     if image is None:
-        return None
+        return (None, None) if return_details else None
     if mode == 2:
         crop_list = [[55, 63, 92, 104], [58, 159, 94, 199]]#1p与2p角色的位置
     else:
@@ -342,15 +405,16 @@ def compute_start_point_from_crop(image, mode=2,th=0.9):
         tpl = image[y1:y2, x1:x2].copy()
         tpl_gray = cv2.cvtColor(tpl, cv2.COLOR_BGR2GRAY)
         if mode == 2:
-            new_w = int(tpl_gray.shape[1] / 1.05)
-            new_h = int(tpl_gray.shape[0] / 1.05)
+            new_w = int(tpl_gray.shape[1] * 0.91)
+            new_h = int(tpl_gray.shape[0] * 0.91)
         else:
-            new_w = int(tpl_gray.shape[1] * 1.15)
-            new_h = int(tpl_gray.shape[0] * 1.15)
+            new_w = int(tpl_gray.shape[1] * 1.19)
+            new_h = int(tpl_gray.shape[0] * 1.19)
         tpl_gray = cv2.resize(tpl_gray, (new_w, new_h))
         search_gray = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2GRAY)
+        mask = find_image_in_folder(f'gray_image/', 'head_mask') if mode==2 else find_image_in_folder(f'gray_image/', 'head_mask2')
         res = cv2.matchTemplate(
-            cv2.bitwise_and(search_gray, search_gray, mask=find_image_in_folder(f'gray_image/', 'head_mask')), tpl_gray,
+            cv2.bitwise_and(search_gray, search_gray, mask=mask), tpl_gray,
             cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(res)
         mx, my = max_loc
@@ -358,8 +422,16 @@ def compute_start_point_from_crop(image, mode=2,th=0.9):
         cy = my + tpl_gray.shape[0] / 2.0
         CUS_LOGGER.debug(f'角色匹配 crop={crop_coords} 得分={max_val:.3f}')
         if max_val > th:
-            return float(cx), float(cy)
-    return None
+            center = (float(cx), float(cy))
+            if return_details:
+                return center, {
+                    'crop_rect': tuple(crop_coords),
+                    'match_score': float(max_val),
+                    'matched_size': (int(tpl_gray.shape[1]),
+                                     int(tpl_gray.shape[0])),
+                }
+            return center
+    return (None, None) if return_details else None
 
 
 # ---- 角标检测配置 ----

@@ -16,6 +16,14 @@ from ctypes import windll, wintypes, byref
 # 导入日志模块
 from tool.log import CUS_LOGGER
 from tool.thread import ThreadWithException
+from tool.utils.game_window import (
+    CLOUD_WINDOW_KIND,
+    LOCAL_GAME_TITLE,
+    find_game_window,
+    get_client_screen_rect,
+    get_window_kind,
+    is_usable_game_window,
+)
 
 
 class WindowRecorder:
@@ -31,6 +39,7 @@ class WindowRecorder:
         self.out = None
         self.width = 0
         self.height = 0
+        self.window_kind = None
         self.see_time = see_time
         self.is_show = is_show
         # 偏移参数，用于收缩录制范围 [left, top, right, bottom]
@@ -148,9 +157,19 @@ class WindowRecorder:
         timestamp=datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.output_file = self.output_path + f"第{count}次轮回-{timestamp}.mp4"
         # 查找目标窗口
+        if self.hwnd and not is_usable_game_window(self.hwnd):
+            self.hwnd = None
         if not self.hwnd:
             self.hwnd = win32gui.FindWindow(self.window_class_name, self.window_title)
-            CUS_LOGGER.info(f"找到窗口句柄: {self.hwnd}")
+        # 本地客户端沿用 UnityWndClass；找不到时为云游戏选择真正的
+        # Chrome_WidgetWin_1，避免精确标题命中 Explorer 的 TabProxyWindow。
+        if (
+            not is_usable_game_window(self.hwnd)
+            and self.window_title == LOCAL_GAME_TITLE
+        ):
+            game_window = find_game_window(prefer_foreground=True)
+            self.hwnd = game_window.hwnd if game_window else None
+        CUS_LOGGER.info(f"找到窗口句柄: {self.hwnd or 0}")
             
         if not self.hwnd:
             if self.window_class_name:
@@ -168,6 +187,11 @@ class WindowRecorder:
             CUS_LOGGER.error("窗口句柄无效")
             raise ValueError("窗口句柄无效")
 
+        self.window_kind = get_window_kind(self.hwnd)
+        if self.window_kind is None:
+            CUS_LOGGER.error("找到的窗口不是受支持的游戏主窗口")
+            raise ValueError("找到的窗口不是受支持的游戏主窗口")
+
         # 设置DPI感知
         try:
             ctypes.windll.shcore.SetProcessDpiAwareness(2)  # 2 = Per-monitor v2 DPI awareness
@@ -180,13 +204,20 @@ class WindowRecorder:
         
         # 获取窗口位置和尺寸
         try:
-            # 获取窗口位置
-            rect = win32gui.GetWindowRect(self.hwnd)
+            # 云游戏只录制 Edge 客户区；本地客户端保持原窗口矩形逻辑。
+            if self.window_kind == CLOUD_WINDOW_KIND:
+                rect = get_client_screen_rect(self.hwnd)
+            else:
+                rect = win32gui.GetWindowRect(self.hwnd)
             self.left, self.top, self.right, self.bottom = rect
             self.width = self.right - self.left
             self.height = self.bottom - self.top
             
-            CUS_LOGGER.info(f"窗口位置: ({self.left}, {self.top}, {self.right}, {self.bottom}), 尺寸: {self.width}x{self.height}")
+            CUS_LOGGER.info(
+                f"窗口类型: {self.window_kind}, 位置: "
+                f"({self.left}, {self.top}, {self.right}, {self.bottom}), "
+                f"尺寸: {self.width}x{self.height}"
+            )
         except Exception as e:
             CUS_LOGGER.error(f"获取窗口位置失败: {e}")
             raise
@@ -198,8 +229,21 @@ class WindowRecorder:
             os.makedirs(output_dir)
             
         # 应用偏移后的实际录制尺寸
-        actual_width = self.width - self.offsets[0] - self.offsets[2]  # 减去左右偏移
-        actual_height = self.height - self.offsets[1] - self.offsets[3]  # 减去上下偏移
+        self.capture_left = self.left + self.offsets[0]
+        self.capture_top = self.top + self.offsets[1]
+        self.capture_right = self.right - self.offsets[2]
+        self.capture_bottom = self.bottom - self.offsets[3]
+        actual_width = self.capture_right - self.capture_left
+        actual_height = self.capture_bottom - self.capture_top
+        # 常见编码器要求偶数宽高。云窗口可能是 1920x1079，裁剪后为奇数。
+        if actual_width % 2:
+            self.capture_right -= 1
+            actual_width -= 1
+        if actual_height % 2:
+            self.capture_bottom -= 1
+            actual_height -= 1
+        if actual_width <= 0 or actual_height <= 0:
+            raise ValueError(f"录像区域无效: {actual_width}x{actual_height}")
         
         # 设置视频写入器
         CUS_LOGGER.info(f"初始化视频写入器，尺寸: {actual_width}x{actual_height}")
@@ -225,13 +269,13 @@ class WindowRecorder:
             while self.recording:
                 try:
                     # 应用偏移值来收缩录制范围 [left, top, right, bottom]
-                    adjusted_left = self.left + self.offsets[0]
-                    adjusted_top = self.top + self.offsets[1]
-                    adjusted_right = self.right - self.offsets[2]
-                    adjusted_bottom = self.bottom - self.offsets[3]
-                    
                     # 使用ImageGrab直接捕获窗口区域
-                    bbox = (adjusted_left, adjusted_top, adjusted_right, adjusted_bottom)
+                    bbox = (
+                        self.capture_left,
+                        self.capture_top,
+                        self.capture_right,
+                        self.capture_bottom,
+                    )
                     img = ImageGrab.grab(bbox=bbox)
                     
                     # 转换为OpenCV格式
