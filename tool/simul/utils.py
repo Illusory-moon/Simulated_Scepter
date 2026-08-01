@@ -616,7 +616,7 @@ class UniverseUtils:
         self.last_path_state_time = current_time
         log_emitter.find_path_state_signal.emit(text)
 
-    def get_blank_state(self):
+    def get_blank_state(self, save_debug_dir=None):
         local_screen = get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True, rotation=True, center_radius=90)
         #作用是筛选掉蓝色，但会意外筛去一些颜色
         # local_screen = local_screen - cv.bitwise_and(local_screen, local_screen,mask=cv.inRange(cv.cvtColor(local_screen, cv.COLOR_BGR2HSV),np.array([80, 0, 0]), np.array([110, 255, 255])))
@@ -627,6 +627,24 @@ class UniverseUtils:
         bw_map[(np.sum((local_screen - np.array([210, 210, 210])) ** 2, axis=-1) <= 9000) & (grey_map > 200)] = 255
         non_black_pixels = np.count_nonzero(bw_map)
         CUS_LOGGER.debug(f"非黑像素点数量：{non_black_pixels}")
+
+        # 保存调试图像，用于判断阈值是否合适
+        if save_debug_dir and non_black_pixels < 250:
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            tag = f"blank_{non_black_pixels}_{timestamp}"
+            save_debug_dir=os.path.join(save_debug_dir, f"{tag}")
+            os.makedirs(save_debug_dir, exist_ok=True)
+            cv.imwrite(os.path.join(save_debug_dir, f"minimap.png"), local_screen)
+            cv.imwrite(os.path.join(save_debug_dir, f"bwmap.png"), bw_map)
+            cv.imwrite(os.path.join(save_debug_dir, f"greymap.png"), grey_map)
+            with open(os.path.join(save_debug_dir, f"params.txt"), "w", encoding="utf-8") as fp:
+                fp.write(f"non_black_pixels = {non_black_pixels}\n")
+                fp.write(f"threshold = 250\n")
+                fp.write(f"verdict = reference_lines_too_few (参考线太少，进入无地图寻路)\n")
+                fp.write(f"grey_threshold = np.array([55, 55, 55]), dist <= 4800\n")
+                fp.write(f"white_threshold = np.array([210, 210, 210]), dist <= 9000\n")
+                fp.write(f"dilate_kernel = 5x5, iterations=1\n")
+
         return non_black_pixels
     @timer
     def get_bw_map(self, local_screen=None,re_screen=1):
@@ -1071,7 +1089,7 @@ class UniverseUtils:
         else:
             CUS_LOGGER.warning('……那我偏偏，绝不顺从……')
         return ava
-    def save_screen(self, save_path=r"./temp",force=False,not_now=False):
+    def save_screen(self, save_path="/temp/",force=False,not_now=False):
         """
         获取截图并保存到指定路径
         :param save_path: 保存截图的路径
@@ -1081,7 +1099,7 @@ class UniverseUtils:
             sc=self.screen
         else:
             sc = self.get_screen()
-        save_path = PATHS["root"]+"/temp/"
+        save_path = PATHS["root"]+save_path
         try:
             os.mkdir(save_path)
         except:
@@ -1106,7 +1124,7 @@ class UniverseUtils:
             if 20<abs(self.rotation-d)<340 and mode !=1:
                 # cv.imshow("now", self.screen)
                 if self.debug:
-                    self.save_screen(not_now=True)
+                    self.save_screen(not_now=True,save_path=f"/temp/angle/")
                 CUS_LOGGER.error(f"角度误差过大视角{self.rotation}朝向{d}模式{mode}")
                 # raise BigAngError(f"角度误差过大视角{self.rotation}朝向{d}")
                 d = self.rotation
@@ -1244,7 +1262,7 @@ class UniverseUtils:
                             CUS_LOGGER.info(f"找到新的敌对目标点：{recent_loc}，共检测到{len(enemy_coords)}个敌人，按距离排序")
                         else:
                             self.set_path_state("未找到红色敌人！！！")
-                            self.save_screen(not_now= True)
+                            self.save_screen(not_now= True,save_path=f"/temp/no_red1/")
                             # self.save_screen(not_now=True)
                             has_not_found_red= True
                             # self.target_loc, type = self.get_recent_target()
@@ -1768,7 +1786,7 @@ class UniverseUtils:
                                 self.get_screen()
                                 if predict(self.screen, enemy=True, item=False)['enemy'] is not None:
                                     CUS_LOGGER.info("检测到待击杀目标")
-                                    self.save_screen(not_now=True)
+                                    self.save_screen(not_now=True,save_path=f"/temp/kill/")
                                     break
 
                     if self.quan:
@@ -2573,7 +2591,7 @@ class UniverseUtils:
                                 if predict(self.screen, enemy=True, item=False)['enemy'] is not None:
                                     CUS_LOGGER.info(f"或者，兑现命运的不止他们。只是{factor}已记不清了。")
                                     if self.debug:
-                                        self.save_screen(not_now=True)
+                                        self.save_screen(not_now=True,save_path=f"/temp/kill/")
                                     break
 
                     if self.quan:
@@ -2859,7 +2877,7 @@ class UniverseUtils:
                     else:
                         CUS_LOGGER.info(f"真是如出一辙啊，就像{factor}过去认识的许多个他们……既狡猾…又天真。")
                         if self.debug:
-                            self.save_screen(not_now=True)
+                            self.save_screen(not_now=True,save_path=f"/temp/no_red2/")
                         has_not_found_red = True
                         # self.target_loc, type = self.get_recent_target()
                     if has_not_found_red:

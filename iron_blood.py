@@ -77,6 +77,7 @@ class IronBloodUniverse(SimulatedUniverse):
         self.next_node = None
         self.max_limited = None
         self.kill_count =0
+        self.run_start_time = time.time()
         self.need_end=False
         self.record = self.opt.get("recording_iron_blood", True)
         self.recorder = WindowRecorder('logs/video/', fps=30, window_title="崩坏：星穹铁道",window_class_name="UnityWndClass",see_time=self.opt.get("record_add_label", True), offsets=[10, 50, 10, 10], overlay_map=self.opt.get("record_add_label", True) and self._show_map, simul_instance=self)
@@ -88,6 +89,7 @@ class IronBloodUniverse(SimulatedUniverse):
         self.max_interact_time=self.opt.get("max_interact_time", 40)
         self.area=""
         self.now_map=-1
+        self.new_node = True
         self.fail_match_count = 0
         CUS_LOGGER.info("宇宙的中心有一团火种,它愈烧愈旺,直至燃尽整片星河。")
     
@@ -103,6 +105,16 @@ class IronBloodUniverse(SimulatedUniverse):
         self.fail_match_count=0
     def end_of_university(self):
         super().end_of_university()
+        # 记录本局击杀数和用时
+        elapsed = int(time.time() - self.run_start_time)
+        record_file = "config/backup/kill_record.txt"
+        try:
+            os.makedirs("config/backup", exist_ok=True)
+            with open(record_file, "a", encoding="utf-8") as file:
+                file.write(f"轮回次数:{self.count}, 击杀数:{self.kill_count}, 用时:{elapsed // 60}分{elapsed % 60}秒\n")
+        except Exception as e:
+            CUS_LOGGER.error(f"写入击杀记录文件失败{e}")
+        self.run_start_time = time.time()  # 开始下一局计时
         self.need_end=False
         self.init_map()
         if self.kill_count>=39:
@@ -156,15 +168,6 @@ class IronBloodUniverse(SimulatedUniverse):
                     file.close()
             except  Exception as e:
                 CUS_LOGGER.error(f"写入文件失败{e}")
-            # 追加记录轮回次数和击杀数到另一个文件
-            record_file = "config/backup/kill_record.txt"
-            try:
-                os.makedirs("config/backup", exist_ok=True)
-                with open(record_file, "a", encoding="utf-8") as file:
-                    file.write(f"轮回次数:{self.count}, 击杀数:{self.kill_count}\n")
-                    file.close()
-            except Exception as e:
-                CUS_LOGGER.error(f"写入击杀记录文件失败{e}")
         self.count = new_cnt
     def normal(self):
         bk_lst_changed = self.last_interact_time
@@ -403,7 +406,7 @@ class IronBloodUniverse(SimulatedUniverse):
         find = True
         record=False
         #参考线太少毫无定位价值，则直接采用无地图寻路
-        if self.get_blank_state()>250:
+        if self.get_blank_state(save_debug_dir=os.path.join(PATHS["root"], "temp", "blank_state"))>250:
             tm=time.time()
             max_map,max_sim=-1,-1
             while time.time()-tm<2:
@@ -423,7 +426,7 @@ class IronBloodUniverse(SimulatedUniverse):
                 time.sleep(3)
                 return find,record,False
             CUS_LOGGER.debug(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
-            if (self.debug and self.now_map_sim < 0.5) or self.now_map_sim < 0.35:
+            if (self.debug and self.now_map_sim < 0.4) or self.now_map_sim < 0.35:
                 CUS_LOGGER.warning(f"相似度过低,疑似未找到匹配地图,匹配地图{self.now_map}")
                 if create:
                     self.now_map, self.map_file = self._new_map_directory(map_root)
@@ -511,8 +514,8 @@ class IronBloodUniverse(SimulatedUniverse):
         CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
         if len(matches)==0:
             CUS_LOGGER.warning("未匹配到任何地图图标却错误进入寻路阶段，可能是误识别")
-            self.save_screen(not_now=True)
-            self.save_screen()
+            self.save_screen(not_now=True,save_path=f"/temp/bigmaperror/")
+            self.save_screen(save_path=f"/temp/bigmaperror/")
             CUS_LOGGER.warning("刷新截图缓冲区后最后一次尝试匹配地图图标")
             matches = match_multiple_targets(image, mode)
             CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
@@ -648,7 +651,7 @@ class IronBloodUniverse(SimulatedUniverse):
                     orig_max = sum(weight_ranges.get(n['name'], (0, 0))[1] for n in best_path)
 
                 CUS_LOGGER.debug(f'新路径理论期望值：{best_weight:.3f} (min={orig_min}, max={orig_max})')
-            display_matches(image, matches, path=path, highlight_idx=highlight, save_path=True,
+            display_matches(image, matches, path=path, highlight_idx=highlight, save_path=False,
                          font_size_override=14, alt_path=alt_path)
     def initing_map(self):
         key_mouse_manager.keyUp("w")
@@ -667,6 +670,7 @@ class IronBloodUniverse(SimulatedUniverse):
             if self.plane_floor==1 and self.expectation_weight < self.first_plane_min_weight:
                 CUS_LOGGER.warning("如果不能将此世从「毁灭」中拯救它，那就让寰宇在愤怒中燃烧吧......")
                 self.need_end=True
+        self.save_screen(save_path=f"/temp/map{self.plane_floor}/")
         for _ in range(5):
             self.click_text(text="进入位面", box=[907, 1009, 857, 891])
         key_mouse_manager.wait()
