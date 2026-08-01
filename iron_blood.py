@@ -959,10 +959,11 @@ class IronBloodUniverse(SimulatedUniverse):
     def select_event(self):
         super().select_event()
         if self.new_node:
-            event_name = self.ts.find_with_box(box=[191, 750, 953, 1008], forward=True, re_screen=False)
-            if len(event_name)==0:
+            event_name = self.ts.find_with_box(box=[185, 750, 953, 1008], forward=True, re_screen=False)
+            if len(event_name)==0 and self.area!="休整":
                 self.save_screen(not_now=True,save_path=f"/temp/event/")
-            if self.area!="":
+                self.stop()
+            if self.area!="" and self.area!="休整":
                 try:
                     db_file = "config/backup/node_log.db"
                     os.makedirs("config/backup", exist_ok=True)

@@ -8,18 +8,43 @@ from tool.log import CUS_LOGGER
 from tool.utils.image_tool import find_image_in_folder
 
 
-def match_multiple_targets(processed_image, mode=1, threshold=0.5):
+def _is_green_region(color_image, box, pad=10):
+    """Check if a region around a box is green/cyan colored (infectable node area)."""
+    x, y, w, h = [int(v) for v in box]
+    x1 = max(0, x - pad)
+    y1 = max(0, y - pad)
+    x2 = min(color_image.shape[1], x + w + pad)
+    y2 = min(color_image.shape[0], y + h + pad)
+    roi = color_image[y1:y2, x1:x2]
+    if roi.size == 0:
+        return False
+    b, g, r = cv2.split(roi.astype(np.float32))
+    # 青绿色像素：B 和 G 显著高于 R
+    cyan_mask = (b > r * 1.2) & (g > r * 1.1) & (b > 80) & (g > 60)
+    cyan_ratio = cyan_mask.sum() / cyan_mask.size
+    b_mean, g_mean = float(b.mean()), float(g.mean())
+    return (b_mean > 120 and g_mean > 90 and cyan_ratio > 0.20) \
+           or (g_mean > 130 and b_mean > 100)
+
+
+def match_multiple_targets(processed_image, mode=1, threshold=0.5, color_image=None):
     """对一组模板在单张灰度图上做多目标匹配，并使用 cv2.dnn.NMSBoxes 进行非极大值抑制。
+
+    若提供 color_image（BGR 原图），则对绿色/青色区域内的候选框使用更低阈值
+    (0.35)，以捕获因绿色渲染导致相似度偏低的感染节点。
 
     返回列表：{'name','location','size','similarity'}。
     """
     if processed_image is None:
         return []
-    
+
+    # 保存原始彩色图像引用（用于绿色区域判定）
+    _color = color_image if color_image is not None else processed_image
+
     # 预处理图像
     processed_image = cv2.GaussianBlur(processed_image.copy(), (5, 5), 0)
     processed_image = cv2.Canny(processed_image, 100, 200)
-    
+
     if mode == 1:
         kind_list = ['event', 'wait', 'trade', 'adventure', 'reward', 'battle', 'elite', 'bugevent', 'bugbattle',
                      'head', 'boss']
@@ -31,43 +56,42 @@ def match_multiple_targets(processed_image, mode=1, threshold=0.5):
     all_boxes = []      # [x, y, w, h]
     all_scores = []     # 置信度分数
     all_names = []      # 对应的模板名称
-    
+
+    # 内部使用更低阈值收集候选，后续按绿色区域规则过滤
+    LOW_THRESHOLD = 0.35
+    collect_threshold = min(threshold, LOW_THRESHOLD)
+
     for name in kind_list:
         tpl = find_image_in_folder(f'gray_image/node{mode}/', name)
         if tpl is None:
             continue
         th, tw = tpl.shape[:2]
         res = cv2.matchTemplate(processed_image, tpl, cv2.TM_CCOEFF_NORMED)
-        cur_threshold = 0.8 if name == 'blank' else threshold
+        cur_threshold = 0.8 if name == 'blank' else collect_threshold
         ys, xs = np.where(res >= cur_threshold)
         if xs.size == 0:
             continue
-        
+
         # 收集该模板的所有候选框
         for x, y in zip(xs, ys):
             score = float(res[y, x])
             all_boxes.append([int(x), int(y), tw, th])
             all_scores.append(score)
             all_names.append(name)
-    
+
     if not all_boxes:
         return []
-    
+
     # 转换为 numpy 数组
     boxes_np = np.array(all_boxes, dtype=np.float32)  # shape: (N, 4)
     scores_np = np.array(all_scores, dtype=np.float32)  # shape: (N,)
-    
-    # 使用 cv2.dnn.NMSBoxes 进行非极大值抑制
-    # 参数说明：
-    # - boxes: 检测框列表 [x, y, w, h]
-    # - scores: 置信度分数
-    # - score_threshold: 最低分数阈值（已经过滤过，这里设低一点）
-    # - nms_threshold: NMS IoU 阈值，控制去重强度（0.3-0.5 较合适）
+
+    # NMS 使用较低阈值以保留更多候选
     nms_threshold = 0.3
     indices = cv2.dnn.NMSBoxes(
         bboxes=boxes_np.tolist(),
         scores=scores_np.tolist(),
-        score_threshold=threshold,
+        score_threshold=collect_threshold,
         nms_threshold=nms_threshold
     )
     if isinstance(indices, tuple) and len(indices) == 0:
@@ -76,21 +100,30 @@ def match_multiple_targets(processed_image, mode=1, threshold=0.5):
         if len(indices) > 0 and isinstance(indices[0], (list, tuple)):
             indices = indices[0]
     elif hasattr(indices, 'flatten'):
-        indices = indices.flatten()  # numpy 数组
+        indices = indices.flatten()
+
+    # 过滤：分数 >= threshold 直接保留；分数在 [LOW_THRESHOLD, threshold) 仅在绿色区域保留
     results = []
     for idx in indices:
         idx = int(idx)
+        score = all_scores[idx]
+        if score >= threshold:
+            pass  # 正常阈值，直接保留
+        elif score >= LOW_THRESHOLD and _is_green_region(_color, all_boxes[idx]):
+            pass  # 低阈值但位于绿色区域，保留（感染节点）
+        else:
+            continue
         x, y, w, h = all_boxes[idx]
         results.append({
             'name': all_names[idx],
             'location': (x, y),
             'size': (w, h),
-            'similarity': round(all_scores[idx], 3)
+            'similarity': round(score, 3)
         })
-    
+
     # 按相似度降序排序
     results.sort(key=lambda r: r['similarity'], reverse=True)
-    
+
     return results
 
 
@@ -595,11 +628,19 @@ def display_matches(image, matches, path=None, highlight_idx=None, save_path=Non
         name = m.get('name', 'obj');
         x, y = m.get('location', (0, 0));
         w, h = m.get('size', (0, 0));
-        color = (0, 180, 0)
-        cv2.rectangle(vis, (int(x), int(y)), (int(x + w), int(y + h)), color, 2)
+        # 可传染节点用青绿色加粗框，普通节点用绿色框
+        if m.get('infectable', False):
+            color = (255, 200, 0)  # BGR 青绿偏金色醒目框
+            thickness = 4
+        else:
+            color = (0, 180, 0)
+            thickness = 2
+        cv2.rectangle(vis, (int(x), int(y)), (int(x + w), int(y + h)), color, thickness)
         cx, cy = int(round(x + w / 2.0)), int(round(y + h / 2.0));
         cv2.circle(vis, (cx, cy), 4, (0, 255, 0), -1)
         label = f"{i}:{EN_TO_CN.get(name, name)}:{m.get('similarity', 0)}"
+        if m.get('infectable', False):
+            label += '[染]'
         cm = m.get('corner_marker', None)
         if cm:
             cm_name = cm.get('name', '') if isinstance(cm, dict) else str(cm)
@@ -662,6 +703,61 @@ def display_matches(image, matches, path=None, highlight_idx=None, save_path=Non
     # cv2.destroyAllWindows()
     if save_path:
         cv2.imwrite(PATHS["root"]+"/temp/"+datetime.now().strftime("%Y%m%d_%H%M%S")+".png", vis)
+
+
+def detect_infectable_nodes(color_image, matches, pad=20, cyan_ratio_threshold=0.20,
+                            b_min=120, g_min=90):
+    """检测青绿色节点并标记为可传染节点。
+
+    在彩色原图上分析每个匹配节点周围区域的青绿色像素比例，
+    满足条件的节点标记为"可传染节点"（添加 infectable 属性）。
+
+    Args:
+        color_image: 原始彩色截图 (BGR)
+        matches: match_multiple_targets 返回的匹配列表
+        pad: 节点区域外扩像素数（用于捕获节点周围的青绿色光晕）
+        cyan_ratio_threshold: 青绿色像素比例阈值
+        b_min: B 通道最低均值（青绿节点的蓝色通道显著偏高）
+        g_min: G 通道最低均值（青绿节点的绿色通道也需偏高）
+
+    Returns:
+        infectable_nodes: 标记为可传染的节点索引列表
+        同时就地修改 matches 中对应节点，添加 'infectable': True 属性。
+    """
+    if color_image is None or not matches:
+        for m in matches:
+            m['infectable'] = False
+        return []
+
+    infectable_nodes = []
+
+    for i, m in enumerate(matches):
+        x, y = m.get('location', (0, 0))
+        w, h = m.get('size', (0, 0))
+        x1 = max(0, int(x) - pad)
+        y1 = max(0, int(y) - pad)
+        x2 = min(color_image.shape[1], int(x) + w + pad)
+        y2 = min(color_image.shape[0], int(y) + h + pad)
+        roi = color_image[y1:y2, x1:x2]
+        if roi.size == 0:
+            m['infectable'] = False
+            continue
+
+        b, g, r = cv2.split(roi.astype(np.float32))
+
+        # 青绿色像素：B 和 G 显著高于 R，且有一定最低亮度
+        cyan_mask = (b > r * 1.2) & (g > r * 1.1) & (b > 80) & (g > 60)
+        cyan_ratio = cyan_mask.sum() / cyan_mask.size
+
+        b_mean, g_mean = float(b.mean()), float(g.mean())
+
+        is_infectable = (b_mean > b_min and g_mean > g_min and cyan_ratio > cyan_ratio_threshold) \
+                        or (g_mean > 130 and b_mean > 100)
+        m['infectable'] = is_infectable
+        if is_infectable:
+            infectable_nodes.append(i)
+
+    return infectable_nodes
 
 
         #使用作弊100%能替换节点，重投在1与2位面1/5概率能替换节点，第三位面1/3概率能替换节点，还可以什么都不做
