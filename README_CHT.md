@@ -70,9 +70,14 @@
 
 若此世無法帶來拯救，那就為它帶來毀滅。。。（人話：40殺達成希望渺茫則重開）
 
-## 地圖頻率分析  
+## 地圖頻率分析
 ```plaintext
 sqlite3 config/backup/map_visits.db "SELECT * FROM map_visits ORDER BY visit_count DESC;"
+```
+
+## 節點日誌查詢
+```plaintext
+sqlite3 config/backup/node_log.db "SELECT id, created_at, json_extract(data, '$.area') AS area, json_extract(data, '$.event') AS event, json_extract(data, '$.plane_floor') AS plane_floor FROM node_log ORDER BY id DESC;"
 ```
 ----------------------------------------------------------------------------------------------
 
@@ -84,7 +89,7 @@ sqlite3 config/backup/map_visits.db "SELECT * FROM map_visits ORDER BY visit_cou
 
 下載解壓目錄不允許有中文路徑！！
 # 下載 | Download 
-方法一：前往交流群直接下載打包好的發行版（推薦）* ![](https://img.shields.io/badge/QQ%201群-1072802257-4e4c97)
+方法一：前往交流群直接下載打包好的發行版（推薦）* ![](https://img.shields.io/badge/QQ%201群[已滿]-1072802257-4e4c97)* ![](https://img.shields.io/badge/QQ%202群-870863632-4e4c97)
 
 方法二：自行下載原始碼本地部署，沒接觸過python的，請忽視下述教程，可以直接前往交流群下載相關資源
 
@@ -134,7 +139,8 @@ F5/『停止任務』按鈕停止運行。
 
 # 開發交流-玩家社群-助力毀滅 | Destruction
 * 包含本權杖系統穩定發行版.
-* ![](https://img.shields.io/badge/QQ%201群-1072802257-4e4c97)
+* ![](https://img.shields.io/badge/QQ%201群[已滿]-1072802257-4e4c97)
+* ![](https://img.shields.io/badge/QQ%202群-870863632-4e4c97)
 
 ----------------------------------------------------------------------------------------------
 
@@ -180,3 +186,21 @@ F5/『停止任務』按鈕停止運行。
 ## 相關開源專案
 - **[Auto_Simulated_Universe](https://github.com/CHNZYX/Auto_Simulated_Universe/)** - 本專案核心輪子，基於此專案大幅重構
 - **[StarRailCopilot](https://github.com/LmeSzinc/StarRailCopilot/)** - 先進的狀態機架構啟發，地圖高精度定位
+
+## 特別鳴謝
+### 貢獻者
+
+感謝以下貢獻者對本專案做出的貢獻
+
+<a>
+
+  <img src="https://contrib.rocks/image?repo=syfoud/Simulated_Scepter" />
+
+</a>
+
+### 所有贊助者
+
+您的支持就是作者開發和維護專案的動力！
+
+### 每一位點star支持的你：
+[![Star History](https://api.star-history.com/svg?repos=syfoud/Simulated_Scepter&type=Date)](https://star-history.com/#syfoud/Simulated_Scepter&Date)

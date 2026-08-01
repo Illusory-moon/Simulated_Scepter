@@ -70,9 +70,14 @@ In the name of love, treasure everything that has passed away...
 
 If this world cannot bring salvation, then bring it destruction... (In plain language: restart if achieving 40 kills seems hopeless)
 
-## Map Frequency Analysis  
+## Map Frequency Analysis
 ```plaintext
 sqlite3 config/backup/map_visits.db "SELECT * FROM map_visits ORDER BY visit_count DESC;"
+```
+
+## Node Log Query
+```plaintext
+sqlite3 config/backup/node_log.db "SELECT id, created_at, json_extract(data, '$.area') AS area, json_extract(data, '$.event') AS event, json_extract(data, '$.plane_floor') AS plane_floor FROM node_log ORDER BY id DESC;"
 ```
 ----------------------------------------------------------------------------------------------
 
@@ -84,7 +89,7 @@ Due to the onnxruntime environment, please ensure Windows 10 version is greater 
 
 The download and extraction directory cannot have a Chinese path!!
 # Download | Download 
-Method 1: Go to the QQ group to directly download the packaged release version (recommended) * ![](https://img.shields.io/badge/QQ%20Group%201-1072802257-4e4c97)
+Method 1: Go to the QQ group to directly download the packaged release version (recommended) * ![](https://img.shields.io/badge/QQ%20Group%201[Full]-1072802257-4e4c97)* ![](https://img.shields.io/badge/QQ%20Group%202-870863632-4e4c97)
 
 Method 2: Download the source code and deploy locally. If you have no experience with Python, please ignore the following tutorial and go directly to the QQ group to download related resources.
 
@@ -134,7 +139,8 @@ Press F5 or the "Stop Task" button to stop execution.
 
 # Development Communication - Player Community - Aid Destruction | Destruction
 * Contains stable releases of this Scepter system.
-* ![](https://img.shields.io/badge/QQ%20Group%201-1072802257-4e4c97)
+* ![](https://img.shields.io/badge/QQ%20Group%201[Full]-1072802257-4e4c97)
+* ![](https://img.shields.io/badge/QQ%20Group%202-870863632-4e4c97)
 
 ----------------------------------------------------------------------------------------------
 
@@ -180,3 +186,21 @@ This project uses the following excellent open-source libraries and tools:
 ## Related Open Source Projects
 - **[Auto_Simulated_Universe](https://github.com/CHNZYX/Auto_Simulated_Universe/)** - Core foundation of this project, significantly refactored based on this project
 - **[StarRailCopilot](https://github.com/LmeSzinc/StarRailCopilot/)** - Inspiration for advanced state machine architecture, high-precision map positioning
+
+## Special Thanks
+### Contributors
+
+Thanks to the following contributors for their contributions to this project:
+
+<a>
+
+  <img src="https://contrib.rocks/image?repo=syfoud/Simulated_Scepter" />
+
+</a>
+
+### All Sponsors
+
+Your support is the driving force behind the author's development and maintenance of this project!
+
+### And every user who starred this project:
+[![Star History](https://api.star-history.com/svg?repos=syfoud/Simulated_Scepter&type=Date)](https://star-history.com/#syfoud/Simulated_Scepter&Date)

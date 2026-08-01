@@ -70,9 +70,14 @@
 
 若此世无法带来拯救，那就为它带来毁灭。。。（人话：40杀达成希望渺茫则重开）
 
-## 地图频率分析  
+## 地图频率分析
 ```plaintext
 sqlite3 config/backup/map_visits.db "SELECT * FROM map_visits ORDER BY visit_count DESC;"
+```
+
+## 节点日志查询
+```plaintext
+sqlite3 config/backup/node_log.db "SELECT id, created_at, json_extract(data, '$.area') AS area, json_extract(data, '$.event') AS event, json_extract(data, '$.plane_floor') AS plane_floor FROM node_log ORDER BY id DESC;"
 ```
 ----------------------------------------------------------------------------------------------
 
