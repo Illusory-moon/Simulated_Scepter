@@ -9,6 +9,7 @@
     "max_run_time": 0,
     "first_plane": 14,
     "second_plane": 31,
+    "first_plane_min_weight": 8,
     "debug": false,
     "max_interact_time": 40,
     "early_stop": false,

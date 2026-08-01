@@ -1215,6 +1215,20 @@ border:none</string>
               </layout>
              </item>
              <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_min_weight">
+               <item>
+                <widget class="QLabel" name="label_min_weight">
+                 <property name="text">
+                  <string>第一面最低期望权重</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="Iron_blood_first_plane_min_weight_input"/>
+               </item>
+              </layout>
+             </item>
+             <item>
               <layout class="QHBoxLayout" name="horizontalLayout_interact_time">
                <item>
                 <widget class="QLabel" name="label_interact_time">

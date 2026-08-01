@@ -79,6 +79,7 @@ class IronBloodUniverse(SimulatedUniverse):
         self.early_stop=self.opt.get("early_stop", False)
         self.first_plane_count=self.opt.get("first_plane", 14)
         self.second_plane_count=self.opt.get("second_plane", 31)
+        self.first_plane_min_weight=self.opt.get("first_plane_min_weight", 6)
         self.del_record_time=self.opt.get("del_record_time", 31)
         self.max_interact_time=self.opt.get("max_interact_time", 40)
         self.area=""
@@ -657,6 +658,11 @@ class IronBloodUniverse(SimulatedUniverse):
             CUS_LOGGER.warning("多么绝妙的巧合。你我都心知肚明。")
             return
         self.try_analysis_map(1)
+        if self.early_stop and self.gwypzmgzcndqlp:
+            CUS_LOGGER.debug(f"当前一面最低期望{self.first_plane_min_weight}，识别到开局期望{self.expectation_weight}")
+            if self.plane_floor==1 and self.expectation_weight < self.first_plane_min_weight:
+                CUS_LOGGER.warning("如果不能将此世从「毁灭」中拯救它，那就让寰宇在愤怒中燃烧吧......")
+                self.need_end=True
         for _ in range(5):
             self.click_text(text="进入位面", box=[907, 1009, 857, 891])
         key_mouse_manager.wait()
