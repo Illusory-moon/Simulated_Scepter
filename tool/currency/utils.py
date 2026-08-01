@@ -30,6 +30,15 @@ from tool.currency.ocr import get_global_my_ts
 from tool.currency.text_key import text_keys
 from tool.timer import timer
 from tool.utils.get_win_rect import get_window_rect
+from tool.utils.game_window import (
+    BASE_HEIGHT,
+    BASE_WIDTH,
+    CLOUD_WINDOW_KIND,
+    find_game_window,
+    get_client_screen_rect,
+    is_supported_resolution,
+    set_game_foreground,
+)
 from tool.utils.image_tool import find_image_by_name, find_image_in_folder
 from tool.utils.minimap_util import get_minimap, MINIMAP_RADIUS, POSITION_SEARCH_SCALE
 from tool.utils.mminimap import PositionPredict
@@ -42,10 +51,7 @@ def set_forground():
             shell.SendKeys(" ")  # Undocks my focus from Python IDLE
         else:
             shell.SendKeys("")
-        game_nd = win32gui.FindWindow("UnityWndClass", "崩坏：星穹铁道")
-        if game_nd == 0:
-            game_nd = win32gui.FindWindow(None, "云·星穹铁道")
-        win32gui.SetForegroundWindow(game_nd)
+        set_game_foreground()
     except:
         pass
 
@@ -167,17 +173,24 @@ class CurrencyUtils:
         self.order = config.order
         self.sct = Screen()
     def get_xy(self):
-        hwnd = win32gui.GetForegroundWindow()  # 根据当前活动窗口获取句柄
-        Text = win32gui.GetWindowText(hwnd)
-        self.x0, self.y0, self.x1, self.y1 = win32gui.GetClientRect(hwnd)
-        self.xx = self.x1 - self.x0
-        self.yy = self.y1 - self.y0
-        # self.x0, self.y0, self.x1, self.y1 = win32gui.GetWindowRect(hwnd)
-        self.x0, self.y0, self.x1, self.y1 = get_window_rect(hwnd)
+        game_window = find_game_window(prefer_foreground=True)
+        if game_window is None:
+            time.sleep(0.3)
+            return 0
+        hwnd = game_window.hwnd
+        Text = game_window.title
+        self.game_hwnd = hwnd
+        self.game_window_kind = game_window.kind
+        self.xx = game_window.client_width
+        self.yy = game_window.client_height
+        if game_window.kind == CLOUD_WINDOW_KIND:
+            self.x0, self.y0, self.x1, self.y1 = get_client_screen_rect(hwnd)
+        else:
+            self.x0, self.y0, self.x1, self.y1 = get_window_rect(hwnd)
         self.full = self.x0 == 0 and self.y0 == 0
         self.x0 = max(0, self.x1 - self.xx)  # + 9 * self.full
         self.y0 = max(0, self.y1 - self.yy)  # + 9 * self.full
-        if (
+        if game_window.kind != CLOUD_WINDOW_KIND and (
                 (self.xx == 1920 or self.yy == 1080)
                 and self.xx >= 1920
                 and self.yy >= 1080
@@ -187,6 +200,20 @@ class CurrencyUtils:
             self.x1 -= (self.xx - 1920) // 2
             self.y1 -= (self.yy - 1080) // 2
             self.xx, self.yy = 1920, 1080
+        if not is_supported_resolution(game_window.kind, self.xx, self.yy):
+            if game_window.kind == CLOUD_WINDOW_KIND:
+                CUS_LOGGER.error(
+                    f"云游戏窗口大小错误 {self.xx} {self.yy}，"
+                    f"请将窗口调整到接近{BASE_WIDTH}*{BASE_HEIGHT}"
+                )
+            else:
+                CUS_LOGGER.error(f"分辨率错误 {self.xx} {self.yy} 请设为1920*1080")
+            time.sleep(0.3)
+            return 0
+        if game_window.kind == CLOUD_WINDOW_KIND:
+            self.x1 = self.x0 + BASE_WIDTH
+            self.y1 = self.y0 + BASE_HEIGHT
+            self.xx, self.yy = BASE_WIDTH, BASE_HEIGHT
         self.scx = self.xx / self.bx
         self.scy = self.yy / self.by
         dc = win32gui.GetWindowDC(hwnd)
@@ -209,15 +236,8 @@ class CurrencyUtils:
         # x01y01:窗口左上右下坐标
         # xx yy:窗口大小
         # scx scy:当前窗口和基准窗口（1920*1080）缩放大小比例
-        if Text == "崩坏：星穹铁道" or Text == "云·星穹铁道":
-            time.sleep(1)
-            if self.xx != 1920 or self.yy != 1080:
-                CUS_LOGGER.error(f"分辨率错误 {self.xx} {self.yy} 请设为1920*1080")
-            return 1
-        else:
-            time.sleep(0.3)
-            CUS_LOGGER.info(f"继续，燃烧下去……哪怕燃尽…自己的一切。")
-            return 0
+        time.sleep(1)
+        return 1
     def gen_hotkey_img(self,hotkey="e",bg=PATHS["image"]+"/f_bg.jpg"):
         img=find_image_in_folder('key/', hotkey)
         if img is None:
