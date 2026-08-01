@@ -286,9 +286,6 @@ class SimulatedCurrency(CurrencyUtils):
             cy = (box[2] + box[3]) // 2
             centers.append((cx, cy))
 
-        texts = self.recognize_options (self.BLESS_BOXES)
-        CUS_LOGGER.info (f"OCR 识别结果: {texts}")
-
         if self.select_bless_count < self.exit_plane:
 
             selected_idx = -1
@@ -314,7 +311,10 @@ class SimulatedCurrency(CurrencyUtils):
                 for idx, box in enumerate(roi_boxes):
                     x1, x2, y1, y2 = box
                     roi = self.screen[y1:y2, x1:x2]
-                    
+
+                    texts = self.recognize_options (self.BLESS_BOXES)
+                    CUS_LOGGER.info (f"OCR 识别结果: {texts}")
+
                     # 调用标准差检测
                     has_icon, std = self.detect_has_icon(roi)
                     CUS_LOGGER.info(f"选项{idx+1} 是否有图标: {has_icon} (标准差: {std:.2f})")  # 如果需要打印具体值
@@ -359,12 +359,13 @@ class SimulatedCurrency(CurrencyUtils):
             self.select_bless_count -= 1
             self.bonus_rounds_remaining -= 1
             CUS_LOGGER.info(f"抵消一次特殊投资，剩余奖励次数: {self.bonus_rounds_remaining}")
-        self.update_state ("escshop")
+        
         
         CUS_LOGGER.info(f"比较: {self.select_bless_count} < {self.exit_plane} ? {self.select_bless_count < self.exit_plane}")
 
         if self.select_bless_count >= self.exit_plane:
             CUS_LOGGER.info(f"达到退出位面（{self.exit_plane}面），按两次 ESC 退出当前对局，然后重开")
+            self.update_state ("escshop")
             key_mouse_manager.press('esc') #关闭商店
             time.sleep(1)
             self.ts.forward (self.get_screen ())
@@ -384,6 +385,7 @@ class SimulatedCurrency(CurrencyUtils):
             else:
                 self.update_state ("startbattle")
         
+        self.update_state ("startbattle")
         return 1
 
     def run_static (self, json_path = None, json_file = None, action_list = []) -> (str, int):
