@@ -16,9 +16,13 @@ from tool.utils.Error import NoMatchError, NoBossError
 from tool.utils.analysis_map import match_multiple_targets, build_rightward_graph, compute_start_point_from_crop, \
     max_weight_path, display_matches, evaluate_best_single_replacement, compute_all_max_steps, detect_corner_markers
 from tool.utils.image_tool import find_image_by_name
-from tool.utils.minimap_util import MINIMAP_RADIUS, get_minimap, re_get_position
-from tool.utils.ocr_num import match_numbers_in_region, extract_number
 from tool.utils.minimap_util import MINIMAP_RADIUS, deal_minimap, get_minimap, re_get_position
+from tool.utils.ocr_num import (
+    extract_number,
+    match_cheat_count_in_region,
+    match_numbers_in_region,
+    match_roll_count_in_region,
+)
 from tool.utils.tool import find_latest_modified_file
 from tool.window_recorder import WindowRecorder
 
@@ -868,6 +872,12 @@ class IronBloodUniverse(SimulatedUniverse):
             self.click_target(find_image_by_name("inmap"), 0.9, flag=False, click=True)
             key_mouse_manager.wait()
             return
+        roll_count = match_roll_count_in_region(self.screen)
+        if roll_count is not None:
+            CUS_LOGGER.debug(f"当前重投次数: {roll_count}")
+        cheat_count = match_cheat_count_in_region(self.screen)
+        if cheat_count is not None:
+            CUS_LOGGER.debug(f"当前作弊次数: {cheat_count}")
         if not self.check("fast_roll", 0.1281,0.9074, threshold=0.9):
             self.click_text(text="快速投掷", box=[1700, 1823, 80, 117])
         if self.plane_floor in [2,3]:
