@@ -184,6 +184,7 @@ class MainWindow(QMainWindowLog):
         self.recording_label_checkbox.setChecked(data.get("record_add_label", True))
         self.early_stop_checkbox.setChecked(data.get("early_stop", False))
         self.recording_time_input.setText(str(data.get("del_record_time", 31)))
+        self.record_event_map_checkbox.setChecked(data.get("record_event_map", False))
         self.Iron_blood_max_run_input.setText(str(int(data.get("max_run_time", 0))))
         self.Iron_blood_first_plane_input.setText(str(data.get("first_plane", 14)))
         self.Iron_blood_second_plane_input.setText(str(data.get("second_plane", 31)))
@@ -264,6 +265,7 @@ class MainWindow(QMainWindowLog):
         data["record_add_label"] = self.recording_label_checkbox.isChecked()
         data["early_stop"] = self.early_stop_checkbox.isChecked()
         data["del_record_time"] = int(self.recording_time_input.text())
+        data["record_event_map"] = self.record_event_map_checkbox.isChecked()
         data["max_run_time"] = int(self.Iron_blood_max_run_input.text())
         data["first_plane"] = int(self.Iron_blood_first_plane_input.text())
         data["second_plane"] = int(self.Iron_blood_second_plane_input.text())
@@ -365,13 +367,15 @@ class MainWindow(QMainWindowLog):
         debug_and_recording = self.debug_checkox2.isChecked() and self.recording_checkBox2.isChecked()
         self.recording_label_checkbox.setEnabled(debug_and_recording)
         self.recording_time_input.setEnabled(self.recording_checkBox2.isChecked())
+        # 事件地图录图属于调试功能，仅在调试模式下展示。
+        self.record_event_map_checkbox.setVisible(self.debug_checkox2.isChecked())
+        self.record_event_map_checkbox.setEnabled(self.debug_checkox2.isChecked())
         early_stop_enabled = self.early_stop_checkbox.isChecked()
         self.Iron_blood_first_plane_input.setEnabled(early_stop_enabled)
         self.Iron_blood_second_plane_input.setEnabled(early_stop_enabled)
     
     def connect_dependency_signals(self):
         self.debug_checkox2.stateChanged.connect(lambda: self.update_dependent_controls_state())
-        self.recording_checkBox2.stateChanged.connect(lambda: self.update_dependent_controls_state())
         self.recording_checkBox2.stateChanged.connect(lambda: self.update_dependent_controls_state())
         self.early_stop_checkbox.stateChanged.connect(lambda: self.update_dependent_controls_state())
     

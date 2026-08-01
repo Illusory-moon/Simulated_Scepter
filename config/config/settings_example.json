@@ -2,6 +2,7 @@
     "skin_type": 1,
     "recording_state": false,
     "record_map": false,
+    "record_event_map": false,
     "recording_iron_blood": false,
     "record_add_label": false,
     "del_record_time": 14,

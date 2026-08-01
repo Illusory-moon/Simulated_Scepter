@@ -1112,6 +1112,16 @@ border:none</string>
                 </widget>
                </item>
                <item>
+                <widget class="QCheckBox" name="record_event_map_checkbox">
+                 <property name="visible">
+                  <bool>false</bool>
+                 </property>
+                 <property name="text">
+                  <string>事件/休整/交易地图录图模式</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
                 <widget class="QLabel" name="label_27">
                  <property name="text">
                   <string>高级用户功能</string>

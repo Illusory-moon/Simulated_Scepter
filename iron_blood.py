@@ -35,6 +35,25 @@ class IronBloodUniverse(SimulatedUniverse):
         super().__init__(find=True,speed=False,consumable=False, slow=False,debug=self.opt.get("debug", True), nums=self.opt.get("max_run_time", 0))
         self.plane_floor = -1
         self.need_record = False
+        self.record_event_map_enabled = bool(
+            self.debug and self.opt.get("record_event_map", False)
+        )
+        self.record_map_contexts = {}
+        for map_kind, directory_name in (
+                ("event", "event_nmaps"),
+                ("rest", "rest_nmaps"),
+                ("trade", "trade_nmaps")):
+            map_root = os.path.join(PATHS["image"], directory_name)
+            os.makedirs(map_root, exist_ok=True)
+            self.record_map_contexts[map_kind] = (
+                map_root,
+                self._load_map_templates(map_root),
+            )
+        if self.record_event_map_enabled:
+            roots = "、".join(
+                context[0] for context in self.record_map_contexts.values()
+            )
+            CUS_LOGGER.debug(f"特殊地图录图模式已开启，各类地图将分别保存至{roots}")
         self.default_json_path = "actions/insect.json"
         self.default_json = load_actions(self.default_json_path)
         
@@ -210,11 +229,14 @@ class IronBloodUniverse(SimulatedUniverse):
                         # 无先验寻路
                         self.get_path_only_minimap(True)
                 elif "事件" in self.area or "奖励" in self.area:
-                    self.get_event_only_minimap()
+                    if self.record_special_map_or_navigate(self.get_event_only_minimap):
+                        return 1
                 elif "休整" in self.area:
-                    self.get_rest_only_minimap()
+                    if self.record_special_map_or_navigate(self.get_rest_only_minimap):
+                        return 1
                 elif "交易" in self.area:
-                    self.get_shop_only_minimap()
+                    if self.record_special_map_or_navigate(self.get_shop_only_minimap):
+                        return 1
                 elif "冒险" in self.area:
                     # if not self.big_map_init:
                     #     self.map_data_load()
@@ -264,8 +286,111 @@ class IronBloodUniverse(SimulatedUniverse):
             return state
         else:
             return 0
-    def map_data_load(self,create=False):
+    def get_record_map_context(self):
+        """根据当前区域返回其专属录图目录和地图模板集合。"""
+        if "事件" in self.area or "奖励" in self.area:
+            map_kind = "event"
+        elif "休整" in self.area:
+            map_kind = "rest"
+        elif "交易" in self.area:
+            map_kind = "trade"
+        else:
+            return None
+        return self.record_map_contexts.get(map_kind)
+
+    def record_special_map_or_navigate(self, navigate):
+        """特殊地图未知时录图，已有记录或开关关闭时执行原寻路。"""
+        context = self.get_record_map_context()
+        if not self.record_event_map_enabled or context is None:
+            navigate()
+            return False
+        if not self.big_map_init:
+            key_mouse_manager.clean()
+            key_mouse_manager.keyUp("w")
+            key_mouse_manager.wait()
+            if self._stop:
+                return True
+            # 每张特殊地图独立计算裁剪范围并保存初始小地图。
+            self.cut_pos = None
+            self.first_save_map = True
+            map_root, image_maps = context
+            self.find, self.need_record, state = self.map_data_load(
+                create=True,
+                map_root=map_root,
+                image_maps=image_maps,
+            )
+            if self._stop or not state:
+                return True
+        if self.need_record:
+            self.recording_map()
+        else:
+            navigate()
+        return False
+
+    @staticmethod
+    def _load_map_templates(map_root):
+        """加载某一类地图的初始小地图，不与其它地图集合混用。"""
+        templates = {}
+        if not os.path.isdir(map_root):
+            return templates
+        for map_name in os.listdir(map_root):
+            init_path = os.path.join(map_root, map_name, "init.jpg")
+            if not os.path.isfile(init_path):
+                continue
+            image = cv.imread(init_path)
+            if image is None:
+                continue
+            image = deal_minimap(image, is_minimap=True)
+            templates[map_name] = cv.resize(
+                image, None, fx=0.5, fy=0.5, interpolation=cv.INTER_CUBIC
+            )
+        return templates
+
+    @staticmethod
+    def _match_map_templates(img, templates):
+        """在指定地图集合中匹配，确保事件地图不会匹配到战斗地图。"""
+        local = deal_minimap(img, is_minimap=True)
+        local = cv.resize(
+            local, None, fx=0.5, fy=0.5, interpolation=cv.INTER_CUBIC
+        )
+        max_sim = -1
+        matched_map = -1
+        for map_name, search_image in templates.items():
+            if (search_image.shape[0] < local.shape[0]
+                    or search_image.shape[1] < local.shape[1]):
+                continue
+            result = cv.matchTemplate(search_image, local, cv.TM_CCOEFF_NORMED)
+            _, similarity, _, _ = cv.minMaxLoc(result)
+            if similarity > max_sim:
+                max_sim = similarity
+                matched_map = map_name
+        return matched_map, max_sim
+
+    @staticmethod
+    def _new_map_directory(map_root):
+        """建立不重名的待完善地图目录，并返回带分隔符的路径。"""
+        while True:
+            map_name = "my_" + str(random.randint(0, 99999))
+            map_file = os.path.join(map_root, map_name)
+            try:
+                os.makedirs(map_file)
+                return map_name, map_file + os.sep
+            except FileExistsError:
+                continue
+
+    def map_data_load(self, create=False, map_root=None, image_maps=None):
         create = self.debug and create
+        if map_root is None:
+            context = None
+            if getattr(self, "record_event_map_enabled", False):
+                context = self.get_record_map_context()
+            if context is None:
+                map_root = os.path.join(PATHS["image"], "nmaps")
+            else:
+                map_root, context_images = context
+                if image_maps is None:
+                    image_maps = context_images
+        image_maps = self.img_map if image_maps is None else image_maps
         self.big_map_init = True
         # 寻路模式，匹配最接近的地图
         self.stop_move = False
@@ -276,7 +401,10 @@ class IronBloodUniverse(SimulatedUniverse):
             tm=time.time()
             max_map,max_sim=-1,-1
             while time.time()-tm<2:
-                self.now_map, self.now_map_sim = self.match_scr(get_minimap(self.get_screen(), radius=MINIMAP_RADIUS,copy=True))
+                self.now_map, self.now_map_sim = self._match_map_templates(
+                    get_minimap(self.get_screen(), radius=MINIMAP_RADIUS, copy=True),
+                    image_maps,
+                )
                 if self.now_map_sim>max_sim:
                     max_map=self.now_map
                     max_sim=self.now_map_sim
@@ -292,18 +420,18 @@ class IronBloodUniverse(SimulatedUniverse):
             if (self.debug and self.now_map_sim < 0.5) or self.now_map_sim < 0.35:
                 CUS_LOGGER.warning(f"相似度过低,疑似未找到匹配地图,匹配地图{self.now_map}")
                 if create:
-                    self.map_file =PATHS["image"]+ "/nmaps/my_" + str(random.randint(0, 99999)) + "/"
-                    if not os.path.exists(self.map_file):
-                        os.mkdir(self.map_file)
+                    self.now_map, self.map_file = self._new_map_directory(map_root)
                 find = False
                 if self.debug and create:
                     record=True
             elif self.now_map !=-1 and "m" in str(self.now_map):
                 CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
-                self.map_file = PATHS["image"] + "/nmaps/" + self.now_map + "/"
+                self.map_file = os.path.join(map_root, str(self.now_map)) + os.sep
                 record = True
             if find:
-                files,x,y,map_num,self.upx,self.upy,target_path = find_latest_modified_file(f"{PATHS['image']}/nmaps/{self.now_map}/")
+                files,x,y,map_num,self.upx,self.upy,target_path = find_latest_modified_file(
+                    os.path.join(map_root, str(self.now_map)).replace("\\", "/") + "/"
+                )
                 self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
                 self.debug_map =None
                 self.now_loc = (x, y)
@@ -319,7 +447,15 @@ class IronBloodUniverse(SimulatedUniverse):
                 # 录制模式，保存初始小地图
                 self.first_save_map=False
                 CUS_LOGGER.warning("未找到匹配地图")
-                cv.imwrite(self.map_file + "init.jpg", get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True))
+                initial_map = get_minimap(
+                    self.screen, radius=MINIMAP_RADIUS, copy=True
+                )
+                cv.imwrite(self.map_file + "init.jpg", initial_map)
+                # 立即加入当前独立集合，避免同一次运行中重复创建同一地图。
+                template = deal_minimap(initial_map, is_minimap=True)
+                image_maps[str(self.now_map)] = cv.resize(
+                    template, None, fx=0.5, fy=0.5, interpolation=cv.INTER_CUBIC
+                )
                 self.best_match=self.pos_predictor.match_multiple_maps(self.screen,0)
                 self.start_pos=self.best_match['position']
             if record:
@@ -438,8 +574,8 @@ class IronBloodUniverse(SimulatedUniverse):
             if len(path)>1:
                 self.next_node=path[1]
             CUS_LOGGER.debug(f'路径理论期望值：{self.expectation_weight:.3f}')
-            CUS_LOGGER.debug(f'路径理论最小值：{sum(weight_ranges.get(n['name'], (0, 0))[0] for n in path)}')
-            CUS_LOGGER.debug(f'路径理论最大值：{sum(weight_ranges.get(n['name'], (0, 0))[1] for n in path)}')
+            CUS_LOGGER.debug(f"路径理论最小值：{sum(weight_ranges.get(n['name'], (0, 0))[0] for n in path)}")
+            CUS_LOGGER.debug(f"路径理论最大值：{sum(weight_ranges.get(n['name'], (0, 0))[1] for n in path)}")
             self.max_limited=0
             self.max_change_count=0
             for i,n in enumerate(path):
