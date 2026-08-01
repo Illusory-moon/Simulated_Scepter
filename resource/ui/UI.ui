@@ -732,6 +732,13 @@ border:none</string>
                 </widget>
                </item>
                <item>
+                <widget class="QPushButton" name="finger_snap_btn">
+                 <property name="text">
+                  <string>弹指一挥（实验性框架）</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
                 <widget class="QPushButton" name="currency_war_btn">
                  <property name="text">
                   <string>货币战争自动收集</string>

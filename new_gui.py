@@ -26,6 +26,7 @@ from PyQt5.QtCore import pyqtSignal, Qt, pyqtSlot
 from simul import SimulatedUniverse
 from diver import DivergentUniverse
 from iron_blood import IronBloodUniverse
+from finger_snap import FingerSnap
 
 import faulthandler
 
@@ -131,6 +132,7 @@ class MainWindow(QMainWindowLog):
         self.run_simul_btn.clicked.connect(self.run_simul)
         self.run_diver_btn.clicked.connect(self.run_diver)
         self.iron_blood_btn.clicked.connect(self.run_iron_blood)
+        self.finger_snap_btn.clicked.connect(self.run_finger_snap)
         self.currency_war_btn.clicked.connect(self.run_currency_war)
         self.calibrate_btn.clicked.connect(self.calibrate)
         self.test_btn.clicked.connect(self.test)
@@ -514,6 +516,19 @@ class MainWindow(QMainWindowLog):
     def run_iron_blood(self):
         def task():
             su = IronBloodUniverse()
+            self.current_task = su
+            su.start()
+
+        try:
+            self.start_task(task)
+        except RuntimeError as r:
+            QMessageBox.warning(self, "警告", str(r))
+        except Exception as e:
+            QMessageBox.critical(self, "错误", str(e))
+
+    def run_finger_snap(self):
+        def task():
+            su = FingerSnap()
             self.current_task = su
             su.start()
 

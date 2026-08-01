@@ -156,7 +156,67 @@ def build_rightward_graph(matches, start=None, max_gap=90.0, max_overlap=40.0, m
         start_idx = leftmost['idx']
 
     return nodes, edges, start_idx
+def build_rightward_graph2(matches, start=None, max_gap=90.0, max_overlap=40.0, max_dy=120.0):
+    """构建一个只能向右走（右 / 右上 / 右下）的有向图并返回节点与边。
 
+    Args:
+        matches (list): match_multiple_targets 的输出列表，元素包含 'name','location','size','similarity'
+        start: 可选的起点索引或 (x,y) 坐标；若为 None 则选最左侧节点作为起点
+        max_gap: 最大允许的水平空隙（像素）
+        max_overlap: 最大允许的水平重叠（像素）
+        max_dy: 最大允许的垂直偏移（像素）
+    Returns:
+        nodes: 节点字典列表，包含键：idx,name,cx,cy,w,h,weight,orig
+        edges: 字典 idx -> 子节点 idx 列表
+        start_idx: 选定的起点索引
+    """
+    weight_map = {
+        'event': 2, 'wait': 0, 'trade': 1, 'trade2': 1, 'adventure': 1,
+        'reward': 3,'reward2': 3, 'battle': 0, 'elite': 0, 'bugevent': 0.5,
+        'bugbattle': 0, 'head': 0, 'boss': 0, 'blank': 0
+    }
+    if not matches:
+        return [], {}, None
+    nodes = []
+    for i, m in enumerate(matches):
+        x, y = m.get('location', (0, 0))
+        w, h = m.get('size', (0, 0))
+        cx = float(x) + float(w) / 2.0
+        cy = float(y) + float(h) / 2.0
+        nodes.append({'idx': i, 'name': m.get('name'), 'cx': cx, 'cy': cy, 'w': w, 'h': h,
+                      'weight': float(weight_map.get(m.get('name'), 0)), 'similarity': float(m.get('similarity', 0)),
+                      'orig': m})
+
+    if start is not None:
+        sx, sy = start[0], start[1]
+        nodes.append({'idx': len(nodes), 'name': 'start', 'cx': float(sx), 'cy': float(sy), 'w': 50, 'h': 50,
+                      'weight': 0.0, 'similarity': 0.0, 'orig': None})
+
+    # 构建只向右的边（基本要求：b.cx > a.cx），并按邻近约束过滤。
+    edges = {n['idx']: [] for n in nodes}
+    for a in nodes:
+        a_left = a['cx'] - a['w'] / 2.0
+        a_right = a['cx'] + a['w'] / 2.0
+        for b in nodes:
+            if b['cx'] <= a['cx']:
+                continue
+            b_left = b['cx'] - b['w'] / 2.0
+            gap = b_left - a_right  # 正值表示两框之间的空隙，负值表示重叠
+            dy = abs(b['cy'] - a['cy'])
+            if dy > max_dy:
+                continue
+            if gap > max_gap or gap < -max_overlap:
+                continue
+            edges[a['idx']].append(b['idx'])
+
+    # 选择起点：如果 start 有效则使用；否则取最左侧的
+    if start is not None:
+        start_idx = len(nodes) - 1
+    else:
+        leftmost = min(nodes, key=lambda n: (n['cx'], n['cy']))
+        start_idx = leftmost['idx']
+
+    return nodes, edges, start_idx
 
 def max_weight_path(nodes, edges, start_idx, x_tol=1e-6):
     """在有向无环图上（边只指向右边）求从 start 到最右端点的最大权重路径。
