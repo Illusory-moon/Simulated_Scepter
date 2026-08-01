@@ -105,10 +105,11 @@ class IronBloodUniverse(SimulatedUniverse):
         self.fail_match_count=0
     def end_of_university(self):
         super().end_of_university()
-        # 记录本局击杀数和用时
         elapsed = int(time.time() - self.run_start_time)
         record_file = "config/backup/kill_record.txt"
         try:
+            if self.plane_floor==3:
+                self.kill_count+=1
             os.makedirs("config/backup", exist_ok=True)
             with open(record_file, "a", encoding="utf-8") as file:
                 file.write(f"轮回次数:{self.count}, 击杀数:{self.kill_count}, 用时:{elapsed // 60}分{elapsed % 60}秒\n")
@@ -117,7 +118,7 @@ class IronBloodUniverse(SimulatedUniverse):
         self.run_start_time = time.time()  # 开始下一局计时
         self.need_end=False
         self.init_map()
-        if self.kill_count>=39:
+        if self.kill_count>=40:
             if self.count>10000:
                 CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
             elif self.count>1000:
@@ -871,6 +872,7 @@ class IronBloodUniverse(SimulatedUniverse):
                     CUS_LOGGER.debug(f"当前极限值{self.kill_count + self.max_limited}无法达到第二位面推荐值{self.second_plane_count},终止本次演算")
         else:
             self.click_text(text="确认移动", box=[1611, 1759, 964, 998])
+            self.new_node=True
     def calculated_roll(self):
         if self.nodes is None or self.plane_floor==-1:
             self.click_target(find_image_by_name("inmap"), 0.9, flag=False, click=True)
@@ -930,6 +932,33 @@ class IronBloodUniverse(SimulatedUniverse):
             for _ in range(5):
                 self.click_text(text="点击空白", box=[872, 1048, 729, 1015],warning=False)
         key_mouse_manager.press("esc")
+    def select_event(self):
+        super().select_event()
+        if self.new_node:
+            event_name = self.ts.find_with_box(box=[191, 750, 963, 998], forward=True, re_screen=False)
+            if self.area!="":
+                try:
+                    db_file = "config/backup/node_log.db"
+                    os.makedirs("config/backup", exist_ok=True)
+                    conn = sqlite3.connect(db_file)
+                    cursor = conn.cursor()
+                    cursor.execute('''CREATE TABLE IF NOT EXISTS node_log (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        created_at TEXT DEFAULT (datetime('now','localtime')),
+                        data TEXT
+                    )''')
+                    data = {
+                        "area": self.area,
+                        "event": event_name,
+                        "plane_floor": self.plane_floor,
+                    }
+                    cursor.execute('INSERT INTO node_log (data) VALUES (?)',
+                                   (json.dumps(data, ensure_ascii=False),))
+                    conn.commit()
+                    conn.close()
+                except Exception as e:
+                    CUS_LOGGER.error(f"写入节点日志失败: {e}")
+            self.new_node=False
     @staticmethod
     def set_kill_num(num):
         log_emitter.kill_num_signal.emit(num)
