@@ -18,6 +18,7 @@ from tool.utils.analysis_map import match_multiple_targets, build_rightward_grap
 from tool.utils.image_tool import find_image_by_name
 from tool.utils.minimap_util import MINIMAP_RADIUS, get_minimap, re_get_position
 from tool.utils.ocr_num import match_numbers_in_region, extract_number
+from tool.utils.minimap_util import MINIMAP_RADIUS, deal_minimap, get_minimap, re_get_position
 from tool.utils.tool import find_latest_modified_file
 from tool.window_recorder import WindowRecorder
 
