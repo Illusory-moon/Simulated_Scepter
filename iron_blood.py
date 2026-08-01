@@ -932,10 +932,36 @@ class IronBloodUniverse(SimulatedUniverse):
             for _ in range(5):
                 self.click_text(text="点击空白", box=[872, 1048, 729, 1015],warning=False)
         key_mouse_manager.press("esc")
+    def select_secret(self):
+        tx, ty = self.tx, self.ty
+        success = False
+        CUS_LOGGER.info("没错，我们会尽己所能将其诠释：比世界的命运更为沉重之物……")
+        tm=time.time()
+        for i in range(1,9):
+            if self.check(f"fate{i}", 0.1828, 0.5000, mask="mask_event", threshold=0.965, fresh=True):
+                success=True
+                break
+        if success:
+            success=False
+            while time.time()-tm<1.5:
+                if self.check("confirm", 0.1828, 0.5000, mask="mask_event", threshold=0.965,fresh=True):
+                    success = True
+                    break
+        else:
+            self.click_text(text="秘闻", box=[197, 233, 887, 906])
+        if success:
+            CUS_LOGGER.info("原来那浑身着火的恶魔，满脑子幻想的都是要成为「救世主」哪！")
+            key_mouse_manager.click(self.tx, self.ty)
+        else:
+            CUS_LOGGER.info("「救世主」…在命运三相神谕的语境下，这张牌意味着谐调和完美无缺。")
+            key_mouse_manager.click(tx, ty)
+            key_mouse_manager.click(0.1167, ty - 0.1139)
     def select_event(self):
         super().select_event()
         if self.new_node:
             event_name = self.ts.find_with_box(box=[191, 750, 963, 998], forward=True, re_screen=False)
+            if len(event_name)==0:
+                self.save_screen(not_now=True,save_path=f"/temp/event/")
             if self.area!="":
                 try:
                     db_file = "config/backup/node_log.db"
