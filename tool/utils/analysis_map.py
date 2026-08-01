@@ -319,7 +319,8 @@ def evaluate_best_single_replacement(nodes, edges, start_idx, t=0.2):
     return best_path, best_weight, best_end_idx, best_replace_idx, float(best_delta), float(best_discounted_delta)
 
 
-def compute_start_point_from_crop(image, mode=2,th=0.9):
+def compute_start_point_from_crop(image, mode=2, th=0.9,
+                                  return_details=False):
     """通过裁剪图像并将裁剪区域与完整图像进行模板匹配来计算起点。
 
     Args:
@@ -328,10 +329,12 @@ def compute_start_point_from_crop(image, mode=2,th=0.9):
         th: 匹配阈值
 
     Returns:
-        匹配位置的中心坐标 (cx, cy)，失败则返回 None
+        默认返回匹配位置的中心坐标 (cx, cy)，失败则返回 None。
+        return_details=True 时返回 ``(center, details)``，其中 details
+        带有实际用于匹配的起点头像裁剪框，供 GUI 直接复用该原图裁片。
     """
     if image is None:
-        return None
+        return (None, None) if return_details else None
     if mode == 2:
         crop_list = [[55, 63, 92, 104], [58, 159, 94, 199]]#1p与2p角色的位置
     else:
@@ -342,15 +345,16 @@ def compute_start_point_from_crop(image, mode=2,th=0.9):
         tpl = image[y1:y2, x1:x2].copy()
         tpl_gray = cv2.cvtColor(tpl, cv2.COLOR_BGR2GRAY)
         if mode == 2:
-            new_w = int(tpl_gray.shape[1] / 1.05)
-            new_h = int(tpl_gray.shape[0] / 1.05)
+            new_w = int(tpl_gray.shape[1] * 0.91)
+            new_h = int(tpl_gray.shape[0] * 0.91)
         else:
-            new_w = int(tpl_gray.shape[1] * 1.15)
-            new_h = int(tpl_gray.shape[0] * 1.15)
+            new_w = int(tpl_gray.shape[1] * 1.19)
+            new_h = int(tpl_gray.shape[0] * 1.19)
         tpl_gray = cv2.resize(tpl_gray, (new_w, new_h))
         search_gray = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2GRAY)
+        mask = find_image_in_folder(f'gray_image/', 'head_mask') if mode==2 else find_image_in_folder(f'gray_image/', 'head_mask2')
         res = cv2.matchTemplate(
-            cv2.bitwise_and(search_gray, search_gray, mask=find_image_in_folder(f'gray_image/', 'head_mask')), tpl_gray,
+            cv2.bitwise_and(search_gray, search_gray, mask=mask), tpl_gray,
             cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(res)
         mx, my = max_loc
@@ -358,8 +362,16 @@ def compute_start_point_from_crop(image, mode=2,th=0.9):
         cy = my + tpl_gray.shape[0] / 2.0
         CUS_LOGGER.debug(f'角色匹配 crop={crop_coords} 得分={max_val:.3f}')
         if max_val > th:
-            return float(cx), float(cy)
-    return None
+            center = (float(cx), float(cy))
+            if return_details:
+                return center, {
+                    'crop_rect': tuple(crop_coords),
+                    'match_score': float(max_val),
+                    'matched_size': (int(tpl_gray.shape[1]),
+                                     int(tpl_gray.shape[0])),
+                }
+            return center
+    return (None, None) if return_details else None
 
 
 # ---- 角标检测配置 ----
