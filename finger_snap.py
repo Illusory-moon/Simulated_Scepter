@@ -5,8 +5,8 @@ from tool.GLOBAL import key_mouse_manager,factor
 from tool.log import CUS_LOGGER
 from tool.public_ocr import merge_text
 from tool.utils.Error import NoMatchError, NoBossError
-from tool.utils.analysis_map import match_multiple_targets, detect_corner_markers, compute_start_point_from_crop, \
-    max_weight_path, build_rightward_graph2, compute_all_max_steps, \
+from tool.utils.analysis_map import match_multiple_targets, detect_corner_markers, detect_infectable_nodes, \
+    compute_start_point_from_crop, max_weight_path, build_rightward_graph2, compute_all_max_steps, \
     evaluate_best_single_replacement, display_matches
 from tool.utils.ocr_num import extract_number, match_numbers_in_region
 import time
@@ -166,6 +166,12 @@ class FingerSnap(IronBloodUniverse):
             CUS_LOGGER.debug(f'检测到 {len(corner_results)} 个角标')
             for cr in corner_results:
                 CUS_LOGGER.debug(f"  {cr['name']} sim={cr['similarity']:.3f} -> 节点{cr['node_idx']}({matches[cr['node_idx']]['name']}) dist={cr['node_dist']}")
+        # 检测青绿色可传染节点
+        infectable_indices = detect_infectable_nodes(self.screen, matches)
+        if infectable_indices:
+            CUS_LOGGER.debug(f'检测到 {len(infectable_indices)} 个可传染节点')
+            for idx in infectable_indices:
+                CUS_LOGGER.debug(f"  节点{idx}: {matches[idx]['name']} at {matches[idx]['location']}")
         if mode==2:
             start=compute_start_point_from_crop(image)
             if start is None:
@@ -180,7 +186,8 @@ class FingerSnap(IronBloodUniverse):
         for i, m in enumerate(matches):
             cm = m.get('corner_marker', None)
             cm_str = f' [角标:{cm["name"]}]' if cm else ''
-            CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}{cm_str}")
+            inf_str = ' [可传染]' if m.get('infectable', False) else ''
+            CUS_LOGGER.debug(f"  {i}: {m['name']} at {m['location']}, 相似度: {m.get('similarity')}{cm_str}{inf_str}")
         boss_head_x = [m['location'][0] for m in matches if m['name'] in ('boss', 'head')]
         if boss_head_x:
             rightmost = max(boss_head_x)
