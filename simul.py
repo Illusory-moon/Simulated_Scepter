@@ -549,7 +549,7 @@ class SimulatedUniverse(UniverseUtils):
     # 事件界面
     def select_event(self):
         tx, ty = self.tx, self.ty
-        event_prior = [self.fate] + self.event_prior
+        event_prior =  self.event_prior+[self.fate]
         success = self.click_text(event_prior)
         key_mouse_manager.wait()
         self.get_screen()

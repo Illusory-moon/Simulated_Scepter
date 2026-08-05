@@ -1,4 +1,7 @@
 import os
+import shutil
+
+import yaml
 
 from iron_blood import IronBloodUniverse
 from tool.GLOBAL import key_mouse_manager,factor
@@ -18,6 +21,14 @@ class FingerSnap(IronBloodUniverse):
         super().__init__()
         self.countdown=15
         CUS_LOGGER.info("令她感伤的是，永恒的生命没能让她积累无穷的智慧，反倒是那些曾被她视作珍瑰的事物，开始变得模糊，一去不返。。。")
+        config_file = "config/config/event_info2.yml"
+        example_file = "config/config/info_example.yml"
+        if not os.path.exists(config_file):
+            if os.path.exists(example_file):
+                shutil.copy2(example_file, config_file)
+
+        with open(config_file, "r", encoding="utf-8", errors="ignore") as f:
+            self.event_prior = yaml.safe_load(f)["event"]
 
     def select_fate(self):
         self.click_text(text="丰饶", box=[824, 877, 784, 814])
@@ -116,7 +127,7 @@ class FingerSnap(IronBloodUniverse):
             else:
                 CUS_LOGGER.error("未找到下一步路径点")
             if self.early_stop and self.gwypzmgzcndqlp:
-                if self.plane_floor!=3 and self.countdown==0:
+                if self.countdown==0:
                     self.need_end=True
             self.new_node=True
         else:
