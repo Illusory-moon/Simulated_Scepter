@@ -29,7 +29,16 @@ class FingerSnap(IronBloodUniverse):
 
         with open(config_file, "r", encoding="utf-8", errors="ignore") as f:
             self.event_prior = yaml.safe_load(f)["event"]
-
+    def restart_recording(self):
+        if self.record and self.cut_video and self.YKItDYvq3FpnOYx:
+            need_del=self.del_record_time and self.del_record_time>self.countdown
+            CUS_LOGGER.debug(f"是否可删除{need_del},限制数目{self.del_record_time}，当前数目{self.countdown}")
+            self.recorder.stop_recording(need_del)
+            time.sleep(0.8)
+            self.recorder.start_recording(self.count)
+            self.update_state("re_start")
+        self.countdown = 15
+        self.fail_match_count=0
     def select_fate(self):
         self.click_text(text="丰饶", box=[824, 877, 784, 814])
     def end_of_university(self):
