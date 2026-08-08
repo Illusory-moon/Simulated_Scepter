@@ -3,6 +3,7 @@ from datetime import datetime
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+
 from route import PATHS
 from tool.log import CUS_LOGGER
 from tool.utils.image_tool import find_image_in_folder
@@ -167,7 +168,6 @@ def build_rightward_graph(matches, start=None, max_gap=90.0, max_overlap=40.0, m
     # 构建只向右的边（基本要求：b.cx > a.cx），并按邻近约束过滤。
     edges = {n['idx']: [] for n in nodes}
     for a in nodes:
-        a_left = a['cx'] - a['w'] / 2.0
         a_right = a['cx'] + a['w'] / 2.0
         for b in nodes:
             if b['cx'] <= a['cx']:
@@ -228,7 +228,6 @@ def build_rightward_graph2(matches, start=None, max_gap=90.0, max_overlap=40.0, 
     # 构建只向右的边（基本要求：b.cx > a.cx），并按邻近约束过滤。
     edges = {n['idx']: [] for n in nodes}
     for a in nodes:
-        a_left = a['cx'] - a['w'] / 2.0
         a_right = a['cx'] + a['w'] / 2.0
         for b in nodes:
             if b['cx'] <= a['cx']:
@@ -445,7 +444,7 @@ def compute_start_point_from_crop(image, mode=2, th=0.9,
             new_h = int(tpl_gray.shape[0] * 1.19)
         tpl_gray = cv2.resize(tpl_gray, (new_w, new_h))
         search_gray = cv2.cvtColor(image.copy(), cv2.COLOR_BGR2GRAY)
-        mask = find_image_in_folder(f'gray_image/', 'head_mask') if mode==2 else find_image_in_folder(f'gray_image/', 'head_mask2')
+        mask = find_image_in_folder('gray_image/', 'head_mask') if mode==2 else find_image_in_folder('gray_image/', 'head_mask2')
         res = cv2.matchTemplate(
             cv2.bitwise_and(search_gray, search_gray, mask=mask), tpl_gray,
             cv2.TM_CCOEFF_NORMED)
@@ -625,9 +624,9 @@ def display_matches(image, matches, path=None, highlight_idx=None, save_path=Non
                 'head': '首领'}
     texts_to_draw = []
     for i, m in enumerate(matches):
-        name = m.get('name', 'obj');
-        x, y = m.get('location', (0, 0));
-        w, h = m.get('size', (0, 0));
+        name = m.get('name', 'obj')
+        x, y = m.get('location', (0, 0))
+        w, h = m.get('size', (0, 0))
         # 可传染节点用青绿色加粗框，普通节点用绿色框
         if m.get('infectable', False):
             color = (255, 200, 0)  # BGR 青绿偏金色醒目框
@@ -636,7 +635,7 @@ def display_matches(image, matches, path=None, highlight_idx=None, save_path=Non
             color = (0, 180, 0)
             thickness = 2
         cv2.rectangle(vis, (int(x), int(y)), (int(x + w), int(y + h)), color, thickness)
-        cx, cy = int(round(x + w / 2.0)), int(round(y + h / 2.0));
+        cx, cy = int(round(x + w / 2.0)), int(round(y + h / 2.0))
         cv2.circle(vis, (cx, cy), 4, (0, 255, 0), -1)
         label = f"{i}:{EN_TO_CN.get(name, name)}:{m.get('similarity', 0)}"
         if m.get('infectable', False):
@@ -653,7 +652,8 @@ def display_matches(image, matches, path=None, highlight_idx=None, save_path=Non
     if alt_path and len(alt_path) >= 2:
         pts = []
         for p in alt_path:
-            if isinstance(p, dict) and 'cx' in p and 'cy' in p: pts.append((int(round(p['cx'])), int(round(p['cy']))))
+            if isinstance(p, dict) and 'cx' in p and 'cy' in p:
+                pts.append((int(round(p['cx'])), int(round(p['cy']))))
         if len(pts) >= 2:
             pts_array = np.array(pts, dtype=np.int32).reshape((-1, 1, 2))
             cv2.polylines(vis, [pts_array], isClosed=False, color=(255, 0, 0), thickness=4, lineType=cv2.LINE_AA)
@@ -662,24 +662,25 @@ def display_matches(image, matches, path=None, highlight_idx=None, save_path=Non
     if path and len(path) >= 2:
         pts = []
         for p in path:
-            if isinstance(p, dict) and 'cx' in p and 'cy' in p: pts.append((int(round(p['cx'])), int(round(p['cy']))))
+            if isinstance(p, dict) and 'cx' in p and 'cy' in p:
+                pts.append((int(round(p['cx'])), int(round(p['cy']))))
         if len(pts) >= 2:
             cv2.polylines(vis, [np.array(pts, dtype=np.int32)], isClosed=False, color=(0, 0, 255), thickness=2)
             for (cx, cy) in pts:
                 cv2.circle(vis, (cx, cy), 6, (0, 0, 255), -1)
     if highlight_idx is not None and 0 <= int(highlight_idx) < len(matches):
-        m = matches[int(highlight_idx)];
-        lx, ly = m.get('location', (0, 0));
+        m = matches[int(highlight_idx)]
+        lx, ly = m.get('location', (0, 0))
         w, h = m.get('size', (0, 0))
-        hc, hr = int(round(lx + w / 2.0)), int(round(ly + h / 2.0));
+        hc, hr = int(round(lx + w / 2.0)), int(round(ly + h / 2.0))
         cv2.circle(vis, (hc, hr), 10, (0, 255, 255), 3)
-        rlbl = 'REPLACE';
+        rlbl = 'REPLACE'
         (tw, th), baseline = cv2.getTextSize(rlbl, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-        rtx, rty = hc + 12, hr + 6;
-        cv2.rectangle(vis, (rtx - 2, rty - th - 2), (rtx + tw + 2, rty + baseline + 2), (255, 255, 255), -1);
+        rtx, rty = hc + 12, hr + 6
+        cv2.rectangle(vis, (rtx - 2, rty - th - 2), (rtx + tw + 2, rty + baseline + 2), (255, 255, 255), -1)
         cv2.putText(vis, rlbl, (rtx, rty), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
     if texts_to_draw:
-        vis_rgb = cv2.cvtColor(vis, cv2.COLOR_BGR2RGB);
+        vis_rgb = cv2.cvtColor(vis, cv2.COLOR_BGR2RGB)
         pil_img = Image.fromarray(vis_rgb)
         try:
             fnt = ImageFont.truetype(font_path, font_size) if font_path else ImageFont.load_default()
@@ -688,8 +689,8 @@ def display_matches(image, matches, path=None, highlight_idx=None, save_path=Non
         d = ImageDraw.Draw(pil_img)
         for t, (tx, ty) in texts_to_draw:
             try:
-                bbox = d.textbbox((tx, ty), t, font=fnt);
-                d.rectangle((bbox[0] - 2, bbox[1] - 2, bbox[2] + 2, bbox[3] + 2), fill=(255, 255, 255));
+                bbox = d.textbbox((tx, ty), t, font=fnt)
+                d.rectangle((bbox[0] - 2, bbox[1] - 2, bbox[2] + 2, bbox[3] + 2), fill=(255, 255, 255))
                 d.text((tx, ty), t, font=fnt, fill=(0, 0, 0))
             except Exception:
                 try:

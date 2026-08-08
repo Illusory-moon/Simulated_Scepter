@@ -64,13 +64,13 @@ def main(ang=[1,1,3], su=None):
     try:
         if abs(key_mouse_manager.multi) > 2:
             key_mouse_manager.multi = 1
-    except:
+    except Exception:
         key_mouse_manager.multi = 1
-    
+
     # 打印基本校准后的角度校准值
     CUS_LOGGER.info(f"基本角度校准值: {key_mouse_manager.multi}")
 
-    
+
     CUS_LOGGER.info("所有校准完成")
     config.angle = str(key_mouse_manager.multi)
     config.save()

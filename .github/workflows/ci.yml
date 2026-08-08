@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [master, master2]
+  pull_request:
+    branches: [master]
+
+jobs:
+  startup-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ruff — only crash-level rules
+        # uvx runs ruff in an isolated venv, no project sync needed
+        run: uvx ruff check . --exclude test --select=F821,E722,F403
+
+      - name: Compile-check — catch syntax errors without importing
+        run: python -m compileall -q -x test .

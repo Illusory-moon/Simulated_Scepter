@@ -1,20 +1,33 @@
 import os
 import shutil
+import time
 
 import yaml
 
 from iron_blood import IronBloodUniverse
-from tool.GLOBAL import key_mouse_manager,factor
+from tool.GLOBAL import factor, key_mouse_manager
 from tool.log import CUS_LOGGER
 from tool.public_ocr import merge_text
-from tool.utils.Error import NoMatchError, NoBossError
-from tool.utils.analysis_map import match_multiple_targets, detect_corner_markers, detect_infectable_nodes, \
-    compute_start_point_from_crop, max_weight_path, build_rightward_graph2, compute_all_max_steps, \
-    evaluate_best_single_replacement, display_matches
+from tool.utils.analysis_map import (
+    build_rightward_graph2,
+    compute_all_max_steps,
+    compute_start_point_from_crop,
+    detect_corner_markers,
+    detect_infectable_nodes,
+    display_matches,
+    evaluate_best_single_replacement,
+    match_multiple_targets,
+    max_weight_path,
+)
+from tool.utils.Error import NoBossError, NoMatchError
 from tool.utils.image_tool import find_image_by_name
-from tool.utils.ocr_num import extract_number, match_numbers_in_region, match_roll_count_in_region, \
-    match_cheat_count_in_region
-import time
+from tool.utils.ocr_num import (
+    extract_number,
+    match_cheat_count_in_region,
+    match_numbers_in_region,
+    match_roll_count_in_region,
+)
+
 
 class FingerSnap(IronBloodUniverse):
     def __init__(self):
@@ -27,7 +40,7 @@ class FingerSnap(IronBloodUniverse):
             if os.path.exists(example_file):
                 shutil.copy2(example_file, config_file)
 
-        with open(config_file, "r", encoding="utf-8", errors="ignore") as f:
+        with open(config_file, encoding="utf-8", errors="ignore") as f:
             self.event_prior = yaml.safe_load(f)["event"]
     def restart_recording(self):
         if self.record and self.cut_video and self.YKItDYvq3FpnOYx:
@@ -175,8 +188,8 @@ class FingerSnap(IronBloodUniverse):
         CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
         if len(matches)==0:
             CUS_LOGGER.warning("未匹配到任何地图图标却错误进入寻路阶段，可能是误识别")
-            self.save_screen(not_now=True,save_path=f"/temp/bigmaperror/")
-            self.save_screen(save_path=f"/temp/bigmaperror/")
+            self.save_screen(not_now=True,save_path="/temp/bigmaperror/")
+            self.save_screen(save_path="/temp/bigmaperror/")
             CUS_LOGGER.warning("刷新截图缓冲区后最后一次尝试匹配地图图标")
             matches = match_multiple_targets(image, mode)
             CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")

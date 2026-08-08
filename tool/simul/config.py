@@ -1,8 +1,8 @@
 import os
 import shutil
-from typing import List, Dict, Union
-import yaml
 import sys
+
+import yaml
 
 from route import PATHS
 
@@ -48,7 +48,7 @@ class Config:
             return x
 
     @property
-    def order(self) -> List[int]:
+    def order(self) -> list[int]:
         return [int(i) for i in self.order_text.strip(" ").split(" ")]
 
     @property
@@ -64,10 +64,10 @@ class Config:
             else:
                 self.save()
                 return
-        
+
         if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8", errors='ignore') as f:
-                config: Dict[str, Union[int, float, str, List[int]]] = yaml.safe_load(f)['config']
+            with open(config_path, encoding="utf-8", errors='ignore') as f:
+                config: dict[str, int | float | str | list[int]] = yaml.safe_load(f)['config']
                 try:
                     self.order_text = " ".join(str(x) for x in config['order_text'])
                     self.angle = str(config['angle'])
@@ -84,35 +84,35 @@ class Config:
                     self.timezone = config['timezone']
                     self.slow_mode = config['slow_mode']
                     self.max_run = config['max_run']
-                except:
+                except Exception:
                     pass
-            with open(config_path, "r", encoding="utf-8", errors='ignore') as f:
+            with open(config_path, encoding="utf-8", errors='ignore') as f:
                 try:
                     self.mapping = yaml.safe_load(f)['key_mapping']
-                except:
+                except Exception:
                     pass
         else:
             self.save()
 
     def save(self):
         try:
-            with open(os.path.join(self.abspath, self.text), "r", encoding="utf-8", errors='ignore') as f:
+            with open(os.path.join(self.abspath, self.text), encoding="utf-8", errors='ignore') as f:
                 secondary_fate = yaml.safe_load(f)['config']['secondary_fate']
-        except:
+        except Exception:
             try:
-                with open(os.path.join(self.abspath, 'info_example_old.yml'), "r", encoding="utf-8", errors='ignore') as f:
+                with open(os.path.join(self.abspath, 'info_example_old.yml'), encoding="utf-8", errors='ignore') as f:
                     secondary_fate = yaml.safe_load(f)['config']['secondary_fate']
-            except:
+            except Exception:
                 secondary_fate = ['巡猎','毁灭','丰饶']
 
         try:
-            with open(os.path.join(self.abspath, self.text), "r", encoding="utf-8", errors='ignore') as f:
+            with open(os.path.join(self.abspath, self.text), encoding="utf-8", errors='ignore') as f:
                 prior = yaml.safe_load(f)['prior']
-        except:
+        except Exception:
             try:
-                with open(os.path.join(self.abspath, 'info_example_old.yml'), "r", encoding="utf-8", errors='ignore') as f:
+                with open(os.path.join(self.abspath, 'info_example_old.yml'), encoding="utf-8", errors='ignore') as f:
                     prior = yaml.safe_load(f)['prior']
-            except:
+            except Exception:
                 prior = {
                     '奇物':
                         ['福灵胶', '博士之袍', '陨石球', '降维骰子', '信仰债券', '时空棱镜', '朋克洛德', '香涎干酪',

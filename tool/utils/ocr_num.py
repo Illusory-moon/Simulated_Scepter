@@ -1,12 +1,13 @@
-import cv2
-import numpy as np
 import os
 import re
 from datetime import datetime
-from route import PATHS
-from tool.utils.image_tool import find_image_in_folder
-from tool.log import CUS_LOGGER
 
+import cv2
+import numpy as np
+
+from route import PATHS
+from tool.log import CUS_LOGGER
+from tool.utils.image_tool import find_image_in_folder
 
 ROLL_COUNT_REGION = (1660, 707, 1700, 740)
 CHEAT_COUNT_REGION = (1325, 707, 1365, 740)

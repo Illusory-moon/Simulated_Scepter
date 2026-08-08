@@ -4,8 +4,15 @@ import numpy as np
 from tool.GLOBAL import factor
 from tool.log import CUS_LOGGER
 from tool.utils.image_tool import find_image_in_folder
-from tool.utils.minimap_util import image_size, subtract_blur, group_points, inrange, remove_border, draw_circle, \
-    create_circle
+from tool.utils.minimap_util import (
+    create_circle,
+    draw_circle,
+    group_points,
+    image_size,
+    inrange,
+    remove_border,
+    subtract_blur,
+)
 
 radius_item = (5, 7)
 AIM_ENEMY_LUMA_MIN = 184
