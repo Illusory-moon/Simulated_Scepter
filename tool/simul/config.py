@@ -39,7 +39,7 @@ class Config:
     @property
     def multi(self) -> float:
         x = float(self.angle)
-        if x > 10 or x <= 0:
+        if x > 5 or x <= 0:
             self.angle = '1.0'
             return 1.0
         return x
