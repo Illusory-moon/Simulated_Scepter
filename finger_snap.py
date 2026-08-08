@@ -336,5 +336,5 @@ class FingerSnap(IronBloodUniverse):
                                 self.click_text(text="重投", box=[1599, 1657, 760, 795])
                                 return
         self.click_text(text="确认效果", box=[1584, 1687, 961, 994])
-        self.init_map()
+        self.init_map(self.new_node)
         self.mini_state = 1

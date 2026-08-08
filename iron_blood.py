@@ -90,6 +90,7 @@ class IronBloodUniverse(SimulatedUniverse):
         self.area=""
         self.now_map=-1
         self.new_node = True
+        self.node_count=0
         self.fail_match_count = 0
         CUS_LOGGER.info("宇宙的中心有一团火种,它愈烧愈旺,直至燃尽整片星河。")
     
@@ -103,6 +104,7 @@ class IronBloodUniverse(SimulatedUniverse):
             self.update_state("re_start")
         self.kill_count = 0
         self.fail_match_count=0
+        self.node_count=0
     def end_of_university(self):
         super().end_of_university()
         elapsed = int(time.time() - self.run_start_time)
@@ -674,6 +676,7 @@ class IronBloodUniverse(SimulatedUniverse):
         self.save_screen(save_path=f"/temp/map{self.plane_floor}/")
         for _ in range(5):
             self.click_text(text="进入位面", box=[907, 1009, 857, 891])
+            self.node_count=0
         key_mouse_manager.wait()
         return
     def initing_map2(self):
@@ -908,9 +911,12 @@ class IronBloodUniverse(SimulatedUniverse):
                                 self.click_text(text="重投", box=[1599, 1657, 760, 795])
                                 return
         self.click_text(text="确认效果", box=[1584, 1687, 961, 994])
-        self.init_map()
+        self.init_map(self.new_node)
         self.mini_state = 1
-
+    def init_map(self,add=False):
+        super().init_map()
+        if add:
+            self.node_count+=1
     def strange_shop(self):
         img = self.get_small_interaction_img(x=0.5000, y=0.7333, mask="mask_strange", fresh=True)
         res=self.ts.split_strange(img)
@@ -986,6 +992,33 @@ class IronBloodUniverse(SimulatedUniverse):
                 except Exception as e:
                     CUS_LOGGER.error(f"写入节点日志失败: {e}")
             self.new_node=False
+    def emergency(self):
+        event_name = self.ts.find_with_box(box=[897, 1023, 500, 540], forward=True, re_screen=False)
+        if len(event_name)==0:
+            self.save_screen(not_now=True,save_path=f"/temp/event/")
+            self.stop()
+        try:
+            db_file = "config/backup/emergency.db"
+            os.makedirs("config/backup", exist_ok=True)
+            conn = sqlite3.connect(db_file)
+            cursor = conn.cursor()
+            cursor.execute('''CREATE TABLE IF NOT EXISTS node_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT DEFAULT (datetime('now','localtime')),
+                data TEXT
+            )''')
+            data = {
+                "count": self.count,
+                "node_count": self.node_count,
+                "event": event_name,
+                "plane_floor": self.plane_floor,
+            }
+            cursor.execute('INSERT INTO node_log (data) VALUES (?)',
+                           (json.dumps(data, ensure_ascii=False),))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            CUS_LOGGER.error(f"写入节点日志失败: {e}")
     @staticmethod
     def set_kill_num(num):
         log_emitter.kill_num_signal.emit(num)
