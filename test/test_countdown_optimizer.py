@@ -53,14 +53,19 @@ def _decision_text(context, recommendation, node_names):
     if context.observed_effect:
         lines.append(f"实际观察效果: {EFFECT_NAMES[context.observed_effect]}")
     lines.append("候选动作（冻结贪心下游独立MC评价）:")
+    win_reports = recommendation.win_reports or recommendation.reports
     for action, stats in sorted(
             recommendation.reports.items(), key=lambda item: -item[1].mean):
         label = format_action(context.phase, action)
         if isinstance(action, int):
             label += f" {node_names.get(action, '')}"
-        win = "" if stats.win_rate is None else f" 胜率={stats.win_rate * 100:.4f}%"
-        mark = " <-- 推荐" if action == recommendation.recommended_action else ""
-        lines.append(f"  {label}: mean={stats.mean:.3f} n={stats.count}{win}{mark}")
+        win_stats = win_reports[action]
+        win = ("" if win_stats.win_rate is None else
+               f" 胜策={win_stats.win_rate * 100:.4f}%")
+        marks = ((" 均分推荐" if action == recommendation.recommended_action else "")
+                 + (" 最高胜率" if action == recommendation.highest_win_action else ""))
+        lines.append(
+            f"  {label}: 均策={stats.mean:.3f} n={stats.count}{win}{marks}")
     return "\n".join(lines)
 
 
@@ -77,7 +82,7 @@ def analyze_single_map(image_path: str = None, *, nodes: list = None,
                        verbose: bool = True, match_mode: int = 1) -> dict:
     """以旧参数名执行一次当前状态纯 MC 推荐。
 
-    ``target_cd`` 只统计候选胜率，推荐目标仍是最大化平均最终倒计时。
+    主推荐仍最大化平均最终倒计时；``target_cd`` 另行生成最高胜率策略。
     ``future_table`` 和 ``use_cache`` 为兼容旧调用而接收，但在线当前图不会使用。
     """
     del use_cache
@@ -155,7 +160,10 @@ def analyze_single_map(image_path: str = None, *, nodes: list = None,
             conditional_rec = controller.evaluate_current_policy(conditional, target_cd)
             recommendations_by_effect[effect] = conditional_rec
             report = conditional_rec.reports[conditional_rec.recommended_action]
-            win = "" if report.win_rate is None else f"，胜率 {report.win_rate * 100:.4f}%"
+            win_report = (conditional_rec.win_reports or conditional_rec.reports)[
+                conditional_rec.recommended_action]
+            win = ("" if win_report.win_rate is None else
+                   f"，胜率策略 {win_report.win_rate * 100:.4f}%")
             lines.append(
                 f"  {EFFECT_NAMES[effect]}: "
                 f"{format_action(PHASE_EFFECT, conditional_rec.recommended_action)}，"
@@ -166,12 +174,15 @@ def analyze_single_map(image_path: str = None, *, nodes: list = None,
             {effect: item.recommended_action
              for effect, item in recommendations_by_effect.items()},
             n_sim_trials, target_cd)
+        selected_win = selected
         recommendation = None
         decision_analysis = "\n".join(lines)
         recommended_action = "等待实际效果，再执行对应条件策略"
     else:
         recommendation = controller.recommend(context, target_cd)
         selected = recommendation.reports[recommendation.recommended_action]
+        selected_win = (recommendation.win_reports or recommendation.reports)[
+            recommendation.recommended_action]
         decision_analysis = _decision_text(context, recommendation, node_names)
         recommended_action = format_action(context.phase, recommendation.recommended_action)
     evaluation = {
@@ -186,9 +197,9 @@ def analyze_single_map(image_path: str = None, *, nodes: list = None,
         print(decision_analysis)
         print(f"推荐: {recommended_action}")
         print(f"平均最终CD={selected.mean:.3f} ± {selected.std:.3f}")
-        if selected.win_rate is not None:
-            print(f"目标{target_cd}: {selected.wins}/{selected.target_count}，"
-                  f"胜率={selected.win_rate * 100:.4f}%")
+        if selected_win.win_rate is not None:
+            print(f"目标{target_cd}: {selected_win.wins}/{selected_win.target_count}，"
+                  f"胜率={selected_win.win_rate * 100:.4f}%")
     return {
         "label": label,
         "nodes": raw_nodes,
@@ -208,7 +219,7 @@ def analyze_single_map(image_path: str = None, *, nodes: list = None,
         "conditional_evaluation_rollouts": sum(
             item.evaluation_rollouts for item in recommendations_by_effect.values())
             if recommendations_by_effect else None,
-        "win_rate": selected.win_rate,
+        "win_rate": selected_win.win_rate,
         "target_cd": target_cd,
         "num_q_states": len(controller.q),
         "future_table": None,

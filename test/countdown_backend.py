@@ -136,6 +136,7 @@ class MCRecommendation:
     highest_win_action: object
     control_rollouts: int
     evaluation_rollouts: int
+    win_reports: Optional[Mapping[object, MCSampleStats]] = None
 
 
 class CountdownMap:
@@ -322,7 +323,7 @@ class MonteCarloController:
 
     def _state_key(self, state: CountdownState) -> tuple:
         # 均分目标对当前 CD 线性可加；Q 回填后续累计回报后可安全去掉该维度。
-        # 目标分只用于独立评价胜率，不参与策略学习。
+        # 均分 Q 不使用目标；目标只进入独立胜率策略，不污染均分表。
         useful_cheat = min(
             state.cheat_rem, self.map.longest_steps_from(state.node_idx))
         return (state.node_idx,
@@ -501,6 +502,7 @@ class MonteCarloController:
             return policy_cache[cache_key]
         selected = self.frozen_win_policy.get(cache_key[1])
         if selected not in actions:
+            # 胜率链路的深层未见状态必须使用完整的成长—收割先验，不能退回均分冻结策略。
             selected = min(actions, key=lambda action: (
                 -self._heuristic(context, action), self._action_sort_key(action)))
         if policy_cache is not None:
@@ -629,22 +631,44 @@ class MonteCarloController:
             cancelled: Optional[Callable[[], bool]] = None,
             control_rollouts: int = 0,
             evaluation_rollouts: Optional[int] = None) -> MCRecommendation:
-        """不再训练，只公平评价当前已经冻结的策略。"""
+        """不再训练，分别评价均分策略与目标胜率策略。"""
+        actions = self.legal_actions(context)
+        budget = (self.config.evaluation_rollouts if evaluation_rollouts is None
+                  else max(1, int(evaluation_rollouts)))
+        mean_budget = budget if target is None else max(len(actions), budget // 2)
         reports, evaluated = self.evaluate_actions(
-            context, target, progress, cancelled, evaluation_rollouts)
+            context, target, progress, cancelled, mean_budget)
         if not reports or not any(report.count for report in reports.values()):
             raise RuntimeError("当前状态没有完成任何候选评价")
+        if evaluated != max(1, mean_budget // len(actions)) * len(actions):
+            raise InterruptedError("均分策略评价已取消")
         ranked = sorted((action for action, report in reports.items() if report.count),
                         key=lambda action: (-reports[action].mean,
                                             self._action_sort_key(action)))
-        win_ranked = sorted(ranked, key=lambda action: (
-            -(reports[action].win_rate or 0.0), -reports[action].mean,
-            self._action_sort_key(action)))
+        if target is None:
+            self.frozen_policy[self._context_key(context)] = ranked[0]
+            return MCRecommendation(context, reports, ranked[0], ranked[0],
+                                    int(control_rollouts), evaluated)
+
+        # 两套策略均须公平覆盖所有动作；极小预算不足时，最低成本为每套每动作一次。
+        win_budget = max(len(actions), budget - mean_budget)
+        win_reports, win_evaluated = self.evaluate_actions(
+            context, target, progress, cancelled, win_budget, True)
+        if win_evaluated != max(1, win_budget // len(actions)) * len(actions):
+            raise InterruptedError("胜率策略评价已取消")
+        win_ranked = sorted(
+            (action for action, report in win_reports.items()
+             if report.target_count),
+            key=lambda action: (-win_reports[action].win_rate,
+                                -win_reports[action].mean,
+                                self._action_sort_key(action)))
+        winner = win_ranked[0] if win_ranked else ranked[0]
         self.frozen_policy[self._context_key(context)] = ranked[0]
-        if target is not None:
-            self.frozen_win_policy[self._win_context_key(context)] = win_ranked[0]
-        return MCRecommendation(context, reports, ranked[0], win_ranked[0],
-                                int(control_rollouts), evaluated)
+        if win_ranked:
+            self.frozen_win_policy[self._win_context_key(context)] = winner
+        return MCRecommendation(
+            context, reports, ranked[0], winner, int(control_rollouts),
+            evaluated + win_evaluated, win_reports)
 
     def _sample_successor_contexts(self, context: DecisionContext) -> tuple:
         """只采本批实际遇到的一层后继；固定六次探测，不枚举未来状态。"""
@@ -747,35 +771,14 @@ class MonteCarloController:
         branch_control, branch_evaluation = self._calibrate_successors(
             successors, target, successor_control, successor_evaluation,
             progress, cancelled)
-        separate_win_policy = target is not None and any(
-            self.frozen_win_policy.get(self._win_context_key(item))
-            != self.frozen_policy.get(self._context_key(item))
-            for item in successors)
-        mean_evaluation = (max(len(actions), root_evaluation // 2)
-                           if separate_win_policy else root_evaluation)
         recommendation = self.evaluate_current_policy(
             context, target, progress, cancelled,
             control_rollouts=control + branch_control,
-            evaluation_rollouts=mean_evaluation)
-        win_evaluated = 0
-        if separate_win_policy and not (cancelled and cancelled()):
-            win_reports, win_evaluated = self.evaluate_actions(
-                context, target, progress, cancelled,
-                max(len(actions), root_evaluation - mean_evaluation), True)
-            win_actions = [action for action in actions if win_reports[action].target_count]
-            if win_actions:
-                winner = min(win_actions, key=lambda action: (
-                    -win_reports[action].win_rate, -win_reports[action].mean,
-                    self._action_sort_key(action)))
-                for action in win_actions:
-                    recommendation.reports[action].wins = win_reports[action].wins
-                    recommendation.reports[action].target_count = win_reports[action].target_count
-                self.frozen_win_policy[self._win_context_key(context)] = winner
-                recommendation = replace(recommendation, highest_win_action=winner)
+            evaluation_rollouts=root_evaluation)
         return replace(
             recommendation,
             evaluation_rollouts=(recommendation.evaluation_rollouts
-                                 + branch_evaluation + win_evaluated))
+                                 + branch_evaluation))
 
 
 class CountdownSession:
