@@ -52,6 +52,7 @@ class FingerSnap(IronBloodUniverse):
             self.update_state("re_start")
         self.countdown = 15
         self.fail_match_count=0
+        self.node_count = 0
     def select_fate(self):
         self.click_text(text="丰饶", box=[824, 877, 784, 814])
     def end_of_university(self):
@@ -178,6 +179,7 @@ class FingerSnap(IronBloodUniverse):
         self.save_screen(save_path=f"/temp/map{self.plane_floor}/")
         for _ in range(5):
             self.click_text(text="进入位面", box=[907, 1009, 857, 891])
+            self.node_count = 0
         key_mouse_manager.wait()
         return
     def try_analysis_map(self,mode=1):
@@ -311,7 +313,7 @@ class FingerSnap(IronBloodUniverse):
                     orig_max = sum(weight_ranges.get(n['name'], (0, 0))[1] for n in best_path)
 
                 CUS_LOGGER.debug(f'新路径理论期望值：{best_weight:.3f} (min={orig_min}, max={orig_max})')
-            display_matches(image, matches, path=path, highlight_idx=highlight, save_path=True,
+            display_matches(image, matches, path=path, highlight_idx=highlight, save_path=False,
                          font_size_override=14, alt_path=alt_path)
         self.replace_idx = None
     def calculated_roll(self):
