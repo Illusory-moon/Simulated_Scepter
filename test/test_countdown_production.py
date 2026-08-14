@@ -99,6 +99,19 @@ class CountdownProductionTests(unittest.TestCase):
         self.assertEqual(
             [1], detect_infectable_nodes(image, matches, target_selection=True))
 
+    def test_thin_green_halo_is_detected_in_path_selection(self):
+        import cv2
+        import numpy as np
+
+        from tool.utils.analysis_map import detect_infectable_nodes
+
+        image = np.full((120, 120, 3), (80, 45, 75), np.uint8)
+        matches = [{"location": (35, 35), "size": (50, 50)}]
+        cv2.rectangle(image, (25, 25), (95, 95), (100, 205, 125), 4)
+        self.assertEqual([0], detect_infectable_nodes(image, matches))
+        self.assertEqual(
+            [0], detect_infectable_nodes(image, matches, target_selection=True))
+
     def test_finger_snap_settings_are_saved_separately_from_iron_blood(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "settings.json"

@@ -10,6 +10,24 @@ from tool.log import CUS_LOGGER
 from tool.utils.image_tool import find_image_in_folder
 
 
+GREEN_HALO_HUE_MIN = 35
+GREEN_HALO_HUE_MAX = 80
+GREEN_HALO_SATURATION_MIN = 50
+GREEN_HALO_VALUE_MIN = 100
+GREEN_HALO_RATIO_THRESHOLD = 0.02
+
+
+def _green_halo_ratio(roi):
+    """Return the share of bright green pixels used by an infected-node halo."""
+    if roi is None or roi.size == 0:
+        return 0.0
+    hue, saturation, value = cv2.split(cv2.cvtColor(roi, cv2.COLOR_BGR2HSV))
+    mask = ((hue >= GREEN_HALO_HUE_MIN) & (hue <= GREEN_HALO_HUE_MAX)
+            & (saturation > GREEN_HALO_SATURATION_MIN)
+            & (value > GREEN_HALO_VALUE_MIN))
+    return float(mask.sum() / mask.size)
+
+
 def _is_green_region(color_image, box, pad=10):
     """Check if a region around a box is green/cyan colored (infectable node area)."""
     x, y, w, h = [int(v) for v in box]
@@ -26,7 +44,8 @@ def _is_green_region(color_image, box, pad=10):
     cyan_ratio = cyan_mask.sum() / cyan_mask.size
     b_mean, g_mean = float(b.mean()), float(g.mean())
     return (b_mean > 120 and g_mean > 90 and cyan_ratio > 0.20) \
-           or (g_mean > 130 and b_mean > 100)
+           or (g_mean > 130 and b_mean > 100) \
+           or _green_halo_ratio(roi) > GREEN_HALO_RATIO_THRESHOLD
 
 
 def match_multiple_targets(processed_image, mode=1, threshold=0.5, color_image=None):
@@ -746,17 +765,17 @@ def detect_infectable_nodes(color_image, matches, pad=20, cyan_ratio_threshold=0
             continue
 
         if target_selection:
-            h, s, v = cv2.split(cv2.cvtColor(roi, cv2.COLOR_BGR2HSV))
             # 目标选择界面会给所有可选节点加青色边框，只有已生效节点有绿色光晕。
-            is_infectable = (((h >= 50) & (h <= 80) & (s > 90) & (v > 100)).sum()
-                             / h.size > 0.10)
+            is_infectable = _green_halo_ratio(roi) > GREEN_HALO_RATIO_THRESHOLD
         else:
             b, g, r = cv2.split(roi.astype(np.float32))
             cyan_mask = (b > r * 1.2) & (g > r * 1.1) & (b > 80) & (g > 60)
             cyan_ratio = cyan_mask.sum() / cyan_mask.size
             b_mean, g_mean = float(b.mean()), float(g.mean())
             is_infectable = (b_mean > b_min and g_mean > g_min
-                             and cyan_ratio > cyan_ratio_threshold) or (g_mean > 130 and b_mean > 100)
+                             and cyan_ratio > cyan_ratio_threshold) \
+                            or (g_mean > 130 and b_mean > 100) \
+                            or _green_halo_ratio(roi) > GREEN_HALO_RATIO_THRESHOLD
         m['infectable'] = is_infectable
         if is_infectable:
             infectable_nodes.append(i)
@@ -816,7 +835,9 @@ def save_analysis_map_debug(image, matches, start=None, tag="",
                 b, g, r = cv2.split(roi.astype(np.float32))
                 cyan_mask = (b > r * 1.2) & (g > r * 1.1) & (b > 80) & (g > 60)
                 cyan_ratio = float(cyan_mask.sum() / cyan_mask.size)
-                stats = f" b={b.mean():.0f} g={g.mean():.0f} cy={cyan_ratio:.2f}"
+                green_ratio = _green_halo_ratio(roi)
+                stats = (f" b={b.mean():.0f} g={g.mean():.0f}"
+                         f" cy={cyan_ratio:.2f} gr={green_ratio:.2f}")
         label = f"{i}:{name}:{m.get('similarity', 0):.2f}"
         if inf:
             label += "[inf]"
