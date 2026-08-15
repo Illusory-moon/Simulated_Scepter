@@ -131,6 +131,8 @@ class UniverseUtils:
         self.big_map = None
         #红色阈值，避免误识别无限循环，识别到后会不断减少
         self.red_threshold=4500
+        # 特殊地图的人工红点无需依赖小地图上的实时敌人红环校验。
+        self.trust_annotated_attack_targets = False
         #是否有更新地图线程
         self.has_update=False
         #调试显示用地图
@@ -803,7 +805,8 @@ class UniverseUtils:
         if recent_loc == 0:
             recent_loc = self.last
             recent_type = 3
-        if recent_type==1 and mn_dis<40:
+        if (recent_type == 1 and mn_dis < 40
+                and not self.trust_annotated_attack_targets):
             red = [47, 47, 232]
             # self.save_screen(not_now=True)
             rd = np.where(np.sum((get_minimap(self.screen, radius=MINIMAP_RADIUS,copy=True,rotation=True) - red) ** 2, axis=-1) <= self.red_threshold)
@@ -1274,7 +1277,6 @@ class UniverseUtils:
                             CUS_LOGGER.info(f"找到新的敌对目标点：{recent_loc}，共检测到{len(enemy_coords)}个敌人，按距离排序")
                         else:
                             self.set_path_state("未找到红色敌人！！！")
-                            self.save_screen(not_now= True,save_path="/temp/no_red1/")
                             # self.save_screen(not_now=True)
                             has_not_found_red= True
                             # self.target_loc, type = self.get_recent_target()
@@ -2819,7 +2821,9 @@ class UniverseUtils:
             self.skill_num = skill_num
         if self.skill_num == 0:
             fixed = True
-        if not fixed:
+        if self.trust_annotated_attack_targets:
+            add_round = 0
+        elif not fixed:
             if self.bai_e:
                 add_round = 7
             elif self.quan:
@@ -2843,7 +2847,7 @@ class UniverseUtils:
             if not self.get_loc():
                 CUS_LOGGER.warning("它理应照亮众人，照亮前路，照亮翁法罗斯终将到来的黎明……")
                 return
-            if self.target_type == 1:
+            if self.target_type == 1 and not self.trust_annotated_attack_targets:
                 red = [47, 47, 232]
                 CUS_LOGGER.info(f"{factor}的前路将是光明，和永恒不熄的烈火。")
                 outside = mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True),
@@ -2893,7 +2897,7 @@ class UniverseUtils:
                     if has_not_found_red:
                         CUS_LOGGER.info("就让天空…熔合此世全部痛苦吧。")
                         break
-            else:
+            elif self.target_type != 1 and not self.trust_annotated_attack_targets:
                 red = [47, 47, 232]
                 outside = mask_minimap_outside(get_minimap(self.screen, radius=MINIMAP_RADIUS, copy=True),
                                                center_radius=85)
@@ -2974,6 +2978,12 @@ class UniverseUtils:
         key_mouse_manager.wait()
         if not self.get_loc():
             CUS_LOGGER.info("「救世主」…我愿你…常战常胜。")
+            return
+        if self.trust_annotated_attack_targets and self.target_type == 1:
+            CUS_LOGGER.info("已到达特殊地图红色点位，执行一次普通攻击")
+            key_mouse_manager.click(0.5, 0.5)
+            self.last_interact_time = time.time()
+            self.target.discard((self.target_loc, 1))
             return
         if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
             if self.target_type != 3 and self.good_f()[0] and not self.ts.similar("黑塔"):

@@ -474,8 +474,10 @@ class SimulatedUniverse(UniverseUtils):
                 if text is not None:
                     break
                 self.get_screen()
-            # 黑塔
-            if self.ts.similar("黑塔"):
+            # 使用同一次交互文字裁片的结果识别黑塔。此前这里仅再次
+            # 调用全屏 OCR，若两次 OCR 不一致就会按普通交互执行 F，
+            # 同时漏记冷却时间，导致后续再次与黑塔交互。
+            if text == "黑塔" or self.ts.similar("黑塔"):
                 # 与黑塔交互后30秒内禁止再次交互（防止死循环）
                 if time.time() - self.quit > 30:
                     self.quit = time.time()
@@ -696,18 +698,30 @@ class SimulatedUniverse(UniverseUtils):
         for dx, dy in [(0, -1), (0, 1), (1, 0), (-1, 0)]:
             self.del_pt(img, (A[0] + dx, A[1] + dy), S, f)
 
-    def get_target(self, pth,x,y):
-        """
-        根据地图获取目标路径点位及类型
-        """
+    def get_target(self, pth, x, y, target_mode="battle"):
+        """根据地图获取目标路径点位及类型。"""
         img = cv.imread(pth)
         res = set()
         f_set = [
-            lambda p: p[2] < 85 and p[1] < 85 and p[0] > 180,  # 路径点 蓝
-            lambda p: p[2] > 180 and p[1] < 70 and p[0] < 70,  # 怪 红
-            lambda p: p[2] < 90 and p[1] > 220 and p[0] < 90,  # 交互点 绿
-            lambda p: p[2] > 180 and p[1] > 180 and p[0] < 70,  # 终点 黄
+            lambda p: p[2] < 85 and p[1] < 85 and p[0] > 180,  # path, blue
+            lambda p: p[2] > 180 and p[1] < 70 and p[0] < 70,  # enemy, red
         ]
+        if target_mode == "battle":
+            f_set += [
+                lambda p: p[2] < 90 and p[1] > 220 and p[0] < 90,  # interaction, green
+                lambda p: p[2] > 180 and p[1] > 180 and p[0] < 70,  # end, yellow
+            ]
+        elif target_mode == "special":
+            f_set += [
+                # JPEG compression shifts the annotated yellow-green
+                # (roughly RGB 181, 230, 29), hence the deliberately bounded
+                # red channel. Pure green is the generated start marker and
+                # pure yellow remains the end marker.
+                lambda p: 120 < p[2] < 230 and p[1] > 180 and p[0] < 90,
+                lambda p: p[2] >= 230 and p[1] > 180 and p[0] < 70,
+            ]
+        else:
+            raise ValueError(f"unknown target map mode: {target_mode}")
         for i in range(img.shape[0]):
             for j in range(img.shape[1]):
                 for k in range(4):
@@ -886,7 +900,9 @@ class SimulatedUniverse(UniverseUtils):
                         if trigger.get("interval", None) and len(self.action_history) and self.action_history[-1] == i['name']:
                             tm=time.time()-self.action_time
                             if tm<trigger["interval"]:
-                                CUS_LOGGER.warning(f"触发时间限制，距离上次触发{tm}秒，默认配置间隔为{trigger["interval"]}")
+                                CUS_LOGGER.warning(
+                                    f"触发时间限制，距离上次触发{tm}秒，"
+                                    f"默认配置间隔为{trigger['interval']}")
                                 return i['name'], 1
                         for j in i["actions"]:
                             self.do_action(j)
@@ -906,7 +922,9 @@ class SimulatedUniverse(UniverseUtils):
                                     -1] == i['name']:
                                     tm = time.time() - self.action_time
                                     if tm < trigger["interval"]:
-                                        CUS_LOGGER.warning(f"触发时间限制，距离上次触发{tm}秒，默认配置间隔为{trigger["interval"]}")
+                                        CUS_LOGGER.warning(
+                                            f"触发时间限制，距离上次触发{tm}秒，"
+                                            f"默认配置间隔为{trigger['interval']}")
                                         return i['name'], 1
                                 for j in i["actions"]:
                                     re=self.do_action(j)
@@ -1120,7 +1138,7 @@ class SimulatedUniverse(UniverseUtils):
                     color_map = {
                         0: [140, 49, 49],  # 蓝色
                         1: [49, 49, 140],   # 红色
-                        2: [49, 140, 49],   # 绿色
+                        2: [29, 230, 181],  # 黄绿色交互点，与绿色当前位置区分
                         3: [49, 140, 140]   # 黄色
                     }
                     target_color = color_map.get(current_target_type, [49, 140, 140])
