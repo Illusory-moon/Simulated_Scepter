@@ -2980,7 +2980,7 @@ class UniverseUtils:
             CUS_LOGGER.info("「救世主」…我愿你…常战常胜。")
             return
         if self.trust_annotated_attack_targets and self.target_type == 1:
-            CUS_LOGGER.info("已到达特殊地图红色点位，执行一次普通攻击")
+            CUS_LOGGER.debug("已到达特殊地图红色点位，执行一次普通攻击")
             key_mouse_manager.click(0.5, 0.5)
             self.last_interact_time = time.time()
             self.target.discard((self.target_loc, 1))
