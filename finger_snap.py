@@ -51,6 +51,7 @@ class FingerSnap(IronBloodUniverse):
         model_settings = load_finger_snap_settings()
         mode = model_settings["decision_mode"]
         self.first_plane_threshold = float(model_settings.get("first_plane_threshold", 0.0))
+        self.del_record_time = int(model_settings.get("record_keep_count", 31))
         self.countdown_early_stop = model_settings[EARLY_STOP_FIELDS[mode]]
         self.countdown_agent = CountdownDecisionAgent(
             MCConfig(**{key: model_settings[key] for key in MC_SETTING_FIELDS}),

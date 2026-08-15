@@ -66,6 +66,7 @@ def normalize_finger_snap_settings(values=None):
         "mc_dp_early_stop": bool(values.get("mc_dp_early_stop", False)),
         "plane_targets": [int(value) for value in targets],
         "first_plane_threshold": float(values.get("first_plane_threshold", 4.0)),
+        "record_keep_count": int(values.get("record_keep_count", 31)),
     }
 
 
