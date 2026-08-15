@@ -481,6 +481,20 @@
             "pre_start"
         ]
     },
+        {
+        "name": "下载角色",
+        "trigger":{
+            "text": "下载扩充角色",
+            "box": [105, 251, 65, 96],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "press": "esc"
+            }
+        ]
+    },
             {
         "name": "开始寰宇蝗灾",
         "trigger":{
