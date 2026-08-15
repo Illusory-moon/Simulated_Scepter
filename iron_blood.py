@@ -107,6 +107,9 @@ class IronBloodUniverse(SimulatedUniverse):
         self.new_node = True
         self.node_count=0
         self.fail_match_count = 0
+        self.special_interaction_failures = {}
+        self.native_special_map_root = None
+        self.loaded_map_root = None
         CUS_LOGGER.info("宇宙的中心有一团火种,它愈烧愈旺,直至燃尽整片星河。")
 
     def restart_recording(self):
@@ -217,6 +220,10 @@ class IronBloodUniverse(SimulatedUniverse):
                 ocr_text = self.ts.find_with_box(box=[55, 164, 12, 40],forward=True,re_screen=False)
                 self.area=merge_text(ocr_text) if len(ocr_text) else ""
                 CUS_LOGGER.debug(f"当前区域{self.area}")
+                battle_map_root = os.path.join(PATHS["image"], "nmaps")
+                if (("战斗" in self.area or "精英" in self.area or "首领" in self.area)
+                        and self.loaded_map_root not in (None, battle_map_root)):
+                    self.init_map()
                 if "战斗" in self.area:
                     if not self.big_map_init:
                         key_mouse_manager.clean()
@@ -326,11 +333,15 @@ class IronBloodUniverse(SimulatedUniverse):
         return self.record_map_contexts.get(map_kind)
 
     def record_special_map_or_navigate(self, navigate):
-        """特殊地图未知时录图，已有记录或开关关闭时执行原寻路。"""
+        """优先使用已标注特殊地图；录图开关仅控制未知地图的录制。"""
         context = self.get_record_map_context()
-        if not self.record_event_map_enabled or context is None:
+        map_root, image_maps = context
+        if self.native_special_map_root == map_root:
             navigate()
             return False
+        if self.big_map_init and self.loaded_map_root != map_root:
+            super().init_map()
+            self.loaded_map_root = None
         if not self.big_map_init:
             key_mouse_manager.clean()
             key_mouse_manager.keyUp("w")
@@ -340,19 +351,105 @@ class IronBloodUniverse(SimulatedUniverse):
             # 每张特殊地图独立计算裁剪范围并保存初始小地图。
             self.cut_pos = None
             self.first_save_map = True
-            map_root, image_maps = context
             self.find, self.need_record, state = self.map_data_load(
-                create=True,
+                create=self.record_event_map_enabled,
                 map_root=map_root,
                 image_maps=image_maps,
+                target_mode="special",
             )
             if self._stop or not state:
                 return True
+        if not self.need_record and (not self.find or not self.target):
+            # 特殊地图匹配会写入 big_map_init 等共用地图状态。确认本房间
+            # 无可用录图后恢复原生入口，并在换房间前不再重复特殊匹配。
+            super().init_map()
+            self.loaded_map_root = None
+            self.native_special_map_root = map_root
+            CUS_LOGGER.warning("当前房间无可用特殊地图，恢复原生寻路状态")
+            navigate()
+            return False
         if self.need_record:
             self.recording_map()
         else:
-            navigate()
+            self.navigate_recorded_special_map(navigate)
         return False
+
+    def navigate_recorded_special_map(self, fallback):
+        """追踪已标注的特殊地图目标，并在到达交互点后执行交互。"""
+        interaction_targets = {target for target in self.target if target[1] == 2}
+        CUS_LOGGER.info(f"已匹配特殊地图{self.now_map}，开始追踪地图目标")
+        self.trust_annotated_attack_targets = True
+        try:
+            self.get_path_with_big_map()
+        finally:
+            self.trust_annotated_attack_targets = False
+        if self._stop:
+            return
+
+        # 一轮大图寻路也可能只抵达蓝色路径点；仅当本轮目标确实是
+        # 交互点时才尝试按 F，避免误触附近的终点或其它装置。
+        current_interactions = self._current_interaction_group(
+            interaction_targets, self.target_loc
+        )
+        retry_key = None
+        if current_interactions:
+            retry_target = min(current_interactions, key=lambda target: target[0])
+            retry_key = (
+                str(self.now_map),
+                round(float(retry_target[0][0])),
+                round(float(retry_target[0][1])),
+            )
+        if self.target_type == 2 and self.do_interaction():
+            self.last_interact_time = time.time()
+            for target in current_interactions:
+                self.target.discard(target)
+            self.special_interaction_failures.pop(retry_key, None)
+            # 原生大图寻路会一次移除全部类型 2；恢复其它人工交互点。
+            self.target.update(interaction_targets - current_interactions)
+            CUS_LOGGER.info("已到达地图交互点并完成交互")
+            return
+
+        if self.target_type == 2 and current_interactions:
+            failures = self.special_interaction_failures.get(retry_key, 0) + 1
+            self.special_interaction_failures[retry_key] = failures
+            if failures >= 3:
+                for target in current_interactions:
+                    self.target.discard(target)
+                self.special_interaction_failures.pop(retry_key, None)
+                remaining = interaction_targets - current_interactions
+                self.target.update(remaining)
+                CUS_LOGGER.warning(
+                    f"地图交互点连续失败{failures}轮，移除当前点并尝试重新识别"
+                )
+                if not remaining:
+                    fallback()
+                return
+
+        # 大地图寻路会在足够接近时移除目标。未达到失败上限时恢复
+        # 目标供下一轮继续定位；蓝色路径点或红色攻击点不计入失败。
+        self.target.update(interaction_targets)
+        if interaction_targets:
+            CUS_LOGGER.debug("尚未触发有效交互，保留地图交互点等待重试")
+        else:
+            CUS_LOGGER.debug("地图交互点已处理，继续追踪剩余地图目标")
+
+    @staticmethod
+    def _current_interaction_group(targets, target_loc):
+        """合并 JPEG 造成的 8 像素内重复点，只处理当前交互位置。"""
+        if not targets or target_loc is None:
+            return set()
+        current = min(
+            targets,
+            key=lambda target: (
+                (target[0][0] - target_loc[0]) ** 2
+                + (target[0][1] - target_loc[1]) ** 2
+            ),
+        )
+        return {
+            target for target in targets
+            if ((target[0][0] - current[0][0]) ** 2
+                + (target[0][1] - current[0][1]) ** 2) <= 64
+        }
 
     @staticmethod
     def _load_map_templates(map_root):
@@ -405,7 +502,9 @@ class IronBloodUniverse(SimulatedUniverse):
             except FileExistsError:
                 continue
 
-    def map_data_load(self, create=False, map_root=None, image_maps=None):
+    def map_data_load(
+            self, create=False, map_root=None, image_maps=None,
+            target_mode="battle"):
         create = self.debug and create
         if map_root is None:
             context = None
@@ -418,6 +517,7 @@ class IronBloodUniverse(SimulatedUniverse):
                 if image_maps is None:
                     image_maps = context_images
         image_maps = self.img_map if image_maps is None else image_maps
+        self.loaded_map_root = map_root
         self.big_map_init = True
         # 寻路模式，匹配最接近的地图
         self.stop_move = False
@@ -465,8 +565,13 @@ class IronBloodUniverse(SimulatedUniverse):
                 self.start_pos =(x, y)
                 self.pos_predictor.position=self.now_loc
                 self.pos_predictor.set_now_map(map_num)
+                self.target = set()
+                self.pos_map = None
                 if target_path is not None:
-                    self.target = self.get_target(target_path,self.upx,self.upy)
+                    self.target = self.get_target(
+                        target_path, self.upx, self.upy,
+                        target_mode=target_mode,
+                    )
                     self.pos_map=cv.imread(target_path)
                     CUS_LOGGER.debug(f"已从地图获取目标路径点{self.target}")
                 self.rotation, d = self.pos_predictor.update_minimap_data(self.screen)
@@ -525,19 +630,18 @@ class IronBloodUniverse(SimulatedUniverse):
         self.click_text(text="击败该首领",box=[1108, 1385, 267, 290])
         self.click_text(text="确认选择",box=[1633, 1733, 961, 990])
     def try_analysis_map(self,mode=1):
-        # if self.debug:
-        #     self.save_screen(not_now=True)
         image = self.screen
         matches = match_multiple_targets(image, mode)
         CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
         if len(matches)==0:
+            self.click_text(text="点击空白处关闭", box=[875, 1047, 776, 807])
             CUS_LOGGER.warning("未匹配到任何地图图标却错误进入寻路阶段，可能是误识别")
-            self.save_screen(not_now=True,save_path="/temp/bigmaperror/")
-            self.save_screen(save_path="/temp/bigmaperror/")
             CUS_LOGGER.warning("刷新截图缓冲区后最后一次尝试匹配地图图标")
             matches = match_multiple_targets(image, mode)
             CUS_LOGGER.debug(f"当前模式{mode},找到 {len(matches)} 个匹配")
             if len(matches) == 0:
+                self.save_screen(not_now=True, save_path="/temp/bigmaperror/")
+                self.save_screen(save_path="/temp/bigmaperror/")
                 raise NoMatchError
         # 检测角标（pig/reinforce/alienation等），关联到最近节点
         corner_results = detect_corner_markers(image, matches)
@@ -688,7 +792,7 @@ class IronBloodUniverse(SimulatedUniverse):
             if self.plane_floor==1 and self.expectation_weight < self.first_plane_min_weight:
                 CUS_LOGGER.warning("如果不能将此世从「毁灭」中拯救它，那就让寰宇在愤怒中燃烧吧......")
                 self.need_end=True
-        self.save_screen(save_path=f"/temp/map{self.plane_floor}/")
+        #self.save_screen(save_path=f"/temp/map{self.plane_floor}/")
         for _ in range(5):
             self.click_text(text="进入位面", box=[907, 1009, 857, 891])
             self.node_count=0
@@ -931,6 +1035,9 @@ class IronBloodUniverse(SimulatedUniverse):
         self.mini_state = 1
     def init_map(self,add=False):
         super().init_map()
+        self.special_interaction_failures.clear()
+        self.native_special_map_root = None
+        self.loaded_map_root = None
         if add:
             self.node_count+=1
     def strange_shop(self):
@@ -982,10 +1089,7 @@ class IronBloodUniverse(SimulatedUniverse):
         super().select_event()
         if self.new_node:
             event_name = self.ts.find_with_box(box=[185, 750, 953, 1008], forward=True, re_screen=False)
-            if len(event_name)==0 and self.area!="休整":
-                self.save_screen(not_now=True,save_path="/temp/event/")
-                self.stop()
-            if self.area!="" and self.area!="休整":
+            if self.area!="" and self.area!="休整" and len(event_name)!=0:
                 try:
                     db_file = "config/backup/node_log.db"
                     os.makedirs("config/backup", exist_ok=True)
