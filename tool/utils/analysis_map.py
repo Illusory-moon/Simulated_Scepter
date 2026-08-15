@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 
 import cv2
@@ -707,7 +708,7 @@ def display_matches(image, matches, path=None, highlight_idx=None, save_path=Non
 
 
 def detect_infectable_nodes(color_image, matches, pad=20, cyan_ratio_threshold=0.20,
-                            b_min=120, g_min=90):
+                            b_min=120, g_min=90, target_selection=False):
     """检测青绿色节点并标记为可传染节点。
 
     在彩色原图上分析每个匹配节点周围区域的青绿色像素比例，
@@ -744,21 +745,98 @@ def detect_infectable_nodes(color_image, matches, pad=20, cyan_ratio_threshold=0
             m['infectable'] = False
             continue
 
-        b, g, r = cv2.split(roi.astype(np.float32))
-
-        # 青绿色像素：B 和 G 显著高于 R，且有一定最低亮度
-        cyan_mask = (b > r * 1.2) & (g > r * 1.1) & (b > 80) & (g > 60)
-        cyan_ratio = cyan_mask.sum() / cyan_mask.size
-
-        b_mean, g_mean = float(b.mean()), float(g.mean())
-
-        is_infectable = (b_mean > b_min and g_mean > g_min and cyan_ratio > cyan_ratio_threshold) \
-                        or (g_mean > 130 and b_mean > 100)
+        if target_selection:
+            h, s, v = cv2.split(cv2.cvtColor(roi, cv2.COLOR_BGR2HSV))
+            # 目标选择界面会给所有可选节点加青色边框，只有已生效节点有绿色光晕。
+            is_infectable = (((h >= 50) & (h <= 80) & (s > 90) & (v > 100)).sum()
+                             / h.size > 0.10)
+        else:
+            b, g, r = cv2.split(roi.astype(np.float32))
+            cyan_mask = (b > r * 1.2) & (g > r * 1.1) & (b > 80) & (g > 60)
+            cyan_ratio = cyan_mask.sum() / cyan_mask.size
+            b_mean, g_mean = float(b.mean()), float(g.mean())
+            is_infectable = (b_mean > b_min and g_mean > g_min
+                             and cyan_ratio > cyan_ratio_threshold) or (g_mean > 130 and b_mean > 100)
         m['infectable'] = is_infectable
         if is_infectable:
             infectable_nodes.append(i)
 
     return infectable_nodes
+
+
+def save_analysis_map_debug(image, matches, start=None, tag="",
+                            save_dir="/temp/analysis_map/"):
+    """把识图各接口的结果框回原图，并连同原图一起保存，用于排查识别问题。
+
+    覆盖的接口结果：
+    - match_multiple_targets 的节点框（名称 + 相似度）
+    - detect_infectable_nodes 的可传染标记（青绿框 + ROI 青绿色统计）
+    - detect_corner_markers 的角标框
+    - compute_start_point_from_crop 的起点坐标
+
+    Args:
+        image: 原始彩色截图 (BGR)
+        matches: match_multiple_targets 返回的匹配列表
+        start: 起点坐标 (cx, cy)
+        tag: 文件名附加标签（如 mode 或阶段）
+        save_dir: 保存目录（相对 PATHS["root"] 或绝对路径）
+    """
+    if image is None:
+        return
+    directory = (save_dir if save_dir.startswith(PATHS["root"])
+                 else PATHS["root"] + save_dir)
+    os.makedirs(directory, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    tag = f"_{tag}" if tag else ""
+    cv2.imwrite(os.path.join(directory, f"{stamp}{tag}_raw.png"), image)
+
+    vis = image.copy()
+    for i, m in enumerate(matches):
+        x, y = m.get("location", (0, 0))
+        w, h = m.get("size", (0, 0))
+        name = m.get("name", "?")
+        inf = bool(m.get("infectable", False))
+        color = (0, 220, 255) if inf else (0, 180, 0)
+        thickness = 4 if inf else 2
+        cv2.rectangle(vis, (int(x), int(y)), (int(x + w), int(y + h)),
+                      color, thickness)
+        cx, cy = int(round(x + w / 2.0)), int(round(y + h / 2.0))
+        cv2.circle(vis, (cx, cy), 4, (0, 255, 0), -1)
+
+        # ROI 青绿色统计，用于定位 detect_infectable_nodes 阈值问题
+        stats = ""
+        if image.ndim == 3 and image.shape[2] == 3:
+            pad = 20
+            x1 = max(0, int(x) - pad)
+            y1 = max(0, int(y) - pad)
+            x2 = min(image.shape[1], int(x) + w + pad)
+            y2 = min(image.shape[0], int(y) + h + pad)
+            roi = image[y1:y2, x1:x2]
+            if roi.size:
+                b, g, r = cv2.split(roi.astype(np.float32))
+                cyan_mask = (b > r * 1.2) & (g > r * 1.1) & (b > 80) & (g > 60)
+                cyan_ratio = float(cyan_mask.sum() / cyan_mask.size)
+                stats = f" b={b.mean():.0f} g={g.mean():.0f} cy={cyan_ratio:.2f}"
+        label = f"{i}:{name}:{m.get('similarity', 0):.2f}"
+        if inf:
+            label += "[inf]"
+        label += stats
+        cm = m.get("corner_marker")
+        if isinstance(cm, dict):
+            cmx, cmy = cm["location"]
+            cmw, cmh = cm["size"]
+            cv2.rectangle(vis, (int(cmx), int(cmy)),
+                          (int(cmx + cmw), int(cmy + cmh)), (0, 200, 255), 2)
+        cv2.putText(vis, label, (int(x), max(12, int(y) - 6)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1, cv2.LINE_AA)
+
+    if start is not None:
+        sx, sy = int(round(start[0])), int(round(start[1]))
+        cv2.drawMarker(vis, (sx, sy), (0, 255, 255), cv2.MARKER_CROSS, 20, 2)
+        cv2.putText(vis, "start", (sx + 14, sy - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
+
+    cv2.imwrite(os.path.join(directory, f"{stamp}{tag}_annotated.png"), vis)
 
 
         #使用作弊100%能替换节点，重投在1与2位面1/5概率能替换节点，第三位面1/3概率能替换节点，还可以什么都不做

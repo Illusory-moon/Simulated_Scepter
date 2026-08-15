@@ -1,7 +1,7 @@
 # 倒计时最大化优化器 — 数学建模
 
 > 状态：历史设计文档。在线 GUI 已改为纯 MC 当前位面推演；实现与已知限制以
-> `docs/countdown_mc_review.md` 和 `test/countdown_backend.py` 为准，本文的旧 DP/W 表
+> `docs/countdown_mc_review.md` 和 `tool/countdown_evaluator.py` 为准，本文的旧 DP/W 表
 > 描述不再驱动在线推荐。
 
 ## 1. 问题设定
