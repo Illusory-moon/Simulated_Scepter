@@ -37,8 +37,8 @@ def normalize_finger_snap_settings(values=None):
     targets = values.get("plane_targets", CAMPAIGN_DEFAULT_TARGETS)
     if not isinstance(targets, (list, tuple)) or len(targets) != 3:
         raise ValueError("三个位面必须各有一个目标 CD")
-    legacy_step = float(values.get("path_bonus_step", 0.0001))
-    decision_mode = str(values.get("decision_mode", DECISION_MC))
+    legacy_step = values.get("path_bonus_step")
+    decision_mode = str(values.get("decision_mode", DECISION_WIN_RATE))
     if decision_mode not in DECISION_MODES:
         raise ValueError(f"未知决策依据: {decision_mode}")
     mc = MCConfig(
@@ -48,11 +48,16 @@ def normalize_finger_snap_settings(values=None):
         epsilon_start=values.get("epsilon_start", defaults.epsilon_start),
         epsilon_end=values.get("epsilon_end", defaults.epsilon_end),
         seed=values.get("seed", defaults.seed),
-        path_reward_bonus=values.get("path_reward_bonus", legacy_step * 5),
-        path_event_bonus=values.get("path_event_bonus", legacy_step * 4),
-        path_trade_bonus=values.get("path_trade_bonus", legacy_step * 3),
-        path_adventure_bonus=values.get("path_adventure_bonus", legacy_step * 2),
-        path_bugevent_bonus=values.get("path_bugevent_bonus", legacy_step),
+        path_reward_bonus=values.get(
+            "path_reward_bonus", defaults.path_reward_bonus if legacy_step is None else float(legacy_step) * 5),
+        path_event_bonus=values.get(
+            "path_event_bonus", defaults.path_event_bonus if legacy_step is None else float(legacy_step) * 4),
+        path_trade_bonus=values.get(
+            "path_trade_bonus", defaults.path_trade_bonus if legacy_step is None else float(legacy_step) * 3),
+        path_adventure_bonus=values.get(
+            "path_adventure_bonus", defaults.path_adventure_bonus if legacy_step is None else float(legacy_step) * 2),
+        path_bugevent_bonus=values.get(
+            "path_bugevent_bonus", defaults.path_bugevent_bonus if legacy_step is None else float(legacy_step)),
     ).normalized()
     return asdict(mc) | {
         "decision_mode": decision_mode,
@@ -60,7 +65,7 @@ def normalize_finger_snap_settings(values=None):
         "win_rate_dp_early_stop": bool(values.get("win_rate_dp_early_stop", False)),
         "mc_dp_early_stop": bool(values.get("mc_dp_early_stop", False)),
         "plane_targets": [int(value) for value in targets],
-        "first_plane_threshold": float(values.get("first_plane_threshold", 0.0)),
+        "first_plane_threshold": float(values.get("first_plane_threshold", 4.0)),
     }
 
 

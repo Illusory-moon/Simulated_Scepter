@@ -176,8 +176,8 @@ class CountdownProductionTests(unittest.TestCase):
                 return self.agent.controller.evaluate_current_policy(
                     context, evaluation_rollouts=6).recommended_action
 
-        self.assertEqual(1, recommendation(9.9996))
-        self.assertEqual(6, recommendation(9.9994))
+        self.assertEqual(1, recommendation(9.9993))
+        self.assertEqual(6, recommendation(9.9991))
 
     def test_win_rate_mode_falls_back_to_mean_when_every_rate_is_zero(self):
         decision_context = DecisionContext(

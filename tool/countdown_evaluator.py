@@ -140,11 +140,11 @@ class MCConfig:
 
     control_rollouts: int = 10_000
     evaluation_rollouts: int = 10_000
-    min_visits: int = 200
+    min_visits: int = 2000
     epsilon_start: float = 0.35
     epsilon_end: float = 0.03
     seed: int = 20260802
-    path_reward_bonus: float = 0.0005
+    path_reward_bonus: float = 0.0008
     path_event_bonus: float = 0.0004
     path_trade_bonus: float = 0.0003
     path_adventure_bonus: float = 0.0002
