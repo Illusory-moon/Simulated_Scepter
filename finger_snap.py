@@ -73,7 +73,7 @@ class FingerSnap(IronBloodUniverse):
             CUS_LOGGER.debug(f"是否可删除{need_del},限制数目{self.del_record_time}，当前数目{self.countdown}")
             self.recorder.stop_recording(need_del)
             time.sleep(0.8)
-            self.recorder.start_recording(self.count)
+            self.recorder.start_recording(self.count + 1)
             self.update_state("re_start")
         self.countdown = 15
         self.countdown_agent.reset()
