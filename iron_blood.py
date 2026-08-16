@@ -14,6 +14,7 @@ from tool import EXTRA
 from tool.GLOBAL import factor, key_mouse_manager
 from tool.log import CUS_LOGGER, log_emitter
 from tool.public_ocr import load_actions, merge_text
+from tool.simul.utils import get_dis
 from tool.utils.analysis_map import (
     build_rightward_graph,
     compute_all_max_steps,
@@ -40,6 +41,24 @@ from tool.utils.ocr_num import (
 )
 from tool.utils.tool import find_latest_modified_file
 from tool.window_recorder import WindowRecorder
+
+# 特殊地图（事件/休整/交易）的模板数量远少于战斗地图，0.35~0.6 的
+# 弱相似度大多来自外观相似的其它房间。低于该置信度时不应按地图寻路，
+# 否则会朝错误坐标前进并卡死，改按未匹配处理（开录制则录新图，
+# 否则回退原生寻路）。
+SPECIAL_MAP_TRUST_SIM = 0.6
+
+# 自动录图参数：撞墙判定、转向角度、轨迹采样间隔与单房间时长上限。
+# 录图期间角色主动探路：位置长时间不变视为撞墙，后退小步并转向；
+# 连续撞墙时转向角逐级加大（45→90→135→180），避免在墙角 ±45°
+# 交替反弹；检测到交互提示（F）即把当前位置自动标注为交互点并结束录制。
+RECORD_STUCK_WINDOW = 4      # 连续多少帧净位移不足即判定撞墙
+RECORD_STUCK_DISTANCE = 8.0  # 窗口内净位移阈值（scaled 坐标）
+RECORD_ROTATE_DEGREES = 45   # 撞墙后的基础转向角度
+RECORD_ROTATE_MAX_STEP = 4   # 连续撞墙时转向角最大放大倍数（4×45°=180°）
+RECORD_BACK_SECONDS = 0.4    # 撞墙后的后退时长
+RECORD_TRACE_STEP = 8.0      # 轨迹采样最小间距（scaled 坐标）
+RECORD_MAX_SECONDS = 90      # 单房间录图时长上限，超时回退原生寻路
 
 
 class IronBloodUniverse(SimulatedUniverse):
@@ -110,6 +129,8 @@ class IronBloodUniverse(SimulatedUniverse):
         self.special_interaction_failures = {}
         self.native_special_map_root = None
         self.loaded_map_root = None
+        # 自动录图会话状态（每房间一份，进新房间时重置）
+        self.record_session = None
         CUS_LOGGER.info("宇宙的中心有一团火种,它愈烧愈旺,直至燃尽整片星河。")
 
     def restart_recording(self):
@@ -351,6 +372,7 @@ class IronBloodUniverse(SimulatedUniverse):
             # 每张特殊地图独立计算裁剪范围并保存初始小地图。
             self.cut_pos = None
             self.first_save_map = True
+            self.record_session = None
             self.find, self.need_record, state = self.map_data_load(
                 create=self.record_event_map_enabled,
                 map_root=map_root,
@@ -369,13 +391,223 @@ class IronBloodUniverse(SimulatedUniverse):
             navigate()
             return False
         if self.need_record:
-            self.recording_map()
+            self._record_explore_tick()
         else:
             self.navigate_recorded_special_map(navigate)
         return False
 
+    # ---------- 自动录图（无需人工标注） ----------
+    # 注：本节自动录图逻辑由 AI 辅助实现（DeepSeek），并经单元测试与真机验证。
+
+    def _init_record_session(self):
+        """开始一次房间录图会话，记录轨迹与交互点。"""
+        self.record_session = {
+            "trace": [],
+            "interactions": [],
+            "last_pos": None,
+            "base_pos": None,
+            "stuck_ticks": 0,
+            "rotate_dir": 1,
+            "rotate_step": 1,
+            "last_rotated": False,
+            "start_time": time.time(),
+        }
+
+    def _record_explore_tick(self):
+        """自动录图一帧：检测交互提示、采样轨迹、撞墙转向、自动标注。
+
+        与旧录图（一直按住 W）不同，这里以定位为反馈主动探路：
+        - 出现 F 提示 → 把当前位置自动标注为交互点，写图并按 F 完成事件，
+          随后把 my_ 目录转正为纯数字名，下次进房即可直接高精度寻路；
+        - 撞墙（窗口内净位移不足）→ 后退小步并交替转向；
+        - 超时仍未找到交互点 → 不再转正，回退原生寻路，下轮继续补录。
+        """
+        if self.record_session is None:
+            self._init_record_session()
+        session = self.record_session
+        if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
+            if self.ts.similar("区域"):
+                # 门口传送门的 F 提示不是事件装置，转向避开后继续探路
+                CUS_LOGGER.debug("自动录图遇到区域传送门，转向避开")
+                key_mouse_manager.mouse_move(
+                    RECORD_ROTATE_DEGREES * session["rotate_dir"]
+                )
+                session["rotate_dir"] *= -1
+                key_mouse_manager.keyDown("w")
+                key_mouse_manager.wait()
+                return
+            if not self.get_loc():
+                return
+            self._finish_record_session(interacted=True)
+            return
+        if not self.get_loc():
+            return
+        position = self.now_loc
+        last_pos = session["last_pos"]
+        moved = get_dis(position, last_pos) if last_pos is not None else 0.0
+        if last_pos is None or moved >= RECORD_TRACE_STEP:
+            session["trace"].append(position)
+            session["last_pos"] = position
+        if last_pos is None:
+            session["base_pos"] = position
+        elif get_dis(position, session["base_pos"]) < RECORD_STUCK_DISTANCE:
+            session["stuck_ticks"] += 1
+        else:
+            session["stuck_ticks"] = 0
+            session["base_pos"] = position
+        if session["stuck_ticks"] >= RECORD_STUCK_WINDOW:
+            # 撞墙：后退小步并转向；连续撞墙时转向角逐级加大，
+            # 方向交替翻转，保证转出墙角而不是 ±45° 反弹。
+            session["stuck_ticks"] = 0
+            if session["last_rotated"]:
+                session["rotate_step"] = min(
+                    session["rotate_step"] + 1, RECORD_ROTATE_MAX_STEP
+                )
+            angle = (
+                RECORD_ROTATE_DEGREES
+                * session["rotate_dir"]
+                * session["rotate_step"]
+            )
+            session["rotate_dir"] *= -1
+            session["last_rotated"] = True
+            CUS_LOGGER.debug(f"自动录图检测到撞墙，后退并转向{angle}°")
+            key_mouse_manager.keyUp("w")
+            key_mouse_manager.press("s", RECORD_BACK_SECONDS)
+            key_mouse_manager.mouse_move(angle)
+            key_mouse_manager.keyDown("w")
+            key_mouse_manager.wait()
+            if self.get_loc():
+                session["trace"].append(self.now_loc)
+                session["last_pos"] = self.now_loc
+                session["base_pos"] = self.now_loc
+        else:
+            if moved >= RECORD_TRACE_STEP:
+                # 自由行走中，重置转向升级
+                session["last_rotated"] = False
+                session["rotate_step"] = 1
+            key_mouse_manager.keyDown("w")
+            key_mouse_manager.wait()
+        self._write_record_map()
+        if time.time() - session["start_time"] > RECORD_MAX_SECONDS:
+            CUS_LOGGER.warning(
+                "自动录图超时且未发现交互点，保存轨迹后恢复原生寻路"
+            )
+            self._finish_record_session(interacted=False)
+
+    def _write_record_map(self):
+        """把轨迹画成蓝色路径、交互点画成黄绿色，写入当前裁剪范围。
+
+        只保留最新一份切片与标注文件，避免目录内多份文件堆积。
+        颜色约定与 get_target(target_mode="special") 的解析阈值一致。
+        """
+        session = self.record_session
+        big = getattr(self.pos_predictor, "assets_floor_feat", None)
+        if big is None or not self.map_file or not os.path.isdir(self.map_file):
+            return
+        if self.now_loc is None or self.start_pos is None:
+            return
+        self.cut_map(re_get_position(self.now_loc, need_int=False), big)
+        cut = self.cut_pos
+        if cut is None:
+            return
+        left, right, top, bottom = (
+            int(cut[0]), int(cut[1]), int(cut[2]), int(cut[3])
+        )
+        if right <= left or bottom <= top:
+            return
+        color = cv.cvtColor(big, cv.COLOR_GRAY2BGR)
+        start_x, start_y = re_get_position(self.start_pos)
+        if left <= start_x < right and top <= start_y < bottom:
+            cv.circle(color, (int(start_x), int(start_y)), 2, (0, 255, 0), -1)
+        for point in session["trace"]:
+            x, y = re_get_position(point)
+            if left <= x < right and top <= y < bottom:
+                cv.circle(color, (int(x), int(y)), 2, (255, 0, 0), -1)
+        for point in session["interactions"]:
+            x, y = re_get_position(point)
+            if left <= x < right and top <= y < bottom:
+                cv.circle(color, (int(x), int(y)), 2, (29, 230, 181), -1)
+        map_num = self.pos_predictor.map_num
+        # 清理旧切片/标注，回放只需最新一份（与 find_latest_modified_file 对应）
+        for name in os.listdir(self.map_file):
+            if name.startswith("map_") or name.startswith("target_"):
+                os.remove(os.path.join(self.map_file, name))
+        cv.imwrite(
+            self.map_file + f"map_{map_num}_({self.start_pos[0]},{self.start_pos[1]}).jpg",
+            big[top:bottom, left:right],
+        )
+        cv.imwrite(self.map_file + f"target_{left}_{top}.jpg", color[top:bottom, left:right])
+
+    def _promote_record_dir(self):
+        """把 my_XXXXX 目录转正为纯数字名，并同步运行时模板集合。"""
+        old_dir = self.map_file.rstrip("/\\")
+        old_name = os.path.basename(old_dir)
+        map_root = os.path.dirname(old_dir)
+        while True:
+            new_name = str(random.randint(100000, 999999))
+            new_dir = os.path.join(map_root, new_name)
+            if not os.path.exists(new_dir):
+                break
+        os.rename(old_dir, new_dir)
+        self.map_file = new_dir + os.sep
+        self.now_map = new_name
+        for context in self.record_map_contexts.values():
+            templates = context[1]
+            if old_name in templates:
+                templates[new_name] = templates.pop(old_name)
+        CUS_LOGGER.info(f"特殊地图目录已由{old_name}自动转正为{new_name}")
+        return new_name
+
+    def _reload_annotated_targets(self):
+        """转正后重新加载自动标注的路径点，供当轮继续精确导航。"""
+        files, x, y, map_num, upx, upy, target_path = find_latest_modified_file(
+            self.map_file
+        )
+        if files is not None:
+            self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
+        if target_path is not None:
+            self.target = self.get_target(
+                target_path, upx, upy, target_mode="special"
+            )
+            self.pos_map = cv.imread(target_path)
+
+    def _finish_record_session(self, interacted):
+        """结束自动录图：写最终图，视情况转正并衔接后续流程。"""
+        if interacted:
+            self.record_session["interactions"].append(self.now_loc)
+        self._write_record_map()
+        key_mouse_manager.keyUp("w", force=True)
+        key_mouse_manager.wait()
+        if self.record_session["interactions"]:
+            new_name = self._promote_record_dir()
+            self.need_record = False
+            self._reload_annotated_targets()
+            self.find = bool(self.target)
+            CUS_LOGGER.info(
+                f"特殊地图自动录制完成，已标注交互点并转正为{new_name}"
+            )
+            if interacted:
+                self.last_interact_time = time.time()
+                self.do_interaction()
+        else:
+            # 未找到交互点：不转正（保留 my_ 供后续补录），本房间回退原生寻路
+            self.need_record = False
+            super().init_map()
+            self.loaded_map_root = None
+            self.native_special_map_root = os.path.dirname(
+                self.map_file.rstrip("/\\")
+            )
+            CUS_LOGGER.warning("自动录图未发现交互点，本房间恢复原生寻路")
+        self.record_session = None
+
     def navigate_recorded_special_map(self, fallback):
         """追踪已标注的特殊地图目标，并在到达交互点后执行交互。"""
+        if not self.target:
+            # 地图目标已全部完成（如事件+装置双 F 流程均已交互），
+            # 搜索离场传送门离开房间，交由状态机继续下一个节点。
+            CUS_LOGGER.info("特殊地图目标已全部完成，搜索离场传送门")
+            self._search_exit_portal()
+            return
         interaction_targets = {target for target in self.target if target[1] == 2}
         CUS_LOGGER.info(f"已匹配特殊地图{self.now_map}，开始追踪地图目标")
         self.trust_annotated_attack_targets = True
@@ -399,7 +631,13 @@ class IronBloodUniverse(SimulatedUniverse):
                 round(float(retry_target[0][0])),
                 round(float(retry_target[0][1])),
             )
-        if self.target_type == 2 and self.do_interaction():
+        interacted = False
+        if self.target_type == 2:
+            if self.do_interaction():
+                interacted = True
+            elif self._approach_annotated_target():
+                interacted = True
+        if interacted:
             self.last_interact_time = time.time()
             for target in current_interactions:
                 self.target.discard(target)
@@ -432,6 +670,101 @@ class IronBloodUniverse(SimulatedUniverse):
             CUS_LOGGER.debug("尚未触发有效交互，保留地图交互点等待重试")
         else:
             CUS_LOGGER.debug("地图交互点已处理，继续追踪剩余地图目标")
+
+    def _approach_annotated_target(self, max_steps=8):
+        """已到交互点附近但未出现 F 提示时的局部搜索。
+
+        标注点相对真实交互位置可能存在定位误差（低相似度地图尤其明显，
+        实测误差可达 10~20 单位），因此到达后依次执行：
+        1. 原地转一圈（60° 一步）逐角度检测 F 提示；
+        2. 朝目标方向小步逼近，每步重新定位并检测；
+        3. 十字方向各走一小段，覆盖标注点周围的误差范围。
+        所有退出路径都会松开 W；F 可见但交互未成立（禁用装置等）则
+        继续下一角度/方向。
+        """
+        if self.target_type != 2 or self.target_loc is None:
+            return False
+
+        def try_interact():
+            if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
+                return bool(self.do_interaction())
+            return False
+
+        # 1) 原地转圈找 F
+        if self.get_loc() and get_dis(self.now_loc, self.target_loc) < 15:
+            for _ in range(6):
+                if self._stop:
+                    return False
+                if try_interact():
+                    return True
+                key_mouse_manager.mouse_move(60)
+                key_mouse_manager.wait()
+        # 2) 朝目标方向小步逼近（定位反馈）
+        last_distance = None
+        walking = False
+        for _ in range(max_steps):
+            if self._stop:
+                break
+            if try_interact():
+                if walking:
+                    key_mouse_manager.keyUp("w", force=True)
+                return True
+            if not self.get_loc():
+                break
+            distance = get_dis(self.now_loc, self.target_loc)
+            if distance <= 2:
+                break
+            if last_distance is not None and distance >= last_distance:
+                break
+            last_distance = distance
+            self.update_direction_data(mode=1)
+            key_mouse_manager.keyDown("w")
+            key_mouse_manager.wait()
+            walking = True
+            time.sleep(0.12)
+        if walking:
+            key_mouse_manager.keyUp("w", force=True)
+            walking = False
+        # 3) 十字搜索：四个方向各走一小段并检测 F
+        for _ in range(4):
+            if self._stop:
+                return False
+            if try_interact():
+                return True
+            key_mouse_manager.mouse_move(90)
+            key_mouse_manager.keyDown("w")
+            key_mouse_manager.wait()
+            time.sleep(0.4)
+            key_mouse_manager.keyUp("w", force=True)
+            key_mouse_manager.wait()
+        return False
+
+    def _search_exit_portal(self):
+        """原地转圈 + 四向小步搜索离场传送门（区域）的 F 提示。"""
+        def try_interact():
+            if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
+                return bool(self.do_interaction())
+            return False
+
+        for _ in range(6):
+            if self._stop:
+                return False
+            if try_interact():
+                return True
+            key_mouse_manager.mouse_move(60)
+            key_mouse_manager.wait()
+        for _ in range(4):
+            if self._stop:
+                return False
+            if try_interact():
+                return True
+            key_mouse_manager.mouse_move(90)
+            key_mouse_manager.keyDown("w")
+            key_mouse_manager.wait()
+            time.sleep(0.4)
+            key_mouse_manager.keyUp("w", force=True)
+            key_mouse_manager.wait()
+        return False
 
     @staticmethod
     def _current_interaction_group(targets, target_loc):
@@ -544,37 +877,52 @@ class IronBloodUniverse(SimulatedUniverse):
                 time.sleep(3)
                 return find,record,False
             CUS_LOGGER.debug(f"地图编号：{self.now_map}  相似度：{self.now_map_sim}")
-            if (self.debug and self.now_map_sim < 0.4) or self.now_map_sim < 0.35:
+            unfinished = self.now_map != -1 and "m" in str(self.now_map)
+            below_trust = (
+                (self.debug and self.now_map_sim < 0.4)
+                or self.now_map_sim < 0.35
+                or (target_mode == "special"
+                    and self.now_map_sim < SPECIAL_MAP_TRUST_SIM)
+            )
+            if unfinished:
+                # 未完成地图优先保持录制，避免低相似度时重复创建目录
+                CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
+                self.map_file = os.path.join(map_root, str(self.now_map)) + os.sep
+                record = True
+            elif below_trust:
                 CUS_LOGGER.warning(f"相似度过低,疑似未找到匹配地图,匹配地图{self.now_map}")
                 if create:
                     self.now_map, self.map_file = self._new_map_directory(map_root)
                 find = False
                 if self.debug and create:
                     record=True
-            elif self.now_map !=-1 and "m" in str(self.now_map):
-                CUS_LOGGER.warning(f"未完成的地图{self.now_map}")
-                self.map_file = os.path.join(map_root, str(self.now_map)) + os.sep
-                record = True
             if find:
                 files,x,y,map_num,self.upx,self.upy,target_path = find_latest_modified_file(
                     os.path.join(map_root, str(self.now_map)).replace("\\", "/") + "/"
                 )
-                self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
-                self.debug_map =None
-                self.now_loc = (x, y)
-                self.start_pos =(x, y)
-                self.pos_predictor.position=self.now_loc
-                self.pos_predictor.set_now_map(map_num)
-                self.target = set()
-                self.pos_map = None
-                if target_path is not None:
-                    self.target = self.get_target(
-                        target_path, self.upx, self.upy,
-                        target_mode=target_mode,
-                    )
-                    self.pos_map=cv.imread(target_path)
-                    CUS_LOGGER.debug(f"已从地图获取目标路径点{self.target}")
-                self.rotation, d = self.pos_predictor.update_minimap_data(self.screen)
+                if files is None:
+                    # 能匹配到模板说明 init.jpg 必然存在，只是切片/标注
+                    # 尚未写完；按未匹配处理且不再重复保存初始小地图。
+                    CUS_LOGGER.warning(f"地图{self.now_map}录制数据不完整，按未匹配处理")
+                    find = False
+                    self.first_save_map = False
+                else:
+                    self.big_map = cv.imread(files, cv.IMREAD_GRAYSCALE)
+                    self.debug_map =None
+                    self.now_loc = (x, y)
+                    self.start_pos =(x, y)
+                    self.pos_predictor.position=self.now_loc
+                    self.pos_predictor.set_now_map(map_num)
+                    self.target = set()
+                    self.pos_map = None
+                    if target_path is not None:
+                        self.target = self.get_target(
+                            target_path, self.upx, self.upy,
+                            target_mode=target_mode,
+                        )
+                        self.pos_map=cv.imread(target_path)
+                        CUS_LOGGER.debug(f"已从地图获取目标路径点{self.target}")
+                    self.rotation, d = self.pos_predictor.update_minimap_data(self.screen)
             elif (not find) and self.first_save_map and create:
                 # 录制模式，保存初始小地图
                 self.first_save_map=False
