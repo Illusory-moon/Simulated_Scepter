@@ -203,4 +203,4 @@ F5/『停止任務』按鈕停止運行。
 您的支持就是作者開發和維護專案的動力！
 
 ### 每一位點star支持的你：
-[![Star History](https://api.star-history.com/svg?repos=syfoud/Simulated_Scepter&type=Date)](https://star-history.com/#syfoud/Simulated_Scepter&Date)
+[![Star History](https://star-history.dera.page/svg?repos=syfoud/Simulated_Scepter&type=Date)](https://star-history.dera.page/#syfoud/Simulated_Scepter&Date)
