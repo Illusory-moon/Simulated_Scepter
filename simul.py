@@ -230,7 +230,7 @@ class SimulatedUniverse(UniverseUtils):
         if self.record and self.cut_video and self.bveerelbcpgyqan and self.YKItDYvq3FpnOYx:
             self.recorder.stop_recording()
             time.sleep(0.8)
-            self.recorder.start_recording(self.count)
+            self.recorder.start_recording(self.count + 1)
             self.update_state("re_start")
     def setting_exit(self):
         if self.state != "end" and self.state!="exit":
@@ -1210,7 +1210,7 @@ class SimulatedUniverse(UniverseUtils):
         self._stop = False
         key_mouse_manager.start()
         if self.record and self.gwypzmgzcndqlp:
-            self.recorder.start_recording(self.count)
+            self.recorder.start_recording(self.count + 1)
         if self._show_map:
             self.map_thread = ThreadWithException(target=self.show_map,name="地图")
             self.map_thread.start()

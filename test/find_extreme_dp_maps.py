@@ -87,7 +87,10 @@ def _worker(args: tuple) -> dict:
             model.start_idx, model.initial_infected, cd, cheat, reroll)
 
         best_cd, best_fc, best_fr, best_st = -10**9, cheat, reroll, 0
-        for observed in ALL_EFFECTS:
+        # 有作弊或重投时，任一观测效果都能到达全部六种首步效果；旧逻辑同分时
+        # 也固定保留第一种观测，故只算一次即可完整保持结果与资源余量。
+        observed_effects = ALL_EFFECTS[:1] if cheat or reroll else ALL_EFFECTS
+        for observed in observed_effects:
             ctx = DecisionContext(PHASE_EFFECT, start_state, observed)
             try:
                 r = ExactCountdownDP(model, max_states=MAX_STATES,

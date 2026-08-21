@@ -19,24 +19,47 @@ AIM_ENEMY_LUMA_MIN = 184
 AIM_ENEMY_RED_MIN = 200
 AIM_ENEMY_EDGE_MIN = 18
 AIM_ENEMY_PRIMARY_RADII = (29, 32)
+AIM_ENEMY_LARGE_RADII = (35, 38, 41, 44)
 AIM_ENEMY_EDGE_RADII = (17, 20, 23, 26)
 AIM_ENEMY_PEAK_MIN = 52
+AIM_ENEMY_LARGE_PEAK_MIN = 68
 AIM_ENEMY_EDGE_PEAK_MIN = 36
+AIM_ENEMY_HUD_PEAK_MIN = 100
 AIM_ENEMY_ROI_TOP = 95
 AIM_ENEMY_ROI_BOTTOM = 125
 AIM_ENEMY_ROI_LEFT = 255
 AIM_ENEMY_ROI_RIGHT = 285
 AIM_ENEMY_EDGE_CENTER_WIDTH = 40
+AIM_ENEMY_SIGN_HALF_SPAN = 200
+AIM_ENEMY_SIGN_HALF_WIDTH = 5
+AIM_ENEMY_SIGN_HORIZONTAL_MIN = 0.45
+AIM_ENEMY_SIGN_VERTICAL_MAX = 0.20
+AIM_ENEMY_DIM_X_RANGE = (500, 1500)
+AIM_ENEMY_DIM_Y_RANGE = (95, 500)
+AIM_ENEMY_DIM_SCALE = 0.5
+AIM_ENEMY_DIM_PATCH_RADIUS = 60
+AIM_ENEMY_DIM_CENTER_RED_MIN = 135
+AIM_ENEMY_DIM_CENTER_RED_STD_MAX = 2.0
+AIM_ENEMY_DIM_OUTER_LUMA_STD_MAX = 16.5
+AIM_ENEMY_DIM_FAR_RED_STD_MIN = 10.5
 mask_interact = find_image_in_folder('gray_image/', 'MASK_MAP_INTERACT.png')
 circles_enemy = {
     radius: create_circle(radius - 1, radius)
-    for radius in set(AIM_ENEMY_PRIMARY_RADII + AIM_ENEMY_EDGE_RADII)
+    for radius in set(
+        AIM_ENEMY_PRIMARY_RADII + AIM_ENEMY_LARGE_RADII +
+        AIM_ENEMY_EDGE_RADII
+    )
 }
+_dim_axis = np.arange(-AIM_ENEMY_DIM_PATCH_RADIUS,
+                      AIM_ENEMY_DIM_PATCH_RADIUS + 1)
+_dim_x, _dim_y = np.meshgrid(_dim_axis, _dim_axis)
+_dim_distance = np.sqrt(_dim_x * _dim_x + _dim_y * _dim_y)
 circle_item = create_circle(*radius_item)
 event_mask = (find_image_in_folder("gray_image/",'MASK_MAP_INTERACT_BLACK') > 70)[:497]
 
 
-def _best_enemy_ring_response(feature, radii, center_x_range=None):
+def _best_enemy_ring_response(
+        feature, radii, center_x_range=None, center_y_range=None):
     width, height = image_size(feature)
     points = inrange(feature.copy(), lower=AIM_ENEMY_EDGE_MIN)
     best_score = 0
@@ -56,11 +79,13 @@ def _best_enemy_ring_response(feature, radii, center_x_range=None):
         response = subtract_blur(response, 3)
 
         if center_x_range is not None:
-            response[:AIM_ENEMY_ROI_TOP, :] = 0
-            response[-AIM_ENEMY_ROI_BOTTOM:, :] = 0
             x_min, x_max = center_x_range
             response[:, :x_min] = 0
             response[:, x_max:] = 0
+        if center_y_range is not None:
+            y_min, y_max = center_y_range
+            response[:y_min, :] = 0
+            response[y_max:, :] = 0
 
         _, score, _, center = cv2.minMaxLoc(response)
         if score > best_score:
@@ -71,8 +96,92 @@ def _best_enemy_ring_response(feature, radii, center_x_range=None):
     return best_response, best_score, best_center, points.shape[0]
 
 
+def _is_horizontal_red_scenery(red_pixels, center):
+    """Reject long red signs which can contain a circular decoration."""
+    if center is None:
+        return False
+    x, y = center
+    height, width = red_pixels.shape
+    half_span = AIM_ENEMY_SIGN_HALF_SPAN
+    half_width = AIM_ENEMY_SIGN_HALF_WIDTH
+    horizontal = red_pixels[
+        max(0, y - half_width):min(height, y + half_width + 1),
+        max(0, x - half_span):min(width, x + half_span + 1),
+    ]
+    vertical = red_pixels[
+        max(0, y - half_span):min(height, y + half_span + 1),
+        max(0, x - half_width):min(width, x + half_width + 1),
+    ]
+    horizontal_ratio = np.any(horizontal, axis=0).mean()
+    vertical_ratio = np.any(vertical, axis=1).mean()
+    return (
+        horizontal_ratio > AIM_ENEMY_SIGN_HORIZONTAL_MIN and
+        vertical_ratio < AIM_ENEMY_SIGN_VERTICAL_MAX
+    )
+
+
+def _find_dim_enemy_circle(luma, red):
+    """Find the low-contrast animation phase of the same circular marker."""
+    x_min, x_max = AIM_ENEMY_DIM_X_RANGE
+    y_min, y_max = AIM_ENEMY_DIM_Y_RANGE
+    if luma.shape[0] < y_max or luma.shape[1] < x_max:
+        return None
+
+    roi = luma[y_min:y_max, x_min:x_max]
+    roi = cv2.resize(
+        roi, None, fx=AIM_ENEMY_DIM_SCALE, fy=AIM_ENEMY_DIM_SCALE,
+        interpolation=cv2.INTER_AREA,
+    )
+    roi = cv2.GaussianBlur(roi, (3, 3), 0.8)
+    circles = cv2.HoughCircles(
+        roi, cv2.HOUGH_GRADIENT_ALT, dp=1.5, minDist=8,
+        param1=150, param2=0.75, minRadius=7, maxRadius=22,
+    )
+    if circles is None:
+        return None
+
+    patch_radius = AIM_ENEMY_DIM_PATCH_RADIUS
+    height, width = luma.shape
+    for circle_x, circle_y, circle_radius in circles[0]:
+        x = int(round(circle_x / AIM_ENEMY_DIM_SCALE + x_min))
+        y = int(round(circle_y / AIM_ENEMY_DIM_SCALE + y_min))
+        radius = float(circle_radius / AIM_ENEMY_DIM_SCALE)
+        if (x < patch_radius or x + patch_radius >= width or
+                y < patch_radius or y + patch_radius >= height):
+            continue
+
+        luma_patch = luma[
+            y - patch_radius:y + patch_radius + 1,
+            x - patch_radius:x + patch_radius + 1,
+        ]
+        red_patch = red[
+            y - patch_radius:y + patch_radius + 1,
+            x - patch_radius:x + patch_radius + 1,
+        ]
+        center_mask = _dim_distance < 0.5 * radius
+        outer_mask = (
+            (_dim_distance >= 1.15 * radius) &
+            (_dim_distance < 1.7 * radius)
+        )
+        far_mask = (
+            (_dim_distance >= 1.7 * radius) &
+            (_dim_distance < 2.3 * radius)
+        )
+        center_red = red_patch[center_mask]
+        if (
+            center_red.mean() >= AIM_ENEMY_DIM_CENTER_RED_MIN and
+            center_red.std() <= AIM_ENEMY_DIM_CENTER_RED_STD_MAX and
+            luma_patch[outer_mask].std() <= AIM_ENEMY_DIM_OUTER_LUMA_STD_MAX and
+            red_patch[far_mask].std() > AIM_ENEMY_DIM_FAR_RED_STD_MIN
+        ):
+            return x, y
+    return None
+
+
 def predict_enemy(h, v):
     width, height = image_size(v)
+    dim_luma = h.copy()
+    dim_red = v.copy()
 
     # 获取白色圆形 `y`
     y = subtract_blur(h, 3, negative=False)
@@ -80,14 +189,14 @@ def predict_enemy(h, v):
     cv2.bitwise_and(y, h, dst=y)
     # 获取红色光晕 `v`
     cv2.inRange(v, AIM_ENEMY_RED_MIN, 255, dst=v)
+    red_pixels = v.copy()
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     cv2.dilate(v, kernel, dst=v)
-    # Keep an unmasked copy for a partially clipped ring at either screen edge.
+    # Keep an unmasked copy for markers partially hidden beneath the side HUD.
     cv2.bitwise_and(y, v, dst=y)
-    edge_feature = y.copy()
-    edge_feature[:AIM_ENEMY_ROI_TOP, :] = 0
-    edge_feature[-AIM_ENEMY_ROI_BOTTOM:, :] = 0
+    side_feature = y.copy()
+    side_feature[-AIM_ENEMY_ROI_BOTTOM:, :] = 0
 
     # Match both radii observed in the manually labelled screenshots.
     primary_feature = cv2.bitwise_and(y, mask_interact)
@@ -100,19 +209,47 @@ def predict_enemy(h, v):
     )
     if point_count > 1000:
         print(f'AimDetector.predict_enemy() 绘制点过多: {point_count}')
-    if score >= AIM_ENEMY_PEAK_MIN:
+    if (score >= AIM_ENEMY_PEAK_MIN and
+            not _is_horizontal_red_scenery(red_pixels, center)):
         return draw_enemy, np.array([center])
+
+    large_draw, large_score, large_center, _ = _best_enemy_ring_response(
+        primary_feature, AIM_ENEMY_LARGE_RADII
+    )
+    if (large_score >= AIM_ENEMY_LARGE_PEAK_MIN and
+            not _is_horizontal_red_scenery(red_pixels, large_center)):
+        return large_draw, np.array([large_center])
+
+    # The party HUD masks a wide strip on the right. A strong peak in that
+    # strip is still reliable, but needs a separately calibrated threshold.
+    hud_radii = tuple(sorted(set(
+        AIM_ENEMY_PRIMARY_RADII + AIM_ENEMY_LARGE_RADII +
+        AIM_ENEMY_EDGE_RADII
+    )))
+    hud_span = AIM_ENEMY_ROI_RIGHT + 2 * max(hud_radii)
+    hud_draw, hud_score, hud_center, _ = _best_enemy_ring_response(
+        side_feature[:, -hud_span:], hud_radii,
+        center_x_range=(hud_span - AIM_ENEMY_ROI_RIGHT, hud_span),
+        center_y_range=(0, height - AIM_ENEMY_ROI_BOTTOM),
+    )
+    if hud_score >= AIM_ENEMY_HUD_PEAK_MIN:
+        full_hud_draw = np.zeros((height, width), dtype=np.uint8)
+        full_hud_draw[:, -hud_span:] = hud_draw
+        hud_center = (hud_center[0] + width - hud_span, hud_center[1])
+        return full_hud_draw, np.array([hud_center])
 
     # A target may be clipped beneath a side HUD. Only allow the circle center
     # in the outermost 40 px and use a separately calibrated peak threshold.
     edge_span = AIM_ENEMY_EDGE_CENTER_WIDTH + 2 * max(AIM_ENEMY_EDGE_RADII)
     left_draw, left_score, left_center, _ = _best_enemy_ring_response(
-        edge_feature[:, :edge_span], AIM_ENEMY_EDGE_RADII,
-        center_x_range=(0, AIM_ENEMY_EDGE_CENTER_WIDTH + 1)
+        side_feature[:, :edge_span], AIM_ENEMY_EDGE_RADII,
+        center_x_range=(0, AIM_ENEMY_EDGE_CENTER_WIDTH + 1),
+        center_y_range=(0, height - AIM_ENEMY_ROI_BOTTOM),
     )
     right_draw, right_score, right_center, _ = _best_enemy_ring_response(
-        edge_feature[:, -edge_span:], AIM_ENEMY_EDGE_RADII,
-        center_x_range=(edge_span - AIM_ENEMY_EDGE_CENTER_WIDTH, edge_span)
+        side_feature[:, -edge_span:], AIM_ENEMY_EDGE_RADII,
+        center_x_range=(edge_span - AIM_ENEMY_EDGE_CENTER_WIDTH, edge_span),
+        center_y_range=(0, height - AIM_ENEMY_ROI_BOTTOM),
     )
     if right_score > left_score:
         edge_draw, edge_score = right_draw, right_score
@@ -125,6 +262,12 @@ def predict_enemy(h, v):
         full_edge_draw = np.zeros((height, width), dtype=np.uint8)
         full_edge_draw[:, edge_offset:edge_offset + edge_span] = edge_draw
         return full_edge_draw, np.array([edge_center])
+
+    dim_center = _find_dim_enemy_circle(dim_luma, dim_red)
+    if dim_center is not None:
+        dim_draw = np.zeros((height, width), dtype=np.uint8)
+        cv2.circle(dim_draw, dim_center, 3, 255, -1)
+        return dim_draw, np.array([dim_center])
     return draw_enemy, np.array([])
 
 

@@ -286,7 +286,7 @@
         "trigger":{
             "text": "被动效果",
             "box": [205, 296, 826, 855],
-            "interval": 1,
+            "interval": 3,
             "redundancy": 30
         },
         "actions":
@@ -479,6 +479,20 @@
         "actions":
         [
             "pre_start"
+        ]
+    },
+        {
+        "name": "下载角色",
+        "trigger":{
+            "text": "下载扩充角色",
+            "box": [105, 251, 65, 96],
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "press": "esc"
+            }
         ]
     },
             {

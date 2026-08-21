@@ -261,10 +261,11 @@ class MapCanvas(QWidget):
         current = self.state.node_idx if self.state else None
         current_column = self.prepared.model.columns.get(current, -1)
         options = set()
-        reports = {}
+        reports = win_reports = {}
         recommended = highest_win = None
         if self.context and self.recommendation and self.context.phase in (PHASE_TARGET, PHASE_PATH):
             reports = self.recommendation.reports
+            win_reports = self.recommendation.win_reports or reports
             options = {int(action) for action in reports if isinstance(action, int)}
             if isinstance(self.recommendation.recommended_action, int):
                 recommended = int(self.recommendation.recommended_action)
@@ -342,9 +343,10 @@ class MapCanvas(QWidget):
 
         for idx, report in reports.items():
             point = self._screen_nodes[idx]
-            label = f"均 {report.mean:.2f}"
-            if report.win_rate is not None:
-                label += f"  胜 {report.win_rate * 100:.4f}%"
+            label = f"均策 {report.mean:.2f}"
+            win_rate = win_reports[idx].win_rate
+            if win_rate is not None:
+                label += f"  胜策 {win_rate * 100:.4f}%"
             metrics = painter.fontMetrics()
             text_rect = metrics.boundingRect(label).adjusted(-5, -3, 5, 3)
             text_rect.moveCenter((point + QPointF(0, -self._node_radius - 26)).toPoint())
@@ -526,10 +528,11 @@ class MainWindow(QMainWindow):
         dp_form.addRow(self.lbl_dp_steps)
         layout.addWidget(dp_box)
 
-        candidate_box = QGroupBox("当前所有候选（冻结贪心下游独立评价）")
+        candidate_box = QGroupBox("当前所有候选（均分/胜率策略独立评价）")
         candidate_layout = QVBoxLayout(candidate_box)
         self.candidate_table = QTableWidget(0, 4)
-        self.candidate_table.setHorizontalHeaderLabels(["动作", "平均最终CD", "胜率", "n"])
+        self.candidate_table.setHorizontalHeaderLabels(
+            ["动作", "均分策略CD", "胜率策略胜率", "均/胜n"])
         self.candidate_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         for column in (1, 2, 3):
             self.candidate_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeToContents)
@@ -1241,26 +1244,30 @@ class MainWindow(QMainWindow):
             return
         action = recommendation.recommended_action
         report = recommendation.reports[action]
-        text = f"{format_action(context.phase, action)}\n平均最终 CD {report.mean:.2f}"
-        if report.win_rate is not None:
-            text += f"，胜率 {report.win_rate * 100:.4f}%"
-        text += f"（n={report.count}）"
+        win_reports = recommendation.win_reports or recommendation.reports
+        win_report = win_reports[action]
+        text = f"{format_action(context.phase, action)}\n均分策略平均最终 CD {report.mean:.2f}"
+        if win_report.win_rate is not None:
+            text += f"，胜率策略 {win_report.win_rate * 100:.4f}%"
+        text += f"（均分n={report.count}，胜率n={win_report.target_count}）"
         self.lbl_recommend.setText(text)
         if recommendation.highest_win_action != action:
             winner = recommendation.highest_win_action
-            win_report = recommendation.reports[winner]
+            win_report = win_reports[winner]
             self.lbl_win_leader.setText(
                 f"金圈：最高胜率 {format_action(context.phase, winner)} "
-                f"{(win_report.win_rate or 0) * 100:.4f}% / 均分 {win_report.mean:.2f}")
+                f"{(win_report.win_rate or 0) * 100:.4f}% / "
+                f"胜率策略均分 {win_report.mean:.2f}")
         ranked = sorted(recommendation.reports, key=lambda item: (
             -recommendation.reports[item].mean, str(item)))
         self.candidate_table.setRowCount(len(ranked))
         for row, candidate in enumerate(ranked):
             stats = recommendation.reports[candidate]
+            win_stats = win_reports[candidate]
             values = [
                 format_action(context.phase, candidate), f"{stats.mean:.2f}",
-                "--" if stats.win_rate is None else f"{stats.win_rate * 100:.4f}%",
-                f"{stats.count:,}",
+                "--" if win_stats.win_rate is None else f"{win_stats.win_rate * 100:.4f}%",
+                f"{stats.count:,}/{win_stats.target_count:,}",
             ]
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)

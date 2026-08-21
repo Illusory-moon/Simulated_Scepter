@@ -10,6 +10,10 @@ from PyQt5.QtGui import QFont
 
 from route import PATHS
 from tool import EXTRA
+from tool.countdown_config import (
+    DECISION_MODES, MC_SETTING_FIELDS, load_finger_snap_settings,
+    save_finger_snap_settings,
+)
 from tool.log import log_emitter
 from tool.thread import ThreadWithException
 from tool.utils.image_tool import find_image_by_name, load_all_images_from_directory
@@ -181,6 +185,7 @@ class MainWindow(QMainWindowLog):
         # 连接配置保存按钮
         self.config_save_btn.clicked.connect(self.save_config)
         self.Iron_blood_save_btn.clicked.connect(self.save_iron_config)
+        self.Finger_snap_save_btn.clicked.connect(self.save_finger_snap_config)
         self.Aboutupdatelock.clicked.connect(self.show_unlock_dialog)
 
         settings_path = PATHS["root"] + "\\config\\config\\settings.json"
@@ -202,6 +207,25 @@ class MainWindow(QMainWindowLog):
         self.Iron_blood_first_plane_min_weight_input.setText(str(data.get("first_plane_min_weight", 6)))
         self.Iron_blood_interact_time_input.setText(str(data.get("max_interact_time", 40)))
         self.debug_checkox2.setChecked(data.get("debug", True))
+
+        finger_snap = load_finger_snap_settings()
+        for field in MC_SETTING_FIELDS:
+            getattr(self, f"Finger_snap_{field}_input").setText(str(finger_snap[field]))
+        for plane, target in enumerate(finger_snap["plane_targets"], 1):
+            getattr(self, f"Finger_snap_plane{plane}_target_input").setText(str(target))
+        for mode, label in DECISION_MODES.items():
+            self.Finger_snap_decision_mode_combo.addItem(label, mode)
+        self.Finger_snap_decision_mode_combo.setCurrentIndex(
+            self.Finger_snap_decision_mode_combo.findData(finger_snap["decision_mode"]))
+        self.Finger_snap_dp_early_stop_checkbox.setChecked(finger_snap["dp_early_stop"])
+        self.Finger_snap_win_rate_dp_early_stop_checkbox.setChecked(
+            finger_snap["win_rate_dp_early_stop"])
+        self.Finger_snap_mc_dp_early_stop_checkbox.setChecked(
+            finger_snap["mc_dp_early_stop"])
+        self.Finger_snap_first_plane_threshold_input.setText(
+            str(finger_snap.get("first_plane_threshold", 0.0)))
+        self.Finger_snap_record_keep_count_input.setText(
+            str(finger_snap.get("record_keep_count", 31)))
 
         # 初始化快捷键配置输入框
         hotkey_config = data.get("hotkeys", {})
@@ -295,6 +319,7 @@ class MainWindow(QMainWindowLog):
         with EXTRA.FILE_LOCK:
             with open(PATHS["root"] + "\\config\\config\\settings.json", mode="w", encoding="UTF-8") as file:
                 json.dump(data, file, ensure_ascii=False, indent=4)
+        self.opt = data
         self.hotkey_config = data["hotkeys"]
         self.refresh_keyboard_listener()
         self.update_button_hotkey_text(self.hotkey_config)
@@ -377,12 +402,16 @@ class MainWindow(QMainWindowLog):
                 self.registered_hotkeys.append(key.lower())
 
     def update_dependent_controls_state(self):
-        debug_and_recording = self.debug_checkox2.isChecked() and self.recording_checkBox2.isChecked()
+        debug_enabled = self.debug_checkox2.isChecked()
+        debug_and_recording = debug_enabled and self.recording_checkBox2.isChecked()
         self.recording_label_checkbox.setEnabled(debug_and_recording)
         self.recording_time_input.setEnabled(self.recording_checkBox2.isChecked())
         # 事件地图录图属于调试功能，仅在调试模式下展示。
-        self.record_event_map_checkbox.setVisible(self.debug_checkox2.isChecked())
-        self.record_event_map_checkbox.setEnabled(self.debug_checkox2.isChecked())
+        self.record_event_map_checkbox.setVisible(debug_enabled)
+        self.record_event_map_checkbox.setEnabled(debug_enabled)
+        finger_snap_visible = debug_enabled or (0 <= time.localtime().tm_hour < 6)
+        self.finger_snap_btn.setVisible(finger_snap_visible)
+        self.Finger_snap_group.setVisible(finger_snap_visible)
         early_stop_enabled = self.early_stop_checkbox.isChecked()
         self.Iron_blood_first_plane_input.setEnabled(early_stop_enabled)
         self.Iron_blood_second_plane_input.setEnabled(early_stop_enabled)
@@ -536,6 +565,16 @@ class MainWindow(QMainWindowLog):
             QMessageBox.critical(self, "错误", str(e))
 
     def run_finger_snap(self):
+        can_run = (
+            self.opt.get("debug", True)
+            and self.opt.get("recording_iron_blood", True)
+            and self.opt.get("record_add_label", True)
+        )
+        if not can_run:
+            QMessageBox.information(
+                self, "提示", "非开发人员，当前无测试资格，暂不支持运行")
+            return
+
         def task():
             su = FingerSnap()
             self.current_task = su
@@ -621,6 +660,42 @@ class MainWindow(QMainWindowLog):
     def save_iron_config(self):
         self.save_ui_settings()
         QMessageBox.information(self, "提示", "配置已保存")
+    def save_finger_snap_config(self):
+        try:
+            values = {
+                "control_rollouts": int(self.Finger_snap_control_rollouts_input.text()),
+                "evaluation_rollouts": int(self.Finger_snap_evaluation_rollouts_input.text()),
+                "min_visits": int(self.Finger_snap_min_visits_input.text()),
+                "epsilon_start": float(self.Finger_snap_epsilon_start_input.text()),
+                "epsilon_end": float(self.Finger_snap_epsilon_end_input.text()),
+                "seed": int(self.Finger_snap_seed_input.text()),
+                "win_rate_noise_floor_percent": float(
+                    self.Finger_snap_win_rate_noise_floor_percent_input.text()),
+                "path_reward_bonus": float(self.Finger_snap_path_reward_bonus_input.text()),
+                "path_event_bonus": float(self.Finger_snap_path_event_bonus_input.text()),
+                "path_trade_bonus": float(self.Finger_snap_path_trade_bonus_input.text()),
+                "path_adventure_bonus": float(self.Finger_snap_path_adventure_bonus_input.text()),
+                "path_bugevent_bonus": float(self.Finger_snap_path_bugevent_bonus_input.text()),
+                "decision_mode": self.Finger_snap_decision_mode_combo.currentData(),
+                "dp_early_stop": self.Finger_snap_dp_early_stop_checkbox.isChecked(),
+                "win_rate_dp_early_stop": (
+                    self.Finger_snap_win_rate_dp_early_stop_checkbox.isChecked()),
+                "mc_dp_early_stop": (
+                    self.Finger_snap_mc_dp_early_stop_checkbox.isChecked()),
+                "plane_targets": [int(getattr(
+                    self, f"Finger_snap_plane{plane}_target_input").text())
+                    for plane in range(1, 4)],
+                "first_plane_threshold": float(
+                    self.Finger_snap_first_plane_threshold_input.text()),
+                "record_keep_count": int(
+                    self.Finger_snap_record_keep_count_input.text()),
+            }
+            save_finger_snap_settings(values)
+        except (TypeError, ValueError) as error:
+            QMessageBox.warning(self, "参数错误", f"弹指一挥参数无法保存：{error}")
+            return
+        QMessageBox.information(
+            self, "提示", "弹指一挥配置已独立保存；下次启动弹指任务时生效。")
     def set_FPS(self,TimePerFrame):
         Fps = 1.0 / float(TimePerFrame)
         Fps = round(Fps, 2)

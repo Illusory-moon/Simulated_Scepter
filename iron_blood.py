@@ -107,6 +107,7 @@ class IronBloodUniverse(SimulatedUniverse):
         self.new_node = True
         self.node_count=0
         self.fail_match_count = 0
+        self.ruanmei2 = False  # 本轮是否遭遇过「阮·梅（其二）」
         self.special_interaction_failures = {}
         self.native_special_map_root = None
         self.loaded_map_root = None
@@ -118,7 +119,7 @@ class IronBloodUniverse(SimulatedUniverse):
             CUS_LOGGER.debug(f"是否可删除{need_del},限制数目{self.del_record_time}，当前数目{self.kill_count}")
             self.recorder.stop_recording(need_del)
             time.sleep(0.8)
-            self.recorder.start_recording(self.count)
+            self.recorder.start_recording(self.count + 1)
             self.update_state("re_start")
         self.kill_count = 0
         self.fail_match_count=0
@@ -828,7 +829,7 @@ class IronBloodUniverse(SimulatedUniverse):
             if '胡须火药' in strange or '纯美骑士' in strange:
                 strange_index = i
                 break
-            elif '三八面骰' in strange or '银河大乐透' in strange:
+            elif '三八面' in strange or '银河大乐透' in strange:
                 if value<2:
                     strange_index=i
                     value=2
@@ -1089,6 +1090,8 @@ class IronBloodUniverse(SimulatedUniverse):
         super().select_event()
         if self.new_node:
             event_name = self.ts.find_with_box(box=[185, 750, 953, 1008], forward=True, re_screen=False)
+            if any(isinstance(ev, dict) and "阮·梅" in ev.get("raw_text", "") and "其二" in ev.get("raw_text", "") for ev in event_name):
+                self.ruanmei2 = True#本轮遭遇「阮·梅（其二）」，本轮视频将保留
             if self.area!="" and self.area!="休整" and len(event_name)!=0:
                 try:
                     db_file = "config/backup/node_log.db"
