@@ -52,7 +52,7 @@ def _merge_match_groups(*groups) -> list:
 
 
 def default_map_paths() -> tuple[str, str, str]:
-    example_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "example")
+    example_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)))
     return tuple(os.path.abspath(os.path.join(example_dir, name)) for name in DEFAULT_MAP_FILES)
 
 

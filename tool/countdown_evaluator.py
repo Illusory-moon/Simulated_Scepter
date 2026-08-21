@@ -62,9 +62,9 @@ DECISION_DP = "dp"
 
 CAMPAIGN_DEFAULT_TARGETS = (15.0, 75.0, 80.0)
 DEFAULT_MAP_FILES = (
-    "20260620_114926.png",
-    "20260620_115208.png",
-    "20260620_115639.png",
+    "test1.png",
+    "test2.png",
+    "test3.png",
 )
 
 # 路径节点只获得极小的偏好补正：用于区分几乎等价的 MC 结果，不覆盖实际 CD 收益。
