@@ -119,11 +119,11 @@ class FingerSnap(IronBloodUniverse):
         self.init_map()
         if self.countdown>=80:
             if self.count>10000:
-                CUS_LOGGER.info("寰宇或为您的意志撼动，但「毁灭」的道路，注定无法手捧鲜花……")
+                CUS_LOGGER.info("跨越此世的所有恨与爱，为故事写下新的篇章吧♪")
             elif self.count>1000:
-                CUS_LOGGER.info("…不必考量本心，不必渴求胜利，只须知道，铁血战士——让人感到愤怒！")
+                CUS_LOGGER.info("而记忆，化作往昔的涟漪，向着明日荡去。")
             elif self.count>100:
-                CUS_LOGGER.info("无所谓，旅途本就会改变一个人。")
+                CUS_LOGGER.info("迷迷，等待。开拓，世界！")
             self.stop()
             CUS_LOGGER.info("恭喜，您获得了弹指一挥！")
         else:
@@ -134,7 +134,7 @@ class FingerSnap(IronBloodUniverse):
         text = merge_text(text) if len(text) else ""
         CUS_LOGGER.debug(f"当前效果{text}")
         if self.click_text(text="选择移动目标", box=[1609, 1759, 965, 996], click=False, allow_fail=True):
-            CUS_LOGGER.info("要用爱铭记我。")
+            CUS_LOGGER.info("要,用爱。。铭记我。。。")
             return
         upstream_target_ready = (
             self.countdown_agent.ready and self.countdown_agent.context
@@ -210,7 +210,6 @@ class FingerSnap(IronBloodUniverse):
         key_mouse_manager.wait()
         if self.click_text(text="选择移动目标", box=[1609, 1759, 965, 996],click=False,allow_fail=True):
             if self.click_text(text="点击空白处关闭", box=[876, 1047, 1008, 1035],click=False,allow_fail=True):
-                CUS_LOGGER.info("「下一世，真理定会解明，死生……将有序流转。」")
                 key_mouse_manager.wait()
                 return
             if not self.try_analysis_map(mode=2):
