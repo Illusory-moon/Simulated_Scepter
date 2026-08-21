@@ -203,4 +203,4 @@ Thanks to the following contributors for their contributions to this project:
 Your support is the driving force behind the author's development and maintenance of this project!
 
 ### And every user who starred this project:
-[![Star History](https://api.star-history.com/svg?repos=syfoud/Simulated_Scepter&type=Date)](https://star-history.com/#syfoud/Simulated_Scepter&Date)
+[![Star History](https://star-history.dera.page/svg?repos=syfoud/Simulated_Scepter&type=Date)](https://star-history.dera.page/#syfoud/Simulated_Scepter&Date)
