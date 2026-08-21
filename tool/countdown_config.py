@@ -48,6 +48,9 @@ def normalize_finger_snap_settings(values=None):
         epsilon_start=values.get("epsilon_start", defaults.epsilon_start),
         epsilon_end=values.get("epsilon_end", defaults.epsilon_end),
         seed=values.get("seed", defaults.seed),
+        win_rate_noise_floor_percent=values.get(
+            "win_rate_noise_floor_percent",
+            defaults.win_rate_noise_floor_percent),
         path_reward_bonus=values.get(
             "path_reward_bonus", defaults.path_reward_bonus if legacy_step is None else float(legacy_step) * 5),
         path_event_bonus=values.get(

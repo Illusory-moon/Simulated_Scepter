@@ -13,10 +13,10 @@ from tool.countdown_evaluator import (
     DECISION_MC,
     DECISION_WIN_RATE,
     DECISION_WIN_RATE_DP,
+    EFFECT_CHEAT_TEXT,
     EFFECT_NAMES,
     EFFECT_NOTHING,
     EFFECT_SELECT,
-    EFFECT_TEXT_ALIASES,
     MCConfig,
     PHASE_EFFECT,
     PHASE_TARGET,
@@ -59,6 +59,8 @@ class FingerSnap(IronBloodUniverse):
             mode != "dp" and self.countdown_early_stop)
         self._cheat_count = self._reroll_count = 0
         self._pending_target = None
+        self._pending_cheat_effect = None
+        self._target_decided = False
         CUS_LOGGER.info("令她感伤的是，永恒的生命没能让她积累无穷的智慧，反倒是那些曾被她视作珍瑰的事物，开始变得模糊，一去不返。。。")
         config_file = "config/config/event_info2.yml"
         example_file = "config/config/info_example.yml"
@@ -69,8 +71,8 @@ class FingerSnap(IronBloodUniverse):
             self.event_prior = yaml.safe_load(f)["event"]
     def restart_recording(self):
         if self.record and self.cut_video and self.YKItDYvq3FpnOYx:
-            need_del=self.del_record_time and self.del_record_time>self.countdown
-            CUS_LOGGER.debug(f"是否可删除{need_del},限制数目{self.del_record_time}，当前数目{self.countdown}")
+            need_del=(self.del_record_time and self.del_record_time>self.countdown) and not self.ruanmei2
+            CUS_LOGGER.debug(f"是否可删除{need_del},限制数目{self.del_record_time}，当前数目{self.countdown}，本轮阮梅其二{self.ruanmei2}")
             self.recorder.stop_recording(need_del)
             time.sleep(0.8)
             self.recorder.start_recording(self.count + 1)
@@ -79,8 +81,11 @@ class FingerSnap(IronBloodUniverse):
         self.countdown_agent.reset()
         self._cheat_count = self._reroll_count = 0
         self._pending_target = None
+        self._pending_cheat_effect = None
+        self._target_decided = False
         self.fail_match_count=0
         self.node_count = 0
+        self._ruanmei_er2_seen = False
     def select_fate(self):
         self.click_text(text="丰饶", box=[824, 877, 784, 814])
     def end_of_university(self):
@@ -131,37 +136,54 @@ class FingerSnap(IronBloodUniverse):
         if self.click_text(text="选择移动目标", box=[1609, 1759, 965, 996], click=False, allow_fail=True):
             CUS_LOGGER.info("要用爱铭记我。")
             return
-        if (self.countdown_agent.ready and self.countdown_agent.context
-                and self.countdown_agent.context.phase == PHASE_TARGET):
-            if self._pending_target is None:
-                try:
-                    if not self.try_analysis_map(mode=2, target_selection=True):
-                        return
-                except (NoMatchError, NoBossError):
-                    return
-                advice = self.countdown_agent.recommend_target()
-                if advice is None:
-                    CUS_LOGGER.debug("慈怀已无可感染节点，放弃本次目标选择。")
-                    self.click_text(text="放弃", box=[1221, 1276, 967, 998])
-                    return
-                if self._log_decision(advice):
-                    return
-                self._pending_target = int(advice.action)
-            target = self._pending_target
-            node = next((item for item in self.nodes if item["idx"] == target), None)
-            if node is None:
-                CUS_LOGGER.error(f"模型推荐感染节点 #{target} 不在当前识图结果中")
-                self._pending_target = None
-                return
-            key_mouse_manager.click(int(node["cx"]), int(node["cy"]))
-            key_mouse_manager.wait()
-            # 确认按钮在未选中节点时依然显示，且 OCR 容易误识别为“女弃”。
-            # 直接点固定按钮：未选中时按钮禁用不生效，下次仍会重试选点。
-            key_mouse_manager.click(1685, 982)
-            key_mouse_manager.wait()
+        upstream_target_ready = (
+            self.countdown_agent.ready and self.countdown_agent.context
+            and self.countdown_agent.context.phase == PHASE_TARGET)
+        if not upstream_target_ready and "丰饶" not in text:
             return
-        if "丰饶" in text:
-            self.click_text(text="放弃", box=[1221, 1276, 967, 998])
+        # PHASE_TARGET 只表示策略状态已进入选目标阶段，不代表当前
+        # 选点界面已经识图。每次进入（以及上次点击未生效后重试）
+        # 都必须用当前截图重建 mode=2 地图，不得沿用路径界面的 self.nodes。
+        if not self._target_decided:
+            self._pending_target = None
+            try:
+                if not self.try_analysis_map(mode=2, target_selection=True):
+                    return
+            except (NoMatchError, NoBossError):
+                return
+            self.countdown_agent.locked_effect = EFFECT_SELECT
+            advice = self.countdown_agent.recommend_target()
+            if advice is None:
+                CUS_LOGGER.debug("慈怀已无可感染节点，放弃本次目标选择。")
+                self.click_text(text="放弃", box=[1221, 1276, 967, 998])
+                # 若放弃点击没有生效，下次触发仍应重新识图，不永久锁死。
+                self._target_decided = False
+                return
+            if self._log_decision(advice):
+                self._pending_target = None
+                self._target_decided = False
+                return
+            self._pending_target = int(advice.action)
+            self._target_decided = True
+        target = self._pending_target
+        if target is None:
+            return
+        node = next((item for item in self.nodes if item["idx"] == target), None)
+        if node is None:
+            CUS_LOGGER.error(f"模型推荐感染节点 #{target} 不在当前识图结果中")
+            self._pending_target = None
+            self._target_decided = False
+            return
+        key_mouse_manager.click(int(node["cx"]), int(node["cy"]))
+        key_mouse_manager.wait()
+        # 确认按钮在未选中节点时依然显示，且 OCR 容易误识别为“女弃”。
+        # 直接点固定按钮：未选中时按钮禁用不生效，下次仍会重试选点。
+        key_mouse_manager.click(1685, 982)
+        key_mouse_manager.wait()
+        # 不把“已发出点击”当成“界面已成功关闭”。若选点界面
+        # 仍然存在，select_doing 下次被调用时必须重新截图、建图和决策。
+        self._pending_target = None
+        self._target_decided = False
     def select_go(self):
         num = extract_number(match_numbers_in_region(self.screen))
         if num is None:
@@ -171,11 +193,16 @@ class FingerSnap(IronBloodUniverse):
         if num % 5:
             CUS_LOGGER.warning("不能整除5的参数")
             return
-        self.countdown = num // 5
+        candidate_countdown = num // 5
         time.sleep(2)  # 阻塞式等待播完动画，有待优化
-        num = extract_number(match_numbers_in_region(self.get_screen()))
-        if num is None or int(num) % 5 or int(num) // 5 != self.countdown:
+        confirmed_num = extract_number(match_numbers_in_region(self.get_screen()))
+        if (confirmed_num is None or int(confirmed_num) % 5
+                or int(confirmed_num) // 5 != candidate_countdown):
+            CUS_LOGGER.warning(
+                f"被动效果参数二次校验失败，首次={num}，二次={confirmed_num}，"
+                f"保留倒计时{self.countdown}")
             return
+        self.countdown = candidate_countdown
         CUS_LOGGER.debug(f"当前倒计时{self.countdown}")
         self.set_kill_num(str(self.countdown))
         key_mouse_manager.clean()
@@ -190,7 +217,8 @@ class FingerSnap(IronBloodUniverse):
                 return
             if self._pending_target is not None:
                 CUS_LOGGER.debug("已进入路径界面，感染结果已由当前截图同步")
-                self._pending_target = None
+            self._pending_target = None
+            self._target_decided = False
             if self.next_node is not None:
                 selected_idx = int(self.next_node["idx"])
                 self.start_nodes=self.next_node
@@ -354,6 +382,24 @@ class FingerSnap(IronBloodUniverse):
         observed = parse_effect_text(text)
         parsed = EFFECT_NAMES.get(observed, "未识别")
         CUS_LOGGER.debug(f"当前骰子效果：{text or '未识别'}（解析为：{parsed}）")
+        pending_effect = self._pending_cheat_effect
+        if pending_effect is not None:
+            if observed is None:
+                CUS_LOGGER.warning(
+                    f"等待作弊效果“{EFFECT_NAMES[pending_effect]}”回显，当前效果无法识别")
+                return
+            self._pending_cheat_effect = None
+            if observed == pending_effect:
+                CUS_LOGGER.debug(
+                    f"作弊效果“{EFFECT_NAMES[pending_effect]}”已回显，直接确认，不重复决策")
+                self.click_text(text="确认效果", box=[1584, 1687, 961, 994])
+                self.init_map(self.new_node)
+                self.mini_state = 1
+                return
+            CUS_LOGGER.warning(
+                f"作弊效果回显不一致：预期“{EFFECT_NAMES[pending_effect]}”，"
+                f"实际“{EFFECT_NAMES[observed]}”，取消锁定并按实际效果重新决策")
+            self.countdown_agent.locked_effect = None
         if observed is None:
             CUS_LOGGER.warning("无法确认骰子效果，本次不消耗资源并按无效果继续")
             self.click_text(text="确认效果", box=[1584, 1687, 961, 994])
@@ -384,6 +430,7 @@ class FingerSnap(IronBloodUniverse):
                         f"{self.first_plane_threshold}，改用keep")
                     action = "keep"
         if action == "reroll":
+            self._pending_cheat_effect = None
             self.click_text(text="重投", box=[1599, 1657, 760, 795])
             self.countdown_agent.apply_effect_action(observed, action)
             self._reroll_count = self.countdown_agent.state.reroll_rem
@@ -391,6 +438,7 @@ class FingerSnap(IronBloodUniverse):
         if isinstance(action, tuple) and action[0] == "cheat":
             self.click_text(text="作弊", box=[1261, 1321, 761, 792])
             self.countdown_agent.apply_effect_action(observed, action)
+            self._pending_cheat_effect = int(action[1])
             self._cheat_count = self.countdown_agent.state.cheat_rem
             return
 
@@ -407,18 +455,19 @@ class FingerSnap(IronBloodUniverse):
             key_mouse_manager.press("esc")
             return
         name = EFFECT_NAMES[effect]
-        candidates = (("选择",) if effect == EFFECT_SELECT
-                      else EFFECT_TEXT_ALIASES[effect])
+        candidates = (EFFECT_CHEAT_TEXT[effect],)
         selected = None
         for attempt in range(2):
             selected = next((candidate for candidate in candidates
-                             if self.click_text(text=candidate, warning=False)), None)
+                             if self.click_text(text=candidate, allow_fail=True,need_fresh=True)), None)
             if selected:
                 break
             key_mouse_manager.drag(0.5, 0.4, 0.5, 0.6)
             key_mouse_manager.wait()
         if not selected:
             CUS_LOGGER.error(f"作弊界面未找到推荐效果“{name}”，重试")
+            self._pending_cheat_effect = None
+            self.countdown_agent.locked_effect = None
             key_mouse_manager.press("esc")
             return
         self.click_text("确认", box=[1168, 1223, 811, 841], allow_fail=True)
@@ -452,6 +501,10 @@ class FingerSnap(IronBloodUniverse):
             action += f"→期望摇到{EFFECT_NAMES[advice.planned_effect]}"
         samples = (f"DP状态={advice.sample_count:,}" if mode == "DP" else
                    f"控制/评价={advice.control_rollouts:,}/{advice.evaluation_rollouts:,}")
+        if decision_mode in (DECISION_WIN_RATE, DECISION_WIN_RATE_DP):
+            samples += (
+                f"，有效胜率≥"
+                f"{self.countdown_agent.config.win_rate_noise_floor_percent:.4f}%")
         if advice.dp_upper_bound is not None and decision_mode != "dp":
             samples += f"，DP上限={advice.dp_upper_bound:.0f}"
         CUS_LOGGER.debug(

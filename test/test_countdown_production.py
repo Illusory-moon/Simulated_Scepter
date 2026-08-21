@@ -76,13 +76,41 @@ class CountdownProductionTests(unittest.TestCase):
                               source.index("    def select_go")]
         select_go = source[source.index("    def select_go"):
                            source.index("    def initing_map")]
+        calculated_roll = source[source.index("    def calculated_roll"):
+                                 source.index("    def cheat")]
         self.assertNotIn("countdown_agent.apply_target", select_doing)
         self.assertIn("try_analysis_map(mode=2, target_selection=True)", select_doing)
         self.assertIn("self._pending_target = int(advice.action)", select_doing)
+        self.assertNotIn(
+            "if not (self.countdown_agent.ready and self.countdown_agent.context",
+            select_doing)
+        self.assertLess(
+            select_doing.index("try_analysis_map(mode=2, target_selection=True)"),
+            select_doing.index("countdown_agent.recommend_target()"))
         self.assertNotIn('click_text(text="确认目标"', select_doing)
         self.assertIn("key_mouse_manager.click(1685, 982)", select_doing)
+        confirm_click = select_doing.index("key_mouse_manager.click(1685, 982)")
+        self.assertIn("self._pending_target = None", select_doing[confirm_click:])
+        self.assertIn("self._target_decided = False", select_doing[confirm_click:])
         self.assertNotIn("countdown_agent.apply_target", select_go)
         self.assertIn("感染结果已由当前截图同步", select_go)
+        candidate = select_go.index("candidate_countdown = num // 5")
+        confirmation = select_go.index("confirmed_num = extract_number")
+        commit = select_go.index("self.countdown = candidate_countdown")
+        self.assertLess(candidate, confirmation)
+        self.assertLess(confirmation, commit)
+        self.assertIn("保留倒计时{self.countdown}", select_go)
+        pending_branch = calculated_roll[
+            calculated_roll.index("pending_effect = self._pending_cheat_effect"):
+            calculated_roll.index("\n        if observed is None:")]
+        self.assertIn("if observed == pending_effect:", pending_branch)
+        self.assertIn('text="确认效果"', pending_branch)
+        self.assertIn("不重复决策", pending_branch)
+        self.assertNotIn("recommend_effect", pending_branch)
+        self.assertLess(
+            calculated_roll.index("pending_effect = self._pending_cheat_effect"),
+            calculated_roll.index("recommend_effect(observed)"))
+        self.assertIn("self._pending_cheat_effect = int(action[1])", calculated_roll)
 
     def test_target_selection_ignores_cyan_borders_and_detects_green_applied_nodes(self):
         import cv2
@@ -118,6 +146,7 @@ class CountdownProductionTests(unittest.TestCase):
             path.write_text(json.dumps({"first_plane": 14}), encoding="utf-8")
             save_finger_snap_settings({
                 "control_rollouts": 321,
+                "win_rate_noise_floor_percent": 0.35,
                 "path_reward_bonus": 0.002,
                 "decision_mode": DECISION_WIN_RATE,
                 "dp_early_stop": True,
@@ -129,6 +158,7 @@ class CountdownProductionTests(unittest.TestCase):
             loaded = load_finger_snap_settings(path)
         self.assertEqual(14, complete["first_plane"])
         self.assertEqual(321, loaded["control_rollouts"])
+        self.assertEqual(0.35, loaded["win_rate_noise_floor_percent"])
         self.assertEqual(0.002, loaded["path_reward_bonus"])
         self.assertEqual(DECISION_WIN_RATE, loaded["decision_mode"])
         self.assertTrue(loaded["dp_early_stop"])
@@ -155,6 +185,7 @@ class CountdownProductionTests(unittest.TestCase):
         iron_tab = next(tab for tab in tabs if tab.get("name") == "AbyssTab")
         controls = {widget.get("name") for widget in iron_tab.iter("widget")}
         self.assertTrue({"Finger_snap_group",
+                         "Finger_snap_win_rate_noise_floor_percent_input",
                          "Finger_snap_dp_early_stop_checkbox",
                          "Finger_snap_win_rate_dp_early_stop_checkbox",
                          "Finger_snap_mc_dp_early_stop_checkbox"} <= controls)
@@ -245,6 +276,34 @@ class CountdownProductionTests(unittest.TestCase):
                            side_effect=AssertionError("有非零胜率时不应调用 DP"))):
             self.assertEqual("reroll", self.agent.recommend_effect(EFFECT_NOTHING).action)
 
+    def test_win_rate_noise_floor_filters_single_hit_but_keeps_larger_rate(self):
+        self.agent.config = MCConfig(
+            control_rollouts=120, evaluation_rollouts=120,
+            min_visits=10, seed=7,
+            win_rate_noise_floor_percent=0.2).normalized()
+        self.agent.decision_mode = DECISION_WIN_RATE_DP
+        context = DecisionContext(PHASE_EFFECT, self.agent.state, EFFECT_NOTHING)
+        means = {"keep": MCSampleStats(), "reroll": MCSampleStats()}
+        for stats in means.values():
+            stats.append(10)
+        wins = {"keep": MCSampleStats(), "reroll": MCSampleStats()}
+        wins["keep"].target_count = wins["reroll"].target_count = 714
+        wins["reroll"].wins = 1  # 0.1401% < 0.2%
+        recommendation = MCRecommendation(
+            context, means, "keep", "reroll", 10, 714, wins)
+        dp_advice = self.agent._recommend_dp(context)
+        with (patch.object(self.agent.controller, "recommend", return_value=recommendation),
+              patch.object(self.agent, "_recommend_dp", return_value=dp_advice) as dp):
+            self.agent.recommend_effect(EFFECT_NOTHING)
+            dp.assert_called_once()
+
+        wins["reroll"].wins = 2  # 0.2801% >= 0.2%
+        with (patch.object(self.agent.controller, "recommend", return_value=recommendation),
+              patch.object(self.agent, "_recommend_dp",
+                           side_effect=AssertionError("达到噪声阈值时不应回退 DP"))):
+            self.assertEqual(
+                "reroll", self.agent.recommend_effect(EFFECT_NOTHING).action)
+
     def test_dp_mode_drives_path_without_calling_mc(self):
         nodes = [
             {"idx": 0, "cx": 0, "cy": 0, "name": "start"},
@@ -293,6 +352,13 @@ class CountdownProductionTests(unittest.TestCase):
         self.assertEqual(1, self.agent.state.reroll_rem)
         self.assertIsNone(self.agent.locked_effect)
         self.assertEqual(PHASE_TERMINAL, context.phase)
+
+    def test_cheat_locks_selected_effect_until_path_confirmation(self):
+        context = self.agent.apply_effect_action(
+            EFFECT_NOTHING, ("cheat", EFFECT_SPREAD))
+        self.assertEqual(0, self.agent.state.cheat_rem)
+        self.assertEqual(EFFECT_SPREAD, self.agent.locked_effect)
+        self.assertEqual(PHASE_PATH, context.phase)
 
     def test_target_and_path_are_separate_production_decisions(self):
         context = self.agent.apply_effect_action(EFFECT_SELECT, "keep")

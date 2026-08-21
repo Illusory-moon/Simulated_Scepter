@@ -669,6 +669,8 @@ class MainWindow(QMainWindowLog):
                 "epsilon_start": float(self.Finger_snap_epsilon_start_input.text()),
                 "epsilon_end": float(self.Finger_snap_epsilon_end_input.text()),
                 "seed": int(self.Finger_snap_seed_input.text()),
+                "win_rate_noise_floor_percent": float(
+                    self.Finger_snap_win_rate_noise_floor_percent_input.text()),
                 "path_reward_bonus": float(self.Finger_snap_path_reward_bonus_input.text()),
                 "path_event_bonus": float(self.Finger_snap_path_event_bonus_input.text()),
                 "path_trade_bonus": float(self.Finger_snap_path_trade_bonus_input.text()),

@@ -20,6 +20,7 @@
         "epsilon_start": 0.35,
         "epsilon_end": 0.03,
         "seed": 20260802,
+        "win_rate_noise_floor_percent": 0.2,
         "path_reward_bonus": 0.0008,
         "path_event_bonus": 0.0004,
         "path_trade_bonus": 0.0003,

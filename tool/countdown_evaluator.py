@@ -30,12 +30,22 @@ EFFECT_NAMES = {
     EFFECT_NOTHING: "可憎",
 }
 EFFECT_TEXT_ALIASES = {
-    EFFECT_SPREAD: ("浇灌", "灌溉", "扩散"),
-    EFFECT_BONUS: ("为善", "增幅"),
-    EFFECT_ADJACENT: ("对症", "邻接"),
-    EFFECT_SELECT: ("慈怀", "自选"),
-    EFFECT_RANDOM_INFECT: ("归心", "随机感染"),
-    EFFECT_NOTHING: ("可憎", "无事发生"),
+    EFFECT_SPREAD: ("浇灌",),
+    EFFECT_BONUS: ("为善",),
+    EFFECT_ADJACENT: ("对症",),
+    EFFECT_SELECT: ("慈怀",),
+    EFFECT_RANDOM_INFECT: ("归心",),
+    EFFECT_NOTHING: ("可憎",),
+}
+# 作弊界面各效果按钮上实际显示的文字，与骰子结果文本（EFFECT_TEXT_ALIASES）分开：
+# 慈怀的作弊按钮写「选择」，而骰子结果文本是「慈怀」。
+EFFECT_CHEAT_TEXT = {
+    EFFECT_SPREAD: "浇灌",
+    EFFECT_BONUS: "为善",
+    EFFECT_ADJACENT: "对症",
+    EFFECT_SELECT: "选择",
+    EFFECT_RANDOM_INFECT: "归心",
+    EFFECT_NOTHING: "可憎",
 }
 _EFFECT_ALIASES = {name: effect for effect, names in EFFECT_TEXT_ALIASES.items()
                    for name in names}
@@ -144,6 +154,7 @@ class MCConfig:
     epsilon_start: float = 0.35
     epsilon_end: float = 0.03
     seed: int = 20260802
+    win_rate_noise_floor_percent: float = 0.2
     path_reward_bonus: float = 0.0008
     path_event_bonus: float = 0.0004
     path_trade_bonus: float = 0.0003
@@ -158,6 +169,8 @@ class MCConfig:
             epsilon_start=min(max(float(self.epsilon_start), 0.0), 1.0),
             epsilon_end=min(max(float(self.epsilon_end), 0.0), 1.0),
             seed=int(self.seed),
+            win_rate_noise_floor_percent=min(
+                max(float(self.win_rate_noise_floor_percent), 0.0), 100.0),
             path_reward_bonus=float(self.path_reward_bonus),
             path_event_bonus=float(self.path_event_bonus),
             path_trade_bonus=float(self.path_trade_bonus),
@@ -1198,9 +1211,13 @@ class CountdownDecisionAgent:
         recommendation = self.controller.recommend(
             context, target=self.target_countdown)
         win_reports = recommendation.win_reports or recommendation.reports
-        has_winning_sample = any(
-            (stats.win_rate or 0.0) > 0.0 for stats in win_reports.values())
-        if self.decision_mode in (DECISION_WIN_RATE, DECISION_WIN_RATE_DP) and has_winning_sample:
+        noise_floor = self.config.win_rate_noise_floor_percent / 100.0
+        has_significant_win_rate = any(
+            (stats.win_rate or 0.0) > 0.0
+            and (stats.win_rate or 0.0) >= noise_floor
+            for stats in win_reports.values())
+        if (self.decision_mode in (DECISION_WIN_RATE, DECISION_WIN_RATE_DP)
+                and has_significant_win_rate):
             action = recommendation.highest_win_action
         elif self.decision_mode == DECISION_WIN_RATE_DP:
             dp_advice = dp_advice or self._recommend_dp(context)
@@ -1272,7 +1289,8 @@ __all__ = [
     "ALL_EFFECTS", "CAMPAIGN_DEFAULT_TARGETS", "CampaignProgress",
     "CountdownDecisionAgent", "CountdownMap", "CountdownSession",
     "CountdownState", "DecisionContext",
-    "DEFAULT_MAP_FILES", "EFFECT_ADJACENT", "EFFECT_BONUS", "EFFECT_NAMES",
+    "DEFAULT_MAP_FILES", "EFFECT_ADJACENT", "EFFECT_BONUS", "EFFECT_CHEAT_TEXT",
+    "EFFECT_NAMES",
     "EFFECT_NOTHING", "EFFECT_RANDOM_INFECT", "EFFECT_SELECT", "EFFECT_SPREAD",
     "EFFECT_TEXT_ALIASES",
     "MCConfig", "MCRecommendation", "MCSampleStats", "MonteCarloController",
