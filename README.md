@@ -4,12 +4,10 @@
 模拟权杖 ω - u13.exe
 本软件使用 [AGPL 3.0 协议](https://github.com/syfoud/Simulated_Scepter/LICENSE)开源.
 
-《崩坏:星穹铁道》的极难成就《铁血战士》自动助手，一键自动化助力完成。
+《崩坏:星穹铁道》的寰宇蝗灾极难成就自动助手，一键自动化助力完成。
 ![模拟宇宙](doc/insect.png)
 ![模拟宇宙](doc/warrior.png)
  软件基于图像识别，不支持任何非绿色作弊功能（如抓包，逆向）。
-
- 在提问之前。。。你需要查看的 [How to ask](https://github.com/ryanhanwu/How-To-Ask-Questions-The-Smart-Way/blob/main/README.md)
 
 
 ----------------------------------------------------------------------------------------------
@@ -60,16 +58,23 @@
 
 ![image](doc/battle.png)
 
+## 铁血战士
+![image](doc/iron_blood.png)
+
+## 弹指一挥(绝赞测试中)
+![image](doc/finger_snap.png)
+
 ## 进阶功能
 
 ### 视频录制  
 
-以爱的名义，将逝去的一切尽数珍藏。。。
+以爱的名义，她将逝去的一切尽数珍藏。。。直到时间的尽头
+![image](doc/end.png)
+至少，这样的结局足够温柔
+### 提前轮回  
 
-### 提前重置  
-
-若此世无法带来拯救，那就为它带来毁灭。。。（人话：40杀达成希望渺茫则重开）
-
+若此世无法带来拯救，那就为它带来毁灭。。。（极低概率实现40杀则立即重开）
+![image](doc/retry.png)
 ## 地图频率分析
 ```plaintext
 sqlite3 config/backup/map_visits.db "SELECT * FROM map_visits ORDER BY visit_count DESC;"
@@ -85,6 +90,14 @@ sqlite3 config/backup/node_log.db "SELECT id, created_at, json_extract(data, '$.
 sqlite3 config/backup/emergency.db "SELECT id, created_at, json_extract(data, '$.count') AS count, json_extract(data, '$.node_count') AS node_count, json_extract(data, '$.event') AS event, json_extract(data, '$.plane_floor') AS plane_floor FROM node_log ORDER BY id DESC;"
 sqlite3 config/backup/emergency.db "DELETE FROM node_log;"
 ```
+
+## 卸载
+
+文件夹全部删除即可
+![image](doc/delete.png)
+然后。。。就走向明天吧
+
+
 ----------------------------------------------------------------------------------------------
 
 ## 兼容性
@@ -95,7 +108,7 @@ sqlite3 config/backup/emergency.db "DELETE FROM node_log;"
 
 下载解压目录不允许有中文路径！！
 # 下载 | Download 
-方法一：前往交流群直接下载打包好的发行版（推荐）* ![](https://img.shields.io/badge/QQ%201群[已满]-1072802257-4e4c97)* ![](https://img.shields.io/badge/QQ%202群-870863632-4e4c97)
+方法一：直接下载打包好的发行版（推荐）* ![](https://img.shields.io/badge/QQ%201群[开发意向优先]-1072802257-4e4c97)* ![](https://img.shields.io/badge/QQ%202群-870863632-4e4c97)
 
 方法二：自行下载源码本地部署，没接触过python的，请忽视下述教程，可以直接前往交流群下载相关资源
 
@@ -145,8 +158,8 @@ F5/‘停止任务’按钮停止运行。
 
 # 开发交流-玩家社区-助力毁灭 | Destruction
 * 包含本权杖系统稳定发行版.
-* ![](https://img.shields.io/badge/QQ%201群-1072802257-4e4c97)
-
+* ![](https://img.shields.io/badge/QQ%201群[开发意向优先]-1072802257-4e4c97)
+![](https://img.shields.io/badge/QQ%202群-870863632-4e4c97)
 ----------------------------------------------------------------------------------------------
 
 # 支持开发 | Star or Buy Coffee
