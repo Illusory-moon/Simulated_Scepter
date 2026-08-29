@@ -2,6 +2,8 @@ import json
 import unittest
 from pathlib import Path
 
+from tool.currency.run_history import RUN_END_ACTION, RUN_START_ACTION
+
 
 class CurrencyWarActionsTest(unittest.TestCase):
     @classmethod
@@ -35,6 +37,12 @@ class CurrencyWarActionsTest(unittest.TestCase):
                 ],
             },
         )
+
+    def test_run_history_actions_keep_expected_names(self):
+        action_names = {action.get("name") for action in self.actions}
+
+        self.assertIn(RUN_START_ACTION, action_names)
+        self.assertIn(RUN_END_ACTION, action_names)
 
 
 if __name__ == "__main__":
