@@ -51,7 +51,7 @@ class QMainWindowLoadUI(QtWidgets.QMainWindow):
         self.font_set()
 
         self.run_diver_btn.setVisible(False)
-        self.tabWidget.setTabVisible(4, False)
+        self.tabWidget.setTabVisible(self.tabWidget.indexOf(self.Tab6), False)
         self.label_7.setVisible(False)
         self.Diver_debug_checkbox.setVisible(False)
         self.Simul_debug_checkbox.setVisible(False)
