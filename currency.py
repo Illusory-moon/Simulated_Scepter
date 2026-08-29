@@ -13,6 +13,12 @@ from tool import EXTRA, GLOBAL
 from tool.currency.config import config
 from tool.currency.investment_selection import choose_fallback_investment
 from tool.currency.investment_state import InvestmentSelectionTracker, SelectionKind
+from tool.currency.run_history import (
+    RUN_END_ACTION,
+    RUN_START_ACTION,
+    CurrencyRunHistory,
+    get_newly_unlocked_investment,
+)
 from tool.currency.settings import load_currency_settings
 from tool.currency.text_key import text_keys
 from tool.currency.utils import CurrencyUtils, set_forground
@@ -34,6 +40,7 @@ class SimulatedCurrency(CurrencyUtils):
         key_mouse_manager.set_screen_params (self.x1, self.y1, self.xx, self.yy, self.full)
         # 普通位面选择、立即奖励和延迟奖励的状态
         self.investment_tracker = InvestmentSelectionTracker()
+        self.run_history = CurrencyRunHistory()
         #停止运行标志
         self._stop = True
         #调试级别
@@ -326,6 +333,11 @@ class SimulatedCurrency(CurrencyUtils):
                     )
 
         selected_text = texts[selected_idx] if selected_idx < len(texts) else ""
+        unlocked_investment = get_newly_unlocked_investment(
+            texts,
+            icon_presence,
+            selected_idx,
+        )
         special_investment = next(
             (name for name in self.SPECIAL_INVESTMENTS if name in selected_text),
             None,
@@ -348,6 +360,11 @@ class SimulatedCurrency(CurrencyUtils):
             selection,
             grants_bonus=special_investment is not None,
         )
+        if (
+            unlocked_investment
+            and self.run_history.record_unlocked_investment(unlocked_investment)
+        ):
+            CUS_LOGGER.info(f"本局新解锁投资策略：{unlocked_investment}")
         CUS_LOGGER.info(
             f"投资进度：普通位面={self.investment_tracker.plane_count}/"
             f"{self.exit_plane}，立即奖励={self.investment_tracker.immediate_count}，"
@@ -429,6 +446,7 @@ class SimulatedCurrency(CurrencyUtils):
                                 return i['name'], 1
                         for j in i["actions"]:
                             self.do_action(j)
+                        self._on_static_action_completed(i["name"])
                         self.action_history.append(i["name"])
                         #记录最近10个动作
                         self.action_history = self.action_history[-10:]
@@ -450,6 +468,7 @@ class SimulatedCurrency(CurrencyUtils):
                                 for j in i["actions"]:
                                     re=self.do_action(j)
                                 resu=re if re is not None else resu
+                                self._on_static_action_completed(i["name"])
                                 self.action_history.append(i["name"])
                                 #记录最近10个动作
                                 self.action_history = self.action_history[-10:]
@@ -468,6 +487,7 @@ class SimulatedCurrency(CurrencyUtils):
                                 for j in i["actions"]:
                                     re=self.do_action(j)
                                 resu=re if re is not None else resu
+                                self._on_static_action_completed(i["name"])
                                 self.action_history.append(i["name"])
                                 #记录最近10个动作
                                 self.action_history = self.action_history[-10:]
@@ -475,6 +495,26 @@ class SimulatedCurrency(CurrencyUtils):
                                 #返回触发的名字
                                 return i['name'],resu
         return '',0
+
+    def _on_static_action_completed(self, action_name: str) -> None:
+        if action_name == RUN_START_ACTION:
+            self.run_history.start_run()
+            CUS_LOGGER.info("货币战争对局计时开始")
+            return
+
+        if action_name != RUN_END_ACTION:
+            return
+
+        try:
+            record = self.run_history.finish_run()
+        except OSError as error:
+            CUS_LOGGER.error(f"货币战争对局记录写入失败：{error}")
+            return
+
+        if record is None:
+            CUS_LOGGER.warning("未找到本局开始记录，跳过货币战争对局统计")
+        else:
+            CUS_LOGGER.info(f"货币战争对局记录完成：{record}")
 
     def do_action(self, action) -> int:
         """
