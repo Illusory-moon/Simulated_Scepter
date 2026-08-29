@@ -290,6 +290,27 @@
         ]
     },
     {
+        "name": "命运圣杯祈愿试炼",
+        "trigger":{
+            "text": "请选择一个祈愿试炼",
+            "box": [1400, 1595, 572, 599],
+            "interval": 2,
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "position": [684, 398]
+            },
+            {
+                "sleep": 0.5
+            },
+            {
+                "position": [1495, 639]
+            }
+        ]
+    },
+    {
         "name": "独家代言",
         "trigger":{
             "text": "查看详情",
