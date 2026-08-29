@@ -12,6 +12,7 @@ from diver import load_actions, merge_text
 from route import PATHS
 from tool import EXTRA, GLOBAL
 from tool.currency.config import config
+from tool.currency.investment_selection import choose_fallback_investment
 from tool.currency.investment_state import InvestmentSelectionTracker, SelectionKind
 from tool.currency.text_key import text_keys
 from tool.currency.utils import CurrencyUtils, set_forground
@@ -310,10 +311,12 @@ class SimulatedCurrency(CurrencyUtils):
             texts = self.recognize_options (boxes)
             CUS_LOGGER.info (f"OCR 识别结果: {texts}")
 
+            icon_presence = [False] * len(roi_boxes)
             for idx, box in enumerate(roi_boxes):
                 x1, x2, y1, y2 = box
                 roi = self.screen[y1:y2, x1:x2]
                 has_icon, std = self.detect_has_icon(roi)
+                icon_presence[idx] = has_icon
                 CUS_LOGGER.info(
                     f"选项{idx+1} 是否有图标: {has_icon} (标准差: {std:.2f})"
                 )
@@ -334,8 +337,13 @@ class SimulatedCurrency(CurrencyUtils):
                 key_mouse_manager.click(1380, 869)
                 time.sleep(1.5)
             else:
-                CUS_LOGGER.warning("刷新后仍未找到未解锁图标，默认选中间")
-                selected_idx = 1
+                selected_idx = choose_fallback_investment(texts, icon_presence)
+                if selected_idx == 1:
+                    CUS_LOGGER.warning("刷新后仍未找到未解锁图标，默认选中间")
+                else:
+                    CUS_LOGGER.warning(
+                        "中间选项为无图鉴图标的轮回不止，改选左侧以保留跨局资源"
+                    )
 
         selected_text = texts[selected_idx] if selected_idx < len(texts) else ""
         special_investment = next(
