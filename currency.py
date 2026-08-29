@@ -6,7 +6,6 @@ import time
 import cv2
 import numpy as np
 import pyautogui
-import yaml
 
 from diver import load_actions, merge_text
 from route import PATHS
@@ -14,6 +13,7 @@ from tool import EXTRA, GLOBAL
 from tool.currency.config import config
 from tool.currency.investment_selection import choose_fallback_investment
 from tool.currency.investment_state import InvestmentSelectionTracker, SelectionKind
+from tool.currency.settings import load_currency_settings
 from tool.currency.text_key import text_keys
 from tool.currency.utils import CurrencyUtils, set_forground
 from tool.GLOBAL import factor, key_mouse_manager
@@ -77,29 +77,9 @@ class SimulatedCurrency(CurrencyUtils):
             with open(settings_path, encoding="UTF-8") as file:
                 data = json.load(file)
 
-        # 读取货币战争专用配置
-        currency_config_file = PATHS["root"] + "\\config\\config\\currency_config.yml"
-        currency_example_file = PATHS["root"] + "\\config\\config\\currency_config_example.yml"
-        if not os.path.exists(currency_config_file):
-            if os.path.exists(currency_example_file):
-                shutil.copy2(currency_example_file, currency_config_file)
-            else:
-                # 如果示例文件也不存在，创建一个默认的
-                os.makedirs(os.path.dirname(currency_config_file), exist_ok=True)
-                with open(currency_config_file, "w", encoding="utf-8") as f:
-                    f.write("# 货币战争模块配置文件\n")
-                    f.write("# 在第几面结束后退出（默认第1面）\n")
-                    f.write("exit_after_plane: 1\n")
-
-        # 加载配置
-        try:
-            with open(currency_config_file, encoding="utf-8", errors="ignore") as f:
-                currency_config = yaml.safe_load(f) or {}
-                self.exit_plane = currency_config.get("exit_after_plane", 1)
-                CUS_LOGGER.info(f"货币战争退出位面设置为: 第{self.exit_plane}面")
-        except Exception as e:
-            CUS_LOGGER.warning(f"读取货币战争配置失败，使用默认退出位面1: {e}")
-            self.exit_plane = 1
+        currency_settings = load_currency_settings()
+        self.exit_plane = currency_settings["exit_after_plane"]
+        CUS_LOGGER.info(f"货币战争退出位面设置为: 第{self.exit_plane}面")
 
         self.record = data.get("recording_state", True)
 
