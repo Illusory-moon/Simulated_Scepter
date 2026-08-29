@@ -12,6 +12,7 @@ from diver import load_actions, merge_text
 from route import PATHS
 from tool import EXTRA, GLOBAL
 from tool.currency.config import config
+from tool.currency.investment_state import InvestmentSelectionTracker, SelectionKind
 from tool.currency.text_key import text_keys
 from tool.currency.utils import CurrencyUtils, set_forground
 from tool.GLOBAL import factor, key_mouse_manager
@@ -23,13 +24,15 @@ from tool.utils.tool import get_hwnd_and_text
 
 class SimulatedCurrency(CurrencyUtils):
 
+    SPECIAL_INVESTMENTS = ("黄金投资", "白银投资")
+
     def __init__ (self, find, debug, speed, consumable, slow, nums = -1, bonus = False):
         super ().__init__ (speed)
         key_mouse_manager.set_config (config)
         # 设置屏幕参数以支持坐标转换
         key_mouse_manager.set_screen_params (self.x1, self.y1, self.xx, self.yy, self.full)
-        #第几次选择策略
-        self.select_bless_count = 0
+        # 普通位面选择、立即奖励和延迟奖励的状态
+        self.investment_tracker = InvestmentSelectionTracker()
         #停止运行标志
         self._stop = True
         #调试级别
@@ -53,7 +56,6 @@ class SimulatedCurrency(CurrencyUtils):
         self.max_refresh = 1
         #运行次数
         self.count = 0
-        self.bonus_rounds_remaining = 0  # 剩余奖励轮次数
         self.tk = text_keys ()
 
         self.ENVIR_BOXES = [[266, 610, 375, 413], [780, 1134, 375, 414], [1314, 1645, 373, 413]]
@@ -255,8 +257,7 @@ class SimulatedCurrency(CurrencyUtils):
             box=[1053, 1108, 967, 998],
             click=True,
         )
-        self.select_bless_count = 0
-        self.bonus_rounds_remaining = 0
+        self.investment_tracker.reset()
         time.sleep (0.1)
         CUS_LOGGER.info ("投资环境选择完成")
         return 1
@@ -274,12 +275,20 @@ class SimulatedCurrency(CurrencyUtils):
         return std > 10, std
 
     def select_bless (self):
-        """选择投资策略：第一次直接选中间，后续匹配必选'环保大使叽米'，否则选中间"""
+        """选择投资策略，并区分普通位面选择与黄金/白银投资奖励。"""
 
-        CUS_LOGGER.info(f"=== 第 {self.select_bless_count} 次进入 select_bless ===")
+        selection = self.investment_tracker.begin_selection()
+        kind_text = {
+            SelectionKind.NORMAL: "普通位面",
+            SelectionKind.IMMEDIATE_BONUS: "立即奖励",
+            SelectionKind.DELAYED_BONUS: "延迟奖励",
+        }[selection.kind]
+        CUS_LOGGER.info(
+            f"=== 进入投资策略选择：{kind_text}，"
+            f"已完成{self.investment_tracker.plane_count}面 ==="
+        )
         time.sleep (1)
         self.ts.forward (self.get_screen ())
-        # 三个选项的 box
         boxes = self.BLESS_BOXES
 
         centers = []
@@ -288,84 +297,76 @@ class SimulatedCurrency(CurrencyUtils):
             cy = (box[2] + box[3]) // 2
             centers.append((cx, cy))
 
-        if self.select_bless_count < self.exit_plane:
+        selected_idx = -1
+        texts = ["", "", ""]
+        roi_boxes = [
+            [617, 641, 219, 241],
+            [1116, 1141, 219, 241],
+            [1616, 1639, 219, 241],
+        ]
 
-            selected_idx = -1
+        for attempt in range (self.max_refresh + 1):
+            self.ts.forward (self.get_screen ())
+            texts = self.recognize_options (boxes)
+            CUS_LOGGER.info (f"OCR 识别结果: {texts}")
 
-            for attempt in range (self.max_refresh + 1):  # 0次正常识别 + 最多3次刷新后识别
-                self.ts.forward (self.get_screen ())
-                # ---- 调试：保存三个选项区域 ----
-                debug_dir = os.path.join(os.getcwd(), "temp")
-                os.makedirs(debug_dir, exist_ok=True)
-
-                # 三个选项的矩形区域（像素坐标）
-                roi_boxes = [
-                    [617, 641, 219, 241],
-                    [1116, 1141, 219, 241],
-                    [1616, 1639, 219, 241]
-                ]
-                target_centers = []
-                for box in roi_boxes:
-                    cx = (box[0] + box[1]) / 2 / self.xx
-                    cy = (box[2] + box[3]) / 2 / self.yy
-                    target_centers.append((cx, cy))
-
-                for idx, box in enumerate(roi_boxes):
-                    x1, x2, y1, y2 = box
-                    roi = self.screen[y1:y2, x1:x2]
-
-                    texts = self.recognize_options (self.BLESS_BOXES)
-                    CUS_LOGGER.info (f"OCR 识别结果: {texts}")
-
-                    # 调用标准差检测
-                    has_icon, std = self.detect_has_icon(roi)
-                    CUS_LOGGER.info(f"选项{idx+1} 是否有图标: {has_icon} (标准差: {std:.2f})")  # 如果需要打印具体值
-                    if has_icon:
-                        # 检测到图标 → 未解锁 → 选中它！
-                        selected_idx = idx
-                        CUS_LOGGER.info(f"第{attempt}次检测到未解锁图标，选中选项{idx+1}")
-                        break
-                if selected_idx != -1:
-                    if "黄金投资" in texts[selected_idx] or "白银投资" in texts[selected_idx]:
-                        self.bonus_rounds_remaining = 2  # 赠送 2 次选择
-                        CUS_LOGGER.info("检测到特殊投资，设置奖励轮次数: 2")
+            for idx, box in enumerate(roi_boxes):
+                x1, x2, y1, y2 = box
+                roi = self.screen[y1:y2, x1:x2]
+                has_icon, std = self.detect_has_icon(roi)
+                CUS_LOGGER.info(
+                    f"选项{idx+1} 是否有图标: {has_icon} (标准差: {std:.2f})"
+                )
+                if has_icon:
+                    selected_idx = idx
+                    CUS_LOGGER.info(
+                        f"第{attempt}次检测到未解锁图标，选中选项{idx+1}"
+                    )
                     break
 
-                # 如果没找到未解锁的，刷新...
-                if attempt < self.max_refresh:
-                    CUS_LOGGER.info(f"第 {attempt+1} 次未匹配，点击刷新")
-                    key_mouse_manager.click(384, 869)
-                    key_mouse_manager.click(868, 869)
-                    key_mouse_manager.click(1380, 869)
-                    time.sleep(1.5)
-                    self.ts.forward(self.get_screen())
-                else:
-                    # 刷新三次都没找到未解锁的 → 可能全部已解锁，随便选一个
-                    CUS_LOGGER.warning("刷新后仍未找到未解锁图标，默认选中间")
-                    selected_idx = 1
+            if selected_idx != -1:
+                break
 
-            # 点击选中的选项
+            if attempt < self.max_refresh:
+                CUS_LOGGER.info(f"第 {attempt+1} 次未匹配，点击刷新")
+                key_mouse_manager.click(384, 869)
+                key_mouse_manager.click(868, 869)
+                key_mouse_manager.click(1380, 869)
+                time.sleep(1.5)
+            else:
+                CUS_LOGGER.warning("刷新后仍未找到未解锁图标，默认选中间")
+                selected_idx = 1
 
+        selected_text = texts[selected_idx] if selected_idx < len(texts) else ""
+        special_investment = next(
+            (name for name in self.SPECIAL_INVESTMENTS if name in selected_text),
+            None,
+        )
+        if special_investment:
+            CUS_LOGGER.info(
+                f"检测到{special_investment}：登记1次立即奖励和下一边界1次延迟奖励"
+            )
 
-            key_mouse_manager.click (centers[selected_idx][0], centers[selected_idx][1])
-            time.sleep (0.1)
+        key_mouse_manager.click (centers[selected_idx][0], centers[selected_idx][1])
+        time.sleep (0.1)
 
-            # 点击确认
-            self.update_state ("escshop")
-            self.click_text (text = "确认", box = [948, 1005, 968, 999], click = True)
-            time.sleep (5)
-            CUS_LOGGER.info ("投资策略选择完成")
-            self.ts.forward (self.get_screen())
-        self.select_bless_count += 1
-        if self.bonus_rounds_remaining > 0:
-            self.select_bless_count -= 1
-            self.bonus_rounds_remaining -= 1
-            CUS_LOGGER.info(f"抵消一次特殊投资，剩余奖励次数: {self.bonus_rounds_remaining}")
+        self.update_state ("escshop")
+        self.click_text (text = "确认", box = [948, 1005, 968, 999], click = True)
+        time.sleep (5)
+        CUS_LOGGER.info ("投资策略选择完成")
+        self.ts.forward (self.get_screen())
 
+        self.investment_tracker.complete_selection(
+            selection,
+            grants_bonus=special_investment is not None,
+        )
+        CUS_LOGGER.info(
+            f"投资进度：普通位面={self.investment_tracker.plane_count}/"
+            f"{self.exit_plane}，立即奖励={self.investment_tracker.immediate_count}，"
+            f"延迟奖励={self.investment_tracker.delayed_count}"
+        )
 
-        CUS_LOGGER.info(f"比较: {self.select_bless_count} < {self.exit_plane} ? {self.select_bless_count < self.exit_plane}")
-
-        if self.select_bless_count >= self.exit_plane:
+        if self.investment_tracker.should_exit(self.exit_plane):
             CUS_LOGGER.info(f"达到退出位面（{self.exit_plane}面），按两次 ESC 退出当前对局，然后重开")
             self.update_state ("escshop")
             key_mouse_manager.press('esc') #关闭商店
