@@ -154,21 +154,31 @@ class SimulatedCurrency(CurrencyUtils):
             CUS_LOGGER.info ("正在选择难度1")
             return False
 
+    def complete_difficulty_selection(self):
+        if self.state != "difficulty_select":
+            CUS_LOGGER.info(f"难度选择已结束，当前状态：{self.state}")
+            return True
+
+        key_mouse_manager.clean()
+        key_mouse_manager.click(1692, 965, force=True)  # “开始对局”按钮坐标
+        self.update_state("startbattle")
+        return True
+
     def select_difficulty_start (self):
         max_attempts = 30
         for _ in range (max_attempts):
+            if self.state != "difficulty_select":
+                CUS_LOGGER.info(f"停止选择难度，当前状态：{self.state}")
+                return True
             self.get_screen()
             if self.is_one ():
                 CUS_LOGGER.info ("已识别到难度1")
-                key_mouse_manager.operation_queue.clear()
-                key_mouse_manager.click (1692, 965)   # “开始对局”按钮坐标
-                self.update_state("startbattle")          # 直接进入战斗状态
-                return True
+                return self.complete_difficulty_selection()
             CUS_LOGGER.info ("等待选择难度1")
             key_mouse_manager.drag (0.4615, 0.2450, 0.4615, 0.9000)
             time.sleep(0.3)   # 等待界面稳定
         CUS_LOGGER.warning ("等待选择难度1")
-        return
+        return False
 
     def auto_battle(self):
         # 需要打开自动战斗

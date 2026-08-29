@@ -44,6 +44,15 @@ class CurrencyWarActionsTest(unittest.TestCase):
         self.assertIn(RUN_START_ACTION, action_names)
         self.assertIn(RUN_END_ACTION, action_names)
 
+    def test_selected_difficulty_uses_state_completing_action(self):
+        action = next(
+            action
+            for action in self.actions
+            if action.get("name") == RUN_START_ACTION
+        )
+
+        self.assertEqual(action["actions"], ["complete_difficulty_selection"])
+
 
 if __name__ == "__main__":
     unittest.main()

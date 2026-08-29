@@ -141,8 +141,8 @@
             "condition": "difficulty_select"
         },
         "actions":
-        [   
-            {"position":[1692, 965]}
+        [
+            "complete_difficulty_selection"
         ]
     },
     {
