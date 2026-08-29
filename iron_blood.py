@@ -172,25 +172,32 @@ class IronBloodUniverse(SimulatedUniverse):
             new_cnt = 0
             if os.path.exists(file_name):
                 with open(file_name, encoding="utf-8", errors="ignore") as fh:
-                    s = fh.readlines()
-                    try:
-                        new_cnt = int(s[0].strip("\n"))
-                    except Exception:
-                        pass
+                    lines = fh.readlines()
+                    if lines:
+                        try:
+                            new_cnt = int(lines[0].strip())
+                        except Exception:
+                            pass
             else:
                 os.makedirs("config/backup", exist_ok=True)
                 with open(file_name, "w", encoding="utf-8") as file:
-                    file.write("0")
-                    file.close()
+                    file.write("0\n0\n")
+            self.count = new_cnt
         else:
             new_cnt = self.count + 1
+            lines = ["0\n", "0\n"]
+            if os.path.exists(file_name):
+                with open(file_name, encoding="utf-8", errors="ignore") as fh:
+                    lines = fh.readlines()
+                    if len(lines) < 2:
+                        lines += ["0\n"] * (2 - len(lines))
+            lines[0] = str(new_cnt) + "\n"
             try:
                 with open(file_name, "w", encoding="utf-8") as file:
-                    file.write(str(new_cnt))
-                    file.close()
-            except  Exception as e:
-                CUS_LOGGER.error(f"写入文件失败{e}")
-        self.count = new_cnt
+                    file.writelines(lines)
+                self.count = new_cnt
+            except Exception as e:
+                CUS_LOGGER.error(f"写入铁血计数失败 {e}")
     def normal(self):
         bk_lst_changed = self.last_interact_time
         self.last_interact_time = time.time()
