@@ -2,14 +2,12 @@
 
 # Simulated Scepter | Simulated_Scepter
 Simulated Scepter ω - u13.exe
-This software is open-sourced under the [AGPL 3.0 License](LICENSE).
+This software is open-sourced under the [AGPL 3.0 License](https://github.com/syfoud/Simulated_Scepter/LICENSE).
 
-An automated assistant for the ultra-difficult achievement "Iron Warrior" in "Honkai: Star Rail", providing one-click automation to help you complete it.
+An automated assistant for the ultra-difficult achievement in the Swarm Disaster of "Honkai: Star Rail", providing one-click automation to help you complete it.
 ![Simulated Universe](doc/insect.png)
 ![Simulated Universe](doc/warrior.png)
 The software is based on image recognition and does not support any non-legitimate cheating functions (such as packet capture, reverse engineering).
-
-Before asking questions... you need to read [How to ask](https://github.com/ryanhanwu/How-To-Ask-Questions-The-Smart-Way/blob/main/README.md)
 
 
 ----------------------------------------------------------------------------------------------
@@ -60,16 +58,23 @@ The act of downloading, installing, or using this software by users constitutes 
 
 ![image](doc/battle.png)
 
+## Iron Warrior
+![image](doc/iron_blood.png)
+
+## Finger Snap (In Testing)
+![image](doc/finger_snap.png)
+
 ## Advanced Features
 
 ### Video Recording  
 
-In the name of love, treasure everything that has passed away...
+In the name of love, she treasures everything that has passed away... until the end of time
+![image](doc/end.png)
+At least, such an ending is gentle enough
+### Early Reincarnation  
 
-### Early Reset  
-
-If this world cannot bring salvation, then bring it destruction... (In plain language: restart if achieving 40 kills seems hopeless)
-
+If this world cannot bring salvation, then bring it destruction... (restart immediately if there is an extremely low probability of achieving 40 kills)
+![image](doc/retry.png)
 ## Map Frequency Analysis
 ```plaintext
 sqlite3 config/backup/map_visits.db "SELECT * FROM map_visits ORDER BY visit_count DESC;"
@@ -79,6 +84,20 @@ sqlite3 config/backup/map_visits.db "SELECT * FROM map_visits ORDER BY visit_cou
 ```plaintext
 sqlite3 config/backup/node_log.db "SELECT id, created_at, json_extract(data, '$.area') AS area, json_extract(data, '$.event') AS event, json_extract(data, '$.plane_floor') AS plane_floor FROM node_log ORDER BY id DESC;"
 ```
+
+## Event Log Query (emergency)
+```plaintext
+sqlite3 config/backup/emergency.db "SELECT id, created_at, json_extract(data, '$.count') AS count, json_extract(data, '$.node_count') AS node_count, json_extract(data, '$.event') AS event, json_extract(data, '$.plane_floor') AS plane_floor FROM node_log ORDER BY id DESC;"
+sqlite3 config/backup/emergency.db "DELETE FROM node_log;"
+```
+
+## Uninstall
+
+Simply delete the entire folder
+![image](doc/delete.png)
+Then... walk towards tomorrow
+
+
 ----------------------------------------------------------------------------------------------
 
 ## Compatibility
@@ -87,9 +106,9 @@ Only supports 1080p and above screens (x>=1920, windowed or fullscreen), HDR dis
 
 Due to the onnxruntime environment, please ensure Windows 10 version is greater than or equal to 2004 (Windows 11 is supported by default). It is recommended to have more than 2GB of VRAM to run this software.
 
-The download and extraction directory cannot have a Chinese path!!
+The download and extraction directory cannot contain a Chinese path!!
 # Download | Download 
-Method 1: Go to the QQ group to directly download the packaged release version (recommended) * ![](https://img.shields.io/badge/QQ%20Group%201[Full]-1072802257-4e4c97)* ![](https://img.shields.io/badge/QQ%20Group%202-870863632-4e4c97)
+Method 1: Directly download the packaged release version (recommended) * ![](https://img.shields.io/badge/QQ%20Group%201[Dev%20Intent%20Priority]-1072802257-4e4c97)* ![](https://img.shields.io/badge/QQ%20Group%202-870863632-4e4c97)
 
 Method 2: Download the source code and deploy locally. If you have no experience with Python, please ignore the following tutorial and go directly to the QQ group to download related resources.
 
@@ -111,9 +130,9 @@ PLEASE NOTE!!!!! Do not move the game window after starting execution/calibratio
 
 Sometimes the view angle may rotate too much or too little, causing navigation issues. You can try manual calibration:
 
-Enter the game, teleport your character to Herta's Office, then click the calibration button in the GUI, and wait for the view rotation/spinning in place to complete.
+Enter the game, teleport your character to Herta's Office, then click the calibration angle button in the GUI, and wait for the view rotation/spinning in place to complete.
 
-Changing mouse DPI may affect calibration values, requiring recalibration at that time.
+Changing mouse DPI may affect the calibration value, requiring recalibration at that time.
 
 ## GUI Usage Instructions
 
@@ -139,9 +158,8 @@ Press F5 or the "Stop Task" button to stop execution.
 
 # Development Communication - Player Community - Aid Destruction | Destruction
 * Contains stable releases of this Scepter system.
-* ![](https://img.shields.io/badge/QQ%20Group%201[Full]-1072802257-4e4c97)
-* ![](https://img.shields.io/badge/QQ%20Group%202-870863632-4e4c97)
-
+* ![](https://img.shields.io/badge/QQ%20Group%201[Dev%20Intent%20Priority]-1072802257-4e4c97)
+![](https://img.shields.io/badge/QQ%20Group%202-870863632-4e4c97)
 ----------------------------------------------------------------------------------------------
 
 # Support Development | Star or Buy Coffee
