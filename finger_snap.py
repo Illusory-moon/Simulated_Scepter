@@ -88,6 +88,41 @@ class FingerSnap(IronBloodUniverse):
         self._ruanmei_er2_seen = False
     def select_fate(self):
         self.click_text(text="丰饶", box=[824, 877, 784, 814])
+    def update_count(self, read=True):
+        """
+        更新或读取弹指模块的计数器值（使用 count.txt 的第二行）
+        """
+        file_name = "config/backup/count.txt"
+        if read:
+            new_cnt = 0
+            if os.path.exists(file_name):
+                with open(file_name, encoding="utf-8", errors="ignore") as fh:
+                    lines = fh.readlines()
+                    if len(lines) >= 2:
+                        try:
+                            new_cnt = int(lines[1].strip())
+                        except Exception:
+                            pass
+            else:
+                os.makedirs("config/backup", exist_ok=True)
+                with open(file_name, "w", encoding="utf-8") as file:
+                    file.write("0\n0\n")
+            self.count = new_cnt
+        else:
+            new_cnt = self.count + 1
+            lines = ["0\n", "0\n"]
+            if os.path.exists(file_name):
+                with open(file_name, encoding="utf-8", errors="ignore") as fh:
+                    lines = fh.readlines()
+                    if len(lines) < 2:
+                        lines += ["0\n"] * (2 - len(lines))
+            lines[1] = str(new_cnt) + "\n"
+            try:
+                with open(file_name, "w", encoding="utf-8") as file:
+                    file.writelines(lines)
+                self.count = new_cnt
+            except Exception as e:
+                CUS_LOGGER.error(f"写入弹指计数失败 {e}")
     def end_of_university(self):
         self.update_count(False)
         self.my_cnt += 1
