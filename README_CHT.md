@@ -2,14 +2,12 @@
 
 # 模擬權杖 | Simulated_Scepter
 模擬權杖 ω - u13.exe
-本軟體使用 [AGPL 3.0 協議](LICENSE)開源。
+本軟體使用 [AGPL 3.0 協議](https://github.com/syfoud/Simulated_Scepter/LICENSE)開源。
 
-《崩壞：星穹鐵道》的極難成就《鐵血戰士》自動助手，一鍵自動化助力完成。
+《崩壞：星穹鐵道》的寰宇蝗災極難成就自動助手，一鍵自動化助力完成。
 ![模擬宇宙](doc/insect.png)
 ![模擬宇宙](doc/warrior.png)
  軟體基於圖像識別，不支援任何非綠色作弊功能（如抓包，逆向）。
-
- 在提問之前。。。你需要查看的 [How to ask](https://github.com/ryanhanwu/How-To-Ask-Questions-The-Smart-Way/blob/main/README.md)
 
 
 ----------------------------------------------------------------------------------------------
@@ -60,16 +58,23 @@
 
 ![image](doc/battle.png)
 
+## 鐵血戰士
+![image](doc/iron_blood.png)
+
+## 彈指一揮(絕讚測試中)
+![image](doc/finger_snap.png)
+
 ## 進階功能
 
 ### 影片錄製  
 
-以愛的名義，將逝去的一切盡數珍藏。。。
+以愛的名義，她將逝去的一切盡數珍藏。。。直到時間的盡頭
+![image](doc/end.png)
+至少，這樣的結局足夠溫柔
+### 提前輪迴  
 
-### 提前重置  
-
-若此世無法帶來拯救，那就為它帶來毀滅。。。（人話：40殺達成希望渺茫則重開）
-
+若此世無法帶來拯救，那就為它帶來毀滅。。。（極低機率達成40殺則立即重開）
+![image](doc/retry.png)
 ## 地圖頻率分析
 ```plaintext
 sqlite3 config/backup/map_visits.db "SELECT * FROM map_visits ORDER BY visit_count DESC;"
@@ -79,6 +84,20 @@ sqlite3 config/backup/map_visits.db "SELECT * FROM map_visits ORDER BY visit_cou
 ```plaintext
 sqlite3 config/backup/node_log.db "SELECT id, created_at, json_extract(data, '$.area') AS area, json_extract(data, '$.event') AS event, json_extract(data, '$.plane_floor') AS plane_floor FROM node_log ORDER BY id DESC;"
 ```
+
+## 事件日誌查詢(emergency)
+```plaintext
+sqlite3 config/backup/emergency.db "SELECT id, created_at, json_extract(data, '$.count') AS count, json_extract(data, '$.node_count') AS node_count, json_extract(data, '$.event') AS event, json_extract(data, '$.plane_floor') AS plane_floor FROM node_log ORDER BY id DESC;"
+sqlite3 config/backup/emergency.db "DELETE FROM node_log;"
+```
+
+## 解除安裝
+
+資料夾全部刪除即可
+![image](doc/delete.png)
+然後。。。就走向明天吧
+
+
 ----------------------------------------------------------------------------------------------
 
 ## 相容性
@@ -89,7 +108,7 @@ sqlite3 config/backup/node_log.db "SELECT id, created_at, json_extract(data, '$.
 
 下載解壓目錄不允許有中文路徑！！
 # 下載 | Download 
-方法一：前往交流群直接下載打包好的發行版（推薦）* ![](https://img.shields.io/badge/QQ%201群[已滿]-1072802257-4e4c97)* ![](https://img.shields.io/badge/QQ%202群-870863632-4e4c97)
+方法一：直接下載打包好的發行版（推薦）* ![](https://img.shields.io/badge/QQ%201群[開發意向優先]-1072802257-4e4c97)* ![](https://img.shields.io/badge/QQ%202群-870863632-4e4c97)
 
 方法二：自行下載原始碼本地部署，沒接觸過python的，請忽視下述教程，可以直接前往交流群下載相關資源
 
@@ -139,9 +158,8 @@ F5/『停止任務』按鈕停止運行。
 
 # 開發交流-玩家社群-助力毀滅 | Destruction
 * 包含本權杖系統穩定發行版.
-* ![](https://img.shields.io/badge/QQ%201群[已滿]-1072802257-4e4c97)
-* ![](https://img.shields.io/badge/QQ%202群-870863632-4e4c97)
-
+* ![](https://img.shields.io/badge/QQ%201群[開發意向優先]-1072802257-4e4c97)
+![](https://img.shields.io/badge/QQ%202群-870863632-4e4c97)
 ----------------------------------------------------------------------------------------------
 
 # 支援開發 | Star or Buy Coffee
@@ -202,5 +220,5 @@ F5/『停止任務』按鈕停止運行。
 
 您的支持就是作者開發和維護專案的動力！
 
-### 每一位點star支持的你：
+### And 每一位點star支持的你：
 [![Star History](https://star-history.dera.page/svg?repos=syfoud/Simulated_Scepter&type=Date)](https://star-history.dera.page/#syfoud/Simulated_Scepter&Date)

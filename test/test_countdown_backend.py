@@ -64,6 +64,26 @@ def high_target_map():
     return backend.CountdownMap(nodes, edges, 0, (4, 15))
 
 
+def rational_path_map():
+    nodes = [
+        {"idx": 0, "name": "event", "cx": 1272.5, "cy": 644.5},
+        {"idx": 1, "name": "battle", "cx": 1321.0, "cy": 352.5},
+        {"idx": 2, "name": "trade", "cx": 1443.0, "cy": 355.0},
+        {"idx": 3, "name": "reward2", "cx": 1271.5, "cy": 449.0},
+        {"idx": 4, "name": "event", "cx": 1386.5, "cy": 644.5},
+        {"idx": 5, "name": "head", "cx": 1554.5, "cy": 546.5},
+        {"idx": 6, "name": "elite", "cx": 1437.0, "cy": 547.5},
+        {"idx": 7, "name": "battle", "cx": 1321.0, "cy": 547.5},
+        {"idx": 8, "name": "event", "cx": 1500.5, "cy": 449.5},
+        {"idx": 9, "name": "start", "cx": 1212.5, "cy": 541.5},
+    ]
+    edges = {
+        0: (4, 7), 1: (2,), 2: (8,), 3: (1, 7), 4: (6,),
+        5: (), 6: (5, 8), 7: (4, 6), 8: (5,), 9: (0, 3, 7),
+    }
+    return backend.CountdownMap(nodes, edges, 9, (0, 1, 3, 4, 7))
+
+
 class CountdownRuleTests(unittest.TestCase):
     def test_backend_has_no_qt_cv_or_dp_dependency(self):
         source = inspect.getsource(backend)
@@ -137,6 +157,38 @@ class CountdownRuleTests(unittest.TestCase):
 
 
 class CountdownMonteCarloTests(unittest.TestCase):
+    def test_win_policy_uses_rational_shared_downstream_route(self):
+        model = rational_path_map()
+        controller = backend.MonteCarloController(
+            model, backend.MCConfig(control_rollouts=6_000,
+                                    evaluation_rollouts=6_000,
+                                    min_visits=500, seed=20260802))
+        context = backend.DecisionContext(
+            backend.PHASE_PATH, model.initial_state(2, 2, 13),
+            locked_effect=backend.EFFECT_NOTHING)
+        recommendation = controller.recommend(context, target=15)
+        win_reports = recommendation.win_reports
+        self.assertIsNotNone(win_reports)
+        self.assertEqual({0, 3, 7}, set(win_reports))
+        self.assertTrue(all(
+            report.wins == report.target_count for report in win_reports.values()))
+
+    def test_win_policy_takes_a_direct_terminal_win_instead_of_risking_it(self):
+        nodes = [
+            {"idx": 0, "cx": 0, "cy": 0},
+            {"idx": 1, "cx": 100, "cy": 0},
+            {"idx": 2, "cx": 100, "cy": 80},
+            {"idx": 3, "cx": 200, "cy": 80},
+        ]
+        model = backend.CountdownMap(
+            nodes, {0: (1, 2), 1: (), 2: (3,), 3: ()}, 0, (1, 2))
+        controller = backend.MonteCarloController(model)
+        controller.win_target = 16
+        context = backend.DecisionContext(
+            backend.PHASE_PATH, model.initial_state(0, 0, 15),
+            locked_effect=backend.EFFECT_NOTHING)
+        self.assertEqual(1, controller._greedy_win_action(context))
+
     def test_high_target_fixture_discovers_real_wins_with_ten_cheats(self):
         model = high_target_map()
         controller = backend.MonteCarloController(

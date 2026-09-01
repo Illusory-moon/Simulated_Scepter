@@ -367,6 +367,7 @@ class MonteCarloController:
         self.map = countdown_map
         self.config = (config or MCConfig()).normalized()
         self.q = defaultdict(MCSampleStats)
+        self.win_q = defaultdict(MCSampleStats)
         self.frozen_policy = {}
         self.frozen_win_policy = {}
         self.win_target = None
@@ -401,6 +402,9 @@ class MonteCarloController:
 
     def _q_key(self, context: DecisionContext, action: object) -> tuple:
         return self._context_key(context) + (action,)
+
+    def _win_q_key(self, context: DecisionContext, action: object) -> tuple:
+        return self._win_context_key(context) + (action,)
 
     def legal_actions(self, context: DecisionContext) -> tuple:
         return self.map.legal_actions(context)
@@ -560,22 +564,61 @@ class MonteCarloController:
         cache_key = (True, self._win_context_key(context))
         if policy_cache is not None and cache_key in policy_cache:
             return policy_cache[cache_key]
+        if context.phase == PHASE_PATH and self.win_target is not None:
+            terminal_wins = []
+            for action in actions:
+                successor = self._advance(
+                    context, action, random.Random(0), False)
+                if (successor.phase == PHASE_TERMINAL
+                        and successor.state.countdown >= self.win_target):
+                    terminal_wins.append((
+                        successor.state.countdown
+                        + self._score_bonus(context, action), action))
+            if terminal_wins:
+                selected = min(
+                    terminal_wins,
+                    key=lambda item: (-item[0], self._action_sort_key(item[1])))[1]
+                if policy_cache is not None:
+                    policy_cache[cache_key] = selected
+                return selected
         selected = self.frozen_win_policy.get(cache_key[1])
-        if selected not in actions:
-            # 胜率链路的深层未见状态必须使用完整的成长—收割先验，不能退回均分冻结策略。
-            selected = min(actions, key=lambda action: (
-                -self._heuristic(context, action) - self._score_bonus(context, action),
-                self._action_sort_key(action)))
+        if selected in actions:
+            if policy_cache is not None:
+                policy_cache[cache_key] = selected
+            return selected
+        reliable = min(64, self.config.min_visits)
+        learned = [(action, self.win_q.get(self._win_q_key(context, action)))
+                   for action in actions]
+        learned = [(action, stats) for action, stats in learned
+                   if stats and stats.count >= reliable and stats.target_count]
+        noise_floor = self.config.win_rate_noise_floor_percent / 100.0
+        winners = [(action, stats) for action, stats in learned
+                   if (stats.win_rate or 0.0) >= noise_floor
+                   and (stats.win_rate or 0.0) > 0.0]
+        if winners:
+            selected = min(winners, key=lambda item: (
+                -item[1].win_rate,
+                -item[1].mean - self._score_bonus(context, item[0]),
+                self._action_sort_key(item[0])))[0]
+        elif learned:
+            # 已访问状态尚未采到有效成功时，与根决策一致退回均分策略。
+            selected = self._greedy_action(
+                context, policy_cache, actions, context_key)
+        else:
+            selected = self._greedy_action(
+                context, policy_cache, actions, context_key)
         if policy_cache is not None:
             policy_cache[cache_key] = selected
         return selected
 
     def _rollout(self, initial: DecisionContext, rng: random.Random,
                  epsilon: float = 0.0, forced_action: object = None,
-                 learn: bool = False, win_policy: bool = False,
+                 learn: bool = False, learn_win: bool = False,
+                 win_policy: bool = False,
                  policy_cache: Optional[dict] = None) -> float:
         context, first = initial, True
         trace = [] if learn else None
+        win_trace = [] if learn_win else None
         max_decisions = len(self.map.nodes) * 4 + initial.state.reroll_rem + 32
         for _ in range(max_decisions):
             if context.phase == PHASE_TERMINAL:
@@ -596,6 +639,9 @@ class MonteCarloController:
                         context, policy_cache, actions, context_key))
             if learn:
                 trace.append((context_key + (action,), context.state.countdown))
+            if learn_win:
+                win_key = self._win_context_key(context)
+                win_trace.append(win_key + (action,))
             context = self._advance(context, action, rng, False)
             first = False
         else:
@@ -604,34 +650,63 @@ class MonteCarloController:
         if learn:
             for key, countdown_at_decision in trace:
                 self.q[key].append(final_countdown - countdown_at_decision)
+        if learn_win:
+            for key in win_trace:
+                self.win_q[key].append(final_countdown, self.win_target)
         return final_countdown
 
     def _refine_with_budget(self, context: DecisionContext, total: int,
                             progress: Optional[Callable[[int, int, str], None]] = None,
                             cancelled: Optional[Callable[[], bool]] = None,
-                            label: str = "当前状态控制采样") -> int:
+                            label: str = "当前状态控制采样",
+                            train_win: bool = False) -> int:
         actions = self.legal_actions(context)
         if not actions:
             return 0
         config = self.config
-        total = max(len(actions), int(total))
+        total = max(len(actions) * (2 if train_win else 1), int(total))
         base_seed = config.seed + self.total_control_rollouts * 104_729
-        completed, rng = 0, random.Random(base_seed)
+        completed = sequence = 0
         last_progress = time.perf_counter()
-        for index in range(total):
-            if cancelled and cancelled():
-                break
-            fraction = index / max(total - 1, 1)
-            epsilon = config.epsilon_start + (config.epsilon_end - config.epsilon_start) * fraction
-            action = actions[index % len(actions)]
-            self._rollout(context, rng,
-                          epsilon=epsilon, forced_action=action, learn=True)
-            completed += 1
-            if progress:
-                now = time.perf_counter()
-                if completed == total or now - last_progress >= 0.1:
-                    progress(completed, total, label)
-                    last_progress = now
+
+        def sample(initial, budget, win_policy):
+            nonlocal completed, last_progress, sequence
+            if budget <= 0:
+                return
+            current_actions = self.legal_actions(initial)
+            if win_policy:
+                current_actions = tuple(sorted(
+                    current_actions,
+                    key=lambda action: self.win_q[
+                        self._win_q_key(initial, action)].count))
+            rng = random.Random(
+                base_seed + sequence * 1_000_003
+                + (900_000_007 if win_policy else 0))
+            sequence += 1
+            for index in range(budget):
+                if cancelled and cancelled():
+                    return
+                fraction = index / max(budget - 1, 1)
+                epsilon = (config.epsilon_start
+                           + (config.epsilon_end - config.epsilon_start) * fraction)
+                action = current_actions[index % len(current_actions)]
+                self._rollout(
+                    initial, rng, epsilon=epsilon, forced_action=action,
+                    learn=not win_policy, learn_win=win_policy,
+                    win_policy=win_policy)
+                completed += 1
+                if progress:
+                    now = time.perf_counter()
+                    if completed == total or now - last_progress >= 0.1:
+                        progress(completed, total, label)
+                        last_progress = now
+
+        if not train_win:
+            sample(context, total, False)
+        else:
+            mean_budget, win_budget = (total + 1) // 2, total // 2
+            sample(context, mean_budget, False)
+            sample(context, win_budget, True)
         if progress and completed != total:
             progress(completed, total, label)
         self.total_control_rollouts += completed
@@ -738,9 +813,11 @@ class MonteCarloController:
         successors, seen = [], set()
         base_seed = self.config.seed + 700_000_003 + self.total_control_rollouts * 130_363
         for action in self.legal_actions(context):
-            for probe in range(len(ALL_EFFECTS)):
+            for probe, observed_effect in enumerate(ALL_EFFECTS):
                 successor = self._advance(
                     context, action, random.Random(base_seed + probe * 104_729), False)
+                if successor.phase == PHASE_EFFECT:
+                    successor = replace(successor, observed_effect=observed_effect)
                 actions = self.legal_actions(successor)
                 if not actions:
                     continue
@@ -774,13 +851,18 @@ class MonteCarloController:
         trained = evaluated = 0
         control_budgets = allocate(control_budget)
         evaluation_budgets = allocate(evaluation_budget)
-        for index, (successor, train_budget, eval_budget) in enumerate(zip(
-                successors, control_budgets, evaluation_budgets), 1):
+        for index, (successor, train_budget) in enumerate(zip(
+                successors, control_budgets), 1):
             if cancelled and cancelled():
                 break
             trained += self._refine_with_budget(
                 successor, train_budget, progress, cancelled,
-                f"后继状态控制采样 {index}/{len(successors)}")
+                f"后继状态控制采样 {index}/{len(successors)}",
+                train_win=target is not None)
+        if cancelled and cancelled():
+            return trained, evaluated
+        # 所有共享深层状态训练完成后再统一冻结，避免先评价的后继保留旧策略。
+        for successor, eval_budget in zip(successors, evaluation_budgets):
             if cancelled and cancelled():
                 break
             recommendation = self.evaluate_current_policy(
@@ -809,8 +891,10 @@ class MonteCarloController:
                   progress: Optional[Callable[[int, int, str], None]] = None,
                   cancelled: Optional[Callable[[], bool]] = None) -> MCRecommendation:
         normalized_target = None if target is None else float(target)
+        self.frozen_policy.clear()
+        self.frozen_win_policy.clear()
         if normalized_target != self.win_target:
-            self.frozen_win_policy.clear()
+            self.win_q.clear()
             self.win_target = normalized_target
         successors = self._sample_successor_contexts(context)
         actions = self.legal_actions(context)
@@ -830,7 +914,8 @@ class MonteCarloController:
             successor_control = successor_evaluation = 0
             root_evaluation = self.config.evaluation_rollouts
         control = self._refine_with_budget(
-            context, root_control, progress, cancelled)
+            context, root_control, progress, cancelled,
+            train_win=target is not None)
         branch_control, branch_evaluation = self._calibrate_successors(
             successors, target, successor_control, successor_evaluation,
             progress, cancelled)
