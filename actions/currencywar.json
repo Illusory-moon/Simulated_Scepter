@@ -224,8 +224,7 @@
             "redundancy":30
         },
         "actions":[
-            "select_envir",
-            { "set_state": "1-1" }   
+            "select_envir"
         ]
     },{
         "name": "选择投资策略",
@@ -382,6 +381,21 @@
             },
             {
                 "set_state": "startbattle"
+            }
+        ]
+    },
+    {
+        "name":"跳过战斗",
+        "trigger":{
+            "text":"跳过",
+            "box":[1784, 1852, 730, 770],
+            "interval" : 3,
+            "redundancy":60,
+            "condition":"startbattle"
+        },
+        "actions":[
+            {
+                "position": [1818, 750]
             }
         ]
     },

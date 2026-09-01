@@ -32,6 +32,13 @@ from tool.utils.tool import get_hwnd_and_text
 class SimulatedCurrency(CurrencyUtils):
 
     SPECIAL_INVESTMENTS = ("黄金投资", "白银投资")
+    DIFFICULTY_MAX_STEPS = 120
+    DIFFICULTY_SETTLE_SECONDS = 0.6
+    DIFFICULTY_SELECTED_EFFECT_BOX = [700, 1200, 350, 465]
+    DIFFICULTY_DOWN_POSITION = (960, 844)
+    ENVIRONMENT_TITLE_BOX = [897, 1018, 80, 114]
+    ENVIRONMENT_CONFIRM_BOX = [1053, 1108, 967, 998]
+    BLESS_REFRESH_POSITIONS = ((384, 869), (868, 869), (1380, 869))
 
     def __init__ (self, find, debug, speed, consumable, slow, nums = -1, bonus = False):
         super ().__init__ (speed)
@@ -144,9 +151,11 @@ class SimulatedCurrency(CurrencyUtils):
         key_mouse_manager.press('f4')
 
     def is_one (self):
-        box = [752, 1060, 378, 409]
         try:
-            text_list = self.ts.find_with_box (box, forward=1)
+            text_list = self.ts.find_with_box(
+                self.DIFFICULTY_SELECTED_EFFECT_BOX,
+                forward=1,
+            )
             merged = merge_text (text_list)
             CUS_LOGGER.info (f"OCR 识别结果: {merged}")
             return "开局时获得" in merged
@@ -161,12 +170,17 @@ class SimulatedCurrency(CurrencyUtils):
 
         key_mouse_manager.clean()
         key_mouse_manager.click(1692, 965, force=True)  # “开始对局”按钮坐标
+        key_mouse_manager.wait()
         self.update_state("startbattle")
         return True
 
     def select_difficulty_start (self):
-        max_attempts = 30
-        for _ in range (max_attempts):
+        if self.state != "difficulty_select":
+            CUS_LOGGER.info(f"停止选择难度，当前状态：{self.state}")
+            return True
+
+        key_mouse_manager.clean()
+        for attempt in range(self.DIFFICULTY_MAX_STEPS + 1):
             if self.state != "difficulty_select":
                 CUS_LOGGER.info(f"停止选择难度，当前状态：{self.state}")
                 return True
@@ -174,10 +188,19 @@ class SimulatedCurrency(CurrencyUtils):
             if self.is_one ():
                 CUS_LOGGER.info ("已识别到难度1")
                 return self.complete_difficulty_selection()
-            CUS_LOGGER.info ("等待选择难度1")
-            key_mouse_manager.drag (0.4615, 0.2450, 0.4615, 0.9000)
-            time.sleep(0.3)   # 等待界面稳定
-        CUS_LOGGER.warning ("等待选择难度1")
+
+            if attempt == self.DIFFICULTY_MAX_STEPS:
+                break
+
+            CUS_LOGGER.info(
+                f"尚未识别到难度1，执行第{attempt + 1}/"
+                f"{self.DIFFICULTY_MAX_STEPS}次向下选择"
+            )
+            key_mouse_manager.click(*self.DIFFICULTY_DOWN_POSITION)
+            key_mouse_manager.wait()
+            time.sleep(self.DIFFICULTY_SETTLE_SECONDS)
+
+        CUS_LOGGER.warning("达到向下选择上限，仍未识别到难度1；停止点击并等待下一轮识别")
         return False
 
     def auto_battle(self):
@@ -205,6 +228,7 @@ class SimulatedCurrency(CurrencyUtils):
         if not matched:
             CUS_LOGGER.info ("未匹配到必选策略，点击刷新按钮")
             key_mouse_manager.click (672, 984)  # 刷新按钮坐标
+            key_mouse_manager.wait()
             time.sleep (4)        # 等待刷新完成
             self.ts.forward (self.get_screen ())
             # 刷新后重新识别并再次尝试匹配必选
@@ -247,18 +271,74 @@ class SimulatedCurrency(CurrencyUtils):
             cy = (box[2] + box[3]) // 2
             centers.append((cx, cy))
 
+        selected_text = texts[selected_idx] if selected_idx < len(texts) else ""
         key_mouse_manager.click (centers[selected_idx][0], centers[selected_idx][1])
-        time.sleep (0.1)  # 等待点击生效
+        key_mouse_manager.wait()
+        time.sleep(0.4)
 
-        self.click_text (
-            text="确认",
-            box=[1053, 1108, 967, 998],
-            click=True,
-        )
+        if not self._confirm_environment_selection():
+            CUS_LOGGER.warning("投资环境确认按钮未就绪，本轮不推进状态")
+            return 0
+
+        if "蓝海" in selected_text and not self._select_blue_ocean_extra_environment():
+            CUS_LOGGER.warning("蓝海额外投资环境未完成，本轮不推进状态")
+            return 0
+
         self.investment_tracker.reset()
-        time.sleep (0.1)
+        self.update_state("1-1")
         CUS_LOGGER.info ("投资环境选择完成")
         return 1
+
+    def _confirm_environment_selection(self, max_attempts=5):
+        for attempt in range(max_attempts):
+            if self.click_text(
+                text="确认",
+                box=self.ENVIRONMENT_CONFIRM_BOX,
+                click=True,
+                allow_fail=True,
+            ):
+                key_mouse_manager.wait()
+                return True
+            if attempt + 1 < max_attempts:
+                time.sleep(0.5)
+        return False
+
+    def _select_blue_ocean_extra_environment(self, max_attempts=6):
+        CUS_LOGGER.info("蓝海生效，等待选择唯一的额外投资环境")
+        centers = [
+            ((box[0] + box[1]) // 2, (box[2] + box[3]) // 2)
+            for box in self.ENVIR_BOXES
+        ]
+
+        for attempt in range(max_attempts):
+            time.sleep(0.6)
+            if not self.click_text(
+                text="投资环境",
+                box=self.ENVIRONMENT_TITLE_BOX,
+                click=False,
+                allow_fail=True,
+            ):
+                continue
+
+            self.ts.forward(self.get_screen())
+            texts = self.recognize_options(self.ENVIR_BOXES)
+            available = [idx for idx, text in enumerate(texts) if text.strip()]
+            if len(available) != 1:
+                CUS_LOGGER.info(
+                    f"蓝海额外环境尚未稳定显示：{texts}，"
+                    f"第{attempt + 1}/{max_attempts}次等待"
+                )
+                continue
+
+            selected_idx = available[0]
+            key_mouse_manager.click(*centers[selected_idx])
+            key_mouse_manager.wait()
+            time.sleep(0.4)
+            if self._confirm_environment_selection():
+                CUS_LOGGER.info("蓝海额外投资环境选择完成")
+                return True
+
+        return False
 
     def detect_has_icon(self, roi):
         """
@@ -271,6 +351,38 @@ class SimulatedCurrency(CurrencyUtils):
         # 有图标时标准差 > 15，纯色背景时标准差 < 8
         # 这个阈值可以调整，你先用 10 测试
         return std > 10, std
+
+    def _refresh_investment_options(self, previous_texts, max_attempts=2):
+        pending = list(range(len(self.BLESS_REFRESH_POSITIONS)))
+        latest_texts = list(previous_texts)
+
+        for attempt in range(max_attempts):
+            for idx in pending:
+                key_mouse_manager.click(*self.BLESS_REFRESH_POSITIONS[idx])
+                key_mouse_manager.wait()
+                time.sleep(0.4)
+
+            time.sleep(0.8)
+            self.ts.forward(self.get_screen())
+            latest_texts = self.recognize_options(self.BLESS_BOXES)
+            pending = [
+                idx
+                for idx in pending
+                if not (
+                    previous_texts[idx].strip()
+                    and latest_texts[idx].strip()
+                    and previous_texts[idx] != latest_texts[idx]
+                )
+            ]
+            if not pending:
+                break
+            if attempt + 1 < max_attempts:
+                CUS_LOGGER.warning(
+                    "以下投资策略未确认刷新，将仅重试这些位置："
+                    + ", ".join(str(idx + 1) for idx in pending)
+                )
+
+        return latest_texts
 
     def select_bless (self):
         """选择投资策略，并区分普通位面选择与黄金/白银投资奖励。"""
@@ -329,10 +441,7 @@ class SimulatedCurrency(CurrencyUtils):
 
             if attempt < self.max_refresh:
                 CUS_LOGGER.info(f"第 {attempt+1} 次未匹配，点击刷新")
-                key_mouse_manager.click(384, 869)
-                key_mouse_manager.click(868, 869)
-                key_mouse_manager.click(1380, 869)
-                time.sleep(1.5)
+                self._refresh_investment_options(texts)
             else:
                 selected_idx = choose_fallback_investment(texts, icon_presence)
                 if selected_idx == 1:

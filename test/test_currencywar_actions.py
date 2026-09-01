@@ -1,7 +1,9 @@
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
+from currency import SimulatedCurrency
 from tool.currency.run_history import RUN_END_ACTION, RUN_START_ACTION
 
 
@@ -52,6 +54,69 @@ class CurrencyWarActionsTest(unittest.TestCase):
         )
 
         self.assertEqual(action["actions"], ["complete_difficulty_selection"])
+
+    def test_environment_state_advances_only_inside_selection_action(self):
+        action = next(
+            action
+            for action in self.actions
+            if action.get("name") == "选择投资环境"
+        )
+
+        self.assertEqual(action["actions"], ["select_envir"])
+
+    def test_peace_token_skip_action_handles_both_remaining_counts(self):
+        skip_action = next(
+            action for action in self.actions if action.get("name") == "跳过战斗"
+        )
+        battle_index = next(
+            index
+            for index, action in enumerate(self.actions)
+            if action.get("name") == "出战"
+        )
+        skip_index = self.actions.index(skip_action)
+
+        self.assertLess(skip_index, battle_index)
+        self.assertEqual(skip_action["trigger"]["text"], "跳过")
+        self.assertEqual(skip_action["trigger"]["condition"], "startbattle")
+        self.assertEqual(skip_action["actions"], [{"position": [1818, 750]}])
+        self.assertIn(skip_action["trigger"]["text"], "跳过(2/2)")
+        self.assertIn(skip_action["trigger"]["text"], "跳过(1/2)")
+
+    def test_run_static_executes_peace_token_skip_before_battle(self):
+        skip_action = next(
+            action for action in self.actions if action.get("name") == "跳过战斗"
+        )
+        battle_action = next(
+            action for action in self.actions if action.get("name") == "出战"
+        )
+        currency = object.__new__(SimulatedCurrency)
+        currency.state = "startbattle"
+        currency.get_screen = Mock(return_value=255)
+        currency.ts = Mock()
+        currency.ts.find_with_box.return_value = [
+            {
+                "raw_text": "跳过(2/2)",
+                "box": [1784, 1852, 730, 770],
+            }
+        ]
+        currency.action_history = []
+        currency.action_time = 0
+        currency.do_action = Mock(return_value=1)
+        currency._on_static_action_completed = Mock()
+
+        result = currency.run_static(
+            json_file={
+                "跳过战斗": [skip_action],
+                "出战": [battle_action],
+            }
+        )
+
+        self.assertEqual(result, ("跳过战斗", 1))
+        currency.ts.find_with_box.assert_called_once_with(
+            [1784, 1852, 730, 770],
+            redundancy=60,
+        )
+        currency.do_action.assert_called_once_with({"position": [1818, 750]})
 
 
 if __name__ == "__main__":
