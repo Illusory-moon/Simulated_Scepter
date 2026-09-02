@@ -14,6 +14,11 @@ from tool.countdown_config import (
     DECISION_MODES, MC_SETTING_FIELDS, load_finger_snap_settings,
     save_finger_snap_settings,
 )
+from tool.currency.settings import (
+    EXIT_PLANES,
+    load_currency_settings,
+    save_currency_settings,
+)
 from tool.log import log_emitter
 from tool.thread import ThreadWithException
 from tool.utils.image_tool import find_image_by_name, load_all_images_from_directory
@@ -182,8 +187,18 @@ class MainWindow(QMainWindowLog):
         self.Diver_timezone_combo.setCurrentText(config_diver.timezone)
         self.Diver_max_run_input = QLineEdit(str(config_diver.max_run))
 
+        # 初始化货币战争配置界面
+        currency_settings = load_currency_settings()
+        for exit_plane in EXIT_PLANES:
+            self.Currency_exit_plane_combo.addItem(f"第 {exit_plane} 位面", exit_plane)
+        exit_plane_index = self.Currency_exit_plane_combo.findData(
+            currency_settings["exit_after_plane"]
+        )
+        self.Currency_exit_plane_combo.setCurrentIndex(exit_plane_index)
+
         # 连接配置保存按钮
         self.config_save_btn.clicked.connect(self.save_config)
+        self.Currency_save_btn.clicked.connect(self.save_currency_config)
         self.Iron_blood_save_btn.clicked.connect(self.save_iron_config)
         self.Finger_snap_save_btn.clicked.connect(self.save_finger_snap_config)
         self.Aboutupdatelock.clicked.connect(self.show_unlock_dialog)
@@ -657,6 +672,17 @@ class MainWindow(QMainWindowLog):
         self.save_ui_settings()
 
         QMessageBox.information(self, "提示", "配置已保存")
+
+    def save_currency_config(self):
+        try:
+            save_currency_settings(
+                {"exit_after_plane": self.Currency_exit_plane_combo.currentData()}
+            )
+        except OSError as error:
+            QMessageBox.critical(self, "错误", f"货币战争配置保存失败：{error}")
+            return
+        QMessageBox.information(self, "提示", "货币战争配置已保存")
+
     def save_iron_config(self):
         self.save_ui_settings()
         QMessageBox.information(self, "提示", "配置已保存")

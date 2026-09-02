@@ -141,8 +141,8 @@
             "condition": "difficulty_select"
         },
         "actions":
-        [   
-            {"position":[1692, 965]}
+        [
+            "complete_difficulty_selection"
         ]
     },
     {
@@ -224,8 +224,7 @@
             "redundancy":30
         },
         "actions":[
-            "select_envir",
-            { "set_state": "1-1" }   
+            "select_envir"
         ]
     },{
         "name": "选择投资策略",
@@ -286,6 +285,27 @@
         [   
             {
                 "position": [663, 290]
+            }
+        ]
+    },
+    {
+        "name": "命运圣杯祈愿试炼",
+        "trigger":{
+            "text": "请选择一个祈愿试炼",
+            "box": [1400, 1595, 572, 599],
+            "interval": 2,
+            "redundancy": 30
+        },
+        "actions":
+        [
+            {
+                "position": [684, 398]
+            },
+            {
+                "sleep": 0.5
+            },
+            {
+                "position": [1495, 639]
             }
         ]
     },
@@ -361,6 +381,21 @@
             },
             {
                 "set_state": "startbattle"
+            }
+        ]
+    },
+    {
+        "name":"跳过战斗",
+        "trigger":{
+            "text":"跳过",
+            "box":[1784, 1852, 730, 770],
+            "interval" : 3,
+            "redundancy":60,
+            "condition":"startbattle"
+        },
+        "actions":[
+            {
+                "position": [1818, 750]
             }
         ]
     },
