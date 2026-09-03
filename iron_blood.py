@@ -40,6 +40,7 @@ from tool.utils.ocr_num import (
 )
 from tool.utils.tool import find_latest_modified_file
 from tool.window_recorder import WindowRecorder
+import datetime
 
 
 class IronBloodUniverse(SimulatedUniverse):
@@ -117,7 +118,7 @@ class IronBloodUniverse(SimulatedUniverse):
         if self.record and self.cut_video and self.YKItDYvq3FpnOYx:
             need_del=self.del_record_time and self.del_record_time>self.kill_count
             CUS_LOGGER.debug(f"是否可删除{need_del},限制数目{self.del_record_time}，当前数目{self.kill_count}")
-            self.recorder.stop_recording(need_del)
+            self.recorder.stop_recording(need_del, battle_count=self.kill_count)
             time.sleep(0.8)
             self.recorder.start_recording(self.count + 1)
             self.update_state("re_start")
@@ -133,7 +134,10 @@ class IronBloodUniverse(SimulatedUniverse):
                 self.kill_count+=1
             os.makedirs("config/backup", exist_ok=True)
             with open(record_file, "a", encoding="utf-8") as file:
-                file.write(f"轮回次数:{self.count}, 击杀数:{self.kill_count}, 用时:{elapsed // 60}分{elapsed % 60}秒\n")
+                now_lunhuirizhi = datetime.datetime.now()
+                timestamp_lunhuirizhi = now_lunhuirizhi.strftime("%Y年%m月%d日%H点%M分%S秒")
+                file.write(f"{timestamp_lunhuirizhi}, 轮回次数:{self.count}, 击杀数:{self.kill_count:02d}, 用时:{elapsed // 60}分{elapsed % 60}秒\n")
+                # file.write(f"轮回次数:{self.count}, 击杀数:{self.kill_count}, 用时:{elapsed // 60}分{elapsed % 60}秒\n")
         except Exception as e:
             CUS_LOGGER.error(f"写入击杀记录文件失败{e}")
         self.run_start_time = time.time()  # 开始下一局计时
@@ -1126,7 +1130,8 @@ class IronBloodUniverse(SimulatedUniverse):
         event_name = self.ts.find_with_box(box=[897, 1023, 500, 540], forward=True, re_screen=False)
         if len(event_name)==0:
             self.save_screen(not_now=True,save_path="/temp/event/")
-            self.stop()
+            # self.stop()
+            CUS_LOGGER.warning("未识别到突发事件文本，可能是战斗变虫群的突发事件，已截图保存")
         try:
             db_file = "config/backup/emergency.db"
             os.makedirs("config/backup", exist_ok=True)
