@@ -139,6 +139,10 @@ class UniverseUtils:
         self.debug_map = None
         #目标坐标
         self.target_loc = None
+        # Last reliable bearing used for the final approach to a type-3 target.
+        self._endpoint_heading = None
+        self._endpoint_heading_target = None
+        self._endpoint_heading_time = 0.0
         #地图集合
         self.img_set = []
         #是否拥有黄泉
@@ -458,13 +462,15 @@ class UniverseUtils:
             )
         local_screen = self.get_local(x, y, shape, False)
         return local_screen
-    def check(self, path, x, y, mask=None, threshold=None, use_binary=False,fresh=False):
+    def check(self, path, x, y, mask=None, threshold=None, use_binary=False,fresh=False, search_all=False):
         """
         判断截图中匹配中心点附近是否存在匹配模板
         path：匹配模板的路径，
-        x,y：匹配中心点，
+        x,y：匹配中心点（search_all=False 时使用），
         mask：如果存在，则以mask大小为基准裁剪截图，
-        threshold：匹配阈值
+        threshold：匹配阈值，
+        search_all：True 时跳过固定点裁剪，直接对全屏做模板匹配
+                    （用于 F 提示位置会随 UI/体型/场景变化的场景，如 issue #57）。
         """
         if fresh:
             self.get_screen()
@@ -482,15 +488,21 @@ class UniverseUtils:
             target,
             dsize=(int(self.scx * target.shape[1]), int(self.scx * target.shape[0])),
         )
-        if mask is None:
-            shape = target.shape
+        if search_all:
+            # issue #57：F 提示位置随场景变化（如青女/觐见装置在屏幕
+            # 右中 ~(0.62,0.59)，而固定点仅覆盖 (0.44,0.44)），固定点裁剪
+            # 会漏检。改为全屏模板匹配，任何位置都能命中。
+            local_screen = self.screen
         else:
-            mask_img = find_image_by_name(mask)
-            shape = (
-                int(self.scx * mask_img.shape[0]),
-                int(self.scx * mask_img.shape[1]),
-            )
-        local_screen = self.get_local(x, y, shape)
+            if mask is None:
+                shape = target.shape
+            else:
+                mask_img = find_image_by_name(mask)
+                shape = (
+                    int(self.scx * mask_img.shape[0]),
+                    int(self.scx * mask_img.shape[1]),
+                )
+            local_screen = self.get_local(x, y, shape)
         if use_binary:
             # 将截图和模板图像转换为灰度图
             if len(local_screen.shape) == 3:
@@ -516,14 +528,36 @@ class UniverseUtils:
                 CUS_LOGGER.error(f"{path}匹配失败，源图像{local_screen.shape}，目标图像{target.shape}")
                 raise
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
-        self.tx = x - (max_loc[0] - 0.5 * local_screen.shape[1] + 0.5 * target.shape[1]) / self.xx
-        self.ty = y - (max_loc[1] - 0.5 * local_screen.shape[0] + 0.5 * target.shape[0]) / self.yy
+        if search_all:
+            # Coordinates used by this module are measured from the lower-right
+            # corner.  Convert the full-screen match back to that coordinate
+            # system instead of applying the fixed-crop offset formula.
+            screen_height, screen_width = local_screen.shape[:2]
+            match_center_x = max_loc[0] + 0.5 * target.shape[1]
+            match_center_y = max_loc[1] + 0.5 * target.shape[0]
+            self.tx = (screen_width - match_center_x) / screen_width
+            self.ty = (screen_height - match_center_y) / screen_height
+        else:
+            self.tx = x - (max_loc[0] - 0.5 * local_screen.shape[1] + 0.5 * target.shape[1]) / self.xx
+            self.ty = y - (max_loc[1] - 0.5 * local_screen.shape[0] + 0.5 * target.shape[0]) / self.yy
         self.tm = max_val
         if max_val > threshold:
             if self.last_info != path:
                 CUS_LOGGER.debug(f"匹配到图片记忆切片 {path} 相似度 {max_val} 阈值 {threshold}")
             self.last_info = path
         return max_val > threshold
+
+    def _check_f_prompt(self, fresh=False):
+        """Detect the interaction prompt independently of its HUD position."""
+        return self.check(
+            "f",
+            0.4443,
+            0.4417,
+            mask="mask_f1",
+            threshold=0.96,
+            fresh=fresh,
+            search_all=True,
+        )
 
     def get_end_point(self, mask=0,device=0):
         self.get_screen()
@@ -1048,6 +1082,9 @@ class UniverseUtils:
         self.big_map=None
         self.big_map_init = False
         self.now_loc = (93,93)
+        self._endpoint_heading = None
+        self._endpoint_heading_target = None
+        self._endpoint_heading_time = 0.0
         self.first_mini = 1
         self.find=1
         self.red_threshold = 4500
@@ -1063,7 +1100,7 @@ class UniverseUtils:
         if must_be is None and (self.ts.similar("区域") or self.ts.similar("觐见")):
             must_be='tp'
         while not ava and time.time()-tm<1.8:
-            if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
+            if not self._check_f_prompt(fresh=True):
                 if not self.is_run():
                     CUS_LOGGER.info("仿佛连深不见底的最初混沌，也能够烧却。")
                     ava = True
@@ -1074,11 +1111,11 @@ class UniverseUtils:
                 if not self.is_run():
                     CUS_LOGGER.info("…我以为，那就是世间最极致的力量，再无其他。")
                     ava=True
-                elif (not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True)) and must_be == 'tp':
+                elif (not self._check_f_prompt(fresh=True)) and must_be == 'tp':
                     CUS_LOGGER.info("或许只要短短万年的时光——它便会被烧成哀毁骨立的焦炭盗火行者了吧。")
                     ava=True
             else:
-                if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
+                if not self._check_f_prompt(fresh=True):
                     ava=True
 
         if ava:
@@ -1173,7 +1210,239 @@ class UniverseUtils:
         # 此处变换为了目标角度
         self.ang = ang
         ds=get_dis(rel_loc, target_loc)
+        # Once the target is still far enough away, the minimap bearing is
+        # useful.  Keep the last such bearing for the final approach: position
+        # matching becomes noisy at the endpoint and repeatedly correcting from
+        # those samples can turn the character away from the interaction.
+        if mode == 1 and getattr(self, "target_type", None) == 3 and ds >= 12:
+            self._endpoint_heading = self.ang
+            self._endpoint_heading_target = tuple(target_loc)
+            self._endpoint_heading_time = time.time()
         return ds
+
+    def _nudge_forward_for_f(self, steps=3, step_seconds=0.25):
+        """Move a bounded number of short steps and look for the F prompt."""
+        steps = max(0, int(steps))
+        step_seconds = max(0.05, min(float(step_seconds), 0.4))
+        try:
+            self._release_forward()
+            self._settle_input(0.25)
+            if not self.is_run():
+                return False
+            if self._check_f_prompt(fresh=True):
+                return True
+            for _ in range(steps):
+                key_mouse_manager.press("w", step_seconds)
+                key_mouse_manager.wait()
+                if not self.is_run():
+                    return False
+                self._settle_input(0.15)
+                if self._check_f_prompt(fresh=True):
+                    return True
+            return False
+        finally:
+            self._release_forward()
+
+    def _settle_input(self, duration):
+        """Wait for queued input and a fresh frame before the next sample."""
+        key_mouse_manager.sleep(max(0.0, duration))
+        key_mouse_manager.wait()
+
+    def _release_forward(self):
+        """Cancel queued movement and release W immediately."""
+        key_mouse_manager.keyUp("w", force=True)
+        key_mouse_manager.wait()
+        key_mouse_manager.clean()
+
+    def _match_device_label(self, threshold=0.62):
+        """Locate the Jian Jian zhuangzhi name label on screen.
+
+        The recorded endpoint is only a map coordinate; on some maps the
+        device sits well beyond it (behind a wall or off the recorded
+        stroll), so probing in place never gets within prompt range.  The
+        in-game 觐见装置 label is always rendered above the device, so while
+        it is in view we can steer the camera toward it and walk straight at
+        it.  Returns (center_x, center_y, score) in game-window pixels or
+        None when the label is not on screen.
+        """
+        try:
+            template = find_image_in_folder("gray_image/", "device.png")
+        except Exception:
+            return None
+        if template is None:
+            return None
+        if len(self.screen.shape) == 3:
+            gray = cv.cvtColor(self.screen, cv.COLOR_BGR2GRAY)
+        else:
+            gray = self.screen
+        try:
+            base_scale = float(getattr(self, "scx", 1.0)) or 1.0
+        except (TypeError, ValueError):
+            base_scale = 1.0
+        best = None
+        for scale in (0.7, 0.85, 1.0, 1.15, 1.3, 1.5):
+            t = cv.resize(
+                template, None,
+                fx=scale * base_scale, fy=scale * base_scale,
+                interpolation=cv.INTER_CUBIC,
+            )
+            if t.shape[0] >= gray.shape[0] or t.shape[1] >= gray.shape[1]:
+                continue
+            result = cv.matchTemplate(gray, t, cv.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv.minMaxLoc(result)
+            if best is None or max_val > best[2]:
+                best = (
+                    max_loc[0] + t.shape[1] / 2.0,
+                    max_loc[1] + t.shape[0] / 2.0,
+                    float(max_val),
+                )
+        if best is not None and best[2] >= threshold:
+            return best
+        return None
+
+    def _home_to_device(self, max_legs=6):
+        """Steer toward the visible device label and walk until F appears."""
+        for _ in range(max_legs):
+            if getattr(self, "_stop", False) or not self.is_run():
+                return False
+            self.get_screen()
+            hit = self._match_device_label()
+            if hit is None:
+                return False
+            cx, cy, score = hit
+            half_w = float(getattr(self, "xx", 1920)) / 2.0
+            # Same pixel-per-degree convention as move_direct_to_text.
+            dx_angle = (cx - half_w) / 16.5
+            if abs(dx_angle) >= 0.5:
+                key_mouse_manager.mouse_move(dx_angle)
+                key_mouse_manager.wait()
+                self._settle_input(0.25)
+            key_mouse_manager.keyDown("w", force=True)
+            key_mouse_manager.wait()
+            for _ in range(3):
+                if getattr(self, "_stop", False) or not self.is_run():
+                    key_mouse_manager.keyUp("w", force=True)
+                    return False
+                self._settle_input(0.3)
+                if self._check_f_prompt(fresh=True):
+                    key_mouse_manager.keyUp("w", force=True)
+                    return True
+            key_mouse_manager.keyUp("w", force=True)
+            key_mouse_manager.wait()
+        return False
+
+    def _approach_type3_endpoint(self, max_rings=4, pan_steps=8, leg_seconds=0.6):
+        """Deterministically find the endpoint interaction prompt (issue #57).
+
+        The recorded end position is exactly where the prompt was visible when
+        the map was recorded, so the interaction is always within a few metres
+        of the recorded coordinate.  get_loc() is +/-10 units noisy there and
+        the old mode=1 steering (derived from that noise) kept spinning the
+        character without ever facing the device.  This search is therefore
+        coordinate-free:
+
+        1. while panning, match the in-game 觐见装置 label on screen and, when
+           it is visible, steer the camera toward it and walk straight at it
+           (visual homing - handles devices that sit beyond the recorded
+           coordinate or behind small obstacles);
+        2. stand still and pan the camera a full circle, checking for the F
+           prompt on every step (the prompt is screen-space, so facing the
+           device is what matters);
+        3. walk a short leg in the last reliable bearing (captured while the
+           target was still >12 units away), then turn 90 degrees;
+        4. each ring pans another full circle while the legs form a square
+           spiral around the recorded point.
+
+        Everything is bounded: max_rings rings keep the runtime under roughly
+        a minute and the caller simply retries if the prompt never shows.
+        """
+        max_rings = max(1, min(int(max_rings), 6))
+        pan_steps = max(4, min(int(pan_steps), 12))
+        leg_seconds = max(0.3, min(float(leg_seconds), 1.5))
+        try:
+            self._release_forward()
+            self._settle_input(0.25)
+            if not self.is_run():
+                return False
+            if self._check_f_prompt(fresh=True):
+                return True
+
+            # Face the last reliable bearing so the first leg heads toward the
+            # device instead of a noise-derived direction.  Only reuse it when
+            # it was captured for this exact endpoint.
+            heading = getattr(self, "_endpoint_heading", None)
+            heading_target = getattr(self, "_endpoint_heading_target", None)
+            if heading is not None and heading_target is not None:
+                try:
+                    if tuple(heading_target) != tuple(self.target_loc):
+                        heading = None
+                except (TypeError, ValueError):
+                    heading = None
+            if heading is not None:
+                turn = (heading - self.ang + 180) % 360 - 180
+                key_mouse_manager.mouse_move(turn)
+                key_mouse_manager.wait()
+                self.ang = heading % 360
+                CUS_LOGGER.debug(
+                    f"type3 endpoint aligned to stored heading {heading:.1f}"
+                )
+            else:
+                key_mouse_manager.mouse_move(90)
+                key_mouse_manager.wait()
+                self.ang = (self.ang + 90) % 360
+
+            pan_angle = 360.0 / pan_steps
+            leg_ticks = max(1, int(round(leg_seconds / 0.3)))
+            for ring in range(max_rings):
+                if getattr(self, "_stop", False) or not self.is_run():
+                    return False
+                # Stand-still pan: a device right beside the character is found
+                # even when the character has been facing away from it.
+                key_mouse_manager.keyUp("w", force=True)
+                key_mouse_manager.wait()
+                for _ in range(pan_steps):
+                    if getattr(self, "_stop", False) or not self.is_run():
+                        return False
+                    key_mouse_manager.mouse_move(pan_angle)
+                    key_mouse_manager.wait()
+                    key_mouse_manager.sleep(0.3)
+                    key_mouse_manager.wait()
+                    if self._check_f_prompt(fresh=True):
+                        return True
+                    try:
+                        device_hit = self._match_device_label()
+                    except Exception:
+                        device_hit = None
+                    if device_hit is not None:
+                        CUS_LOGGER.debug(
+                            f"type3 device label at ({device_hit[0]:.0f},"
+                            f"{device_hit[1]:.0f}) sim={device_hit[2]:.3f}; homing"
+                        )
+                        if self._home_to_device():
+                            return True
+                self.ang = (self.ang + pan_angle * pan_steps) % 360
+                # Leg: keep W held and walk forward on the current heading.
+                if ring < max_rings - 1:
+                    key_mouse_manager.keyDown("w")
+                    key_mouse_manager.wait()
+                    for _ in range(leg_ticks):
+                        if getattr(self, "_stop", False) or not self.is_run():
+                            key_mouse_manager.keyUp("w", force=True)
+                            return False
+                        self._settle_input(0.3)
+                        if self._check_f_prompt(fresh=True):
+                            key_mouse_manager.keyUp("w", force=True)
+                            return True
+                    key_mouse_manager.keyUp("w", force=True)
+                    key_mouse_manager.wait()
+                    # Turn 90 degrees so consecutive legs form a square spiral.
+                    key_mouse_manager.mouse_move(90)
+                    key_mouse_manager.wait()
+                    self.ang = (self.ang + 90) % 360
+            return False
+        finally:
+            self._release_forward()
+
     # 寻路函数
     def get_direct_with_big_map(self):
         """
@@ -1359,13 +1628,15 @@ class UniverseUtils:
                 key_mouse_manager.wait()
             self.set_path_state("结束寻路")
             CUS_LOGGER.info(f"寻路判断已到达交互点附近 {now_distance}")
-            key_mouse_manager.clean()
-            key_mouse_manager.keyUp("w")
-            key_mouse_manager.wait()
+            self._release_forward()
             if not self.get_loc():
                 CUS_LOGGER.info("结束寻路后后不在大地图界面，返回")
                 return
-            if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96,fresh=True):
+            f_found = self._check_f_prompt(fresh=True)
+            if not f_found and self.target_type == 2:
+                # issue #57：交互点 F 提示需贴近才出现，先小碎步贴脸再检测
+                f_found = self._nudge_forward_for_f()
+            if f_found:
                 if self.target_type != 3 and self.good_f()[0] and not self.ts.similar("黑塔"):
                     self.set_path_state("位于交互点，移除交互点")
                     for j in deepcopy(self.target):
@@ -1411,24 +1682,14 @@ class UniverseUtils:
                     key_mouse_manager.click(0.5, 0.5)
             if self.target_type == 3:
                 self.set_path_state("当前寻找终点")
-                for i in range(9):
-                    self.get_screen()
-                    if not self.is_run():
-                        CUS_LOGGER.info("找终点时不在大地图，返回")
-                        return
-                    if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                        CUS_LOGGER.info("大图识别到类型三传送点")
-                        key_mouse_manager.press('f',force= True)
-                        key_mouse_manager.wait()
-                        if self.nof(must_be='tp'):
-                            return
-                    if not self.is_run():
-                        return
-                    if i in [0,4]:
-                        self.move_to_end(mode=1)
-                    key_mouse_manager.press('w')
+                if self._approach_type3_endpoint():
+                    CUS_LOGGER.info("type3 endpoint prompt detected")
+                    key_mouse_manager.press("f", force=True)
                     key_mouse_manager.wait()
-            # 离目标点挺近了，准备找下一个目标点
+                    if self.nof(must_be="tp"):
+                        return
+                else:
+                    CUS_LOGGER.debug("type3 endpoint prompt not found; retrying")
             elif now_distance <= 20:
                 self.set_path_state("距离目标非常近")
                 try:
@@ -2981,9 +3242,7 @@ class UniverseUtils:
             key_mouse_manager.wait()
         CUS_LOGGER.info("现在，一轮太阳将走向陨落，它顷刻便能将这荒诞的时空焚烧殆尽——")
         CUS_LOGGER.debug(f"寻路判断已到达交互点附近 {now_distance}")
-        key_mouse_manager.clean()
-        key_mouse_manager.keyUp("w")
-        key_mouse_manager.wait()
+        self._release_forward()
         if not self.get_loc():
             CUS_LOGGER.info("「救世主」…我愿你…常战常胜。")
             return
@@ -2993,7 +3252,11 @@ class UniverseUtils:
             self.last_interact_time = time.time()
             self.target.discard((self.target_loc, 1))
             return
-        if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True):
+        f_found = self._check_f_prompt(fresh=True)
+        if not f_found and self.target_type == 2:
+            # issue #57：交互点 F 提示需贴近才出现，先小碎步贴脸再检测
+            f_found = self._nudge_forward_for_f()
+        if f_found:
             if self.target_type != 3 and self.good_f()[0] and not self.ts.similar("黑塔"):
                 CUS_LOGGER.info(f"{factor}…别无选择。")
                 for j in deepcopy(self.target):
@@ -3047,25 +3310,15 @@ class UniverseUtils:
             else:
                 key_mouse_manager.click(0.5, 0.5)
         if self.target_type == 3:
-            CUS_LOGGER.info("何不…让愤怒…焚化命运…？卡…厄斯……")
-            for i in range(9):
-                self.get_screen()
-                if not self.is_run():
-                    CUS_LOGGER.info("沿着我们的足迹……写下前所未有的结局。")
-                    return
-                if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96):
-                    CUS_LOGGER.info("那一定是个不同以往的浪漫故事。")
-                    key_mouse_manager.press('f', force=True)
-                    key_mouse_manager.wait()
-                    if self.nof(must_be='tp'):
-                        return
-                if not self.is_run():
-                    return
-                if i in [0, 4]:
-                    self.move_to_end(mode=1,device=1)
-                key_mouse_manager.press('w')
+            CUS_LOGGER.info("approaching type3 endpoint")
+            if self._approach_type3_endpoint():
+                CUS_LOGGER.info("type3 endpoint prompt detected")
+                key_mouse_manager.press("f", force=True)
                 key_mouse_manager.wait()
-        # 离目标点挺近了，准备找下一个目标点
+                if self.nof(must_be="tp"):
+                    return
+            else:
+                CUS_LOGGER.debug("type3 endpoint prompt not found; retrying")
         elif now_distance <= 20:
             CUS_LOGGER.info("你也是这么想的……对吧？")
             try:
