@@ -468,11 +468,12 @@ class WindowRecorder:
                 self.out = None
             CUS_LOGGER.info("视频写入器已释放")
 
-    def stop_recording(self, delete_video=False):
+    def stop_recording(self, delete_video=False, battle_count=None):
         """停止录制
 
         Args:
             delete_video (bool): 是否删除录制的视频文件，默认为 False
+            battle_count (int, optional): 战斗次数；保留录制且不为 None 时，用于更新视频文件名
         """
         if not self.recording:
             return
@@ -504,14 +505,14 @@ class WindowRecorder:
                 CUS_LOGGER.warning(f"删除视频文件失败：{e}")
         else:
             # 保留录制时，更新视频文件名，增加战斗次数信息
-            try:
-                battle_count = getattr(self, "kill_count", 0)
-                head, tail = self.output_file.rsplit("次轮回-", 1)
-                new_path = f"{head}次轮回-{battle_count}战-{tail}"
-                os.rename(self.output_file, new_path)
-                self.output_file = new_path
-            except Exception as e:
-                CUS_LOGGER.warning(f"更新视频文件名失败：{e}")
+            if battle_count is not None:
+                try:
+                    head, tail = self.output_file.rsplit("次轮回-", 1)
+                    new_path = f"{head}次轮回-{battle_count}战-{tail}"
+                    os.rename(self.output_file, new_path)
+                    self.output_file = new_path
+                except Exception as e:
+                    CUS_LOGGER.warning(f"更新视频文件名失败：{e}")
             CUS_LOGGER.debug(f"停止录制{self.output_file}")
 
 
