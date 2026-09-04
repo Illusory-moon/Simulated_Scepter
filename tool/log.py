@@ -228,7 +228,14 @@ class CusLogger(logging.Logger):
 
             def emit(self, record):
                 msg = self.format(record)
-                self.original_stdout.write(msg + '\n')
+                try:
+                    self.original_stdout.write(msg + '\n')
+                except UnicodeEncodeError:
+                    # 控制台使用 GBK 等窄编码时，日志中的特殊字符（如 ®）会触发
+                    # UnicodeEncodeError；若不加保护会顺着任务线程把整个运行带崩。
+                    enc = getattr(self.original_stdout, 'encoding', None) or 'gbk'
+                    line = (msg + '\n').encode(enc, errors='replace').decode(enc, errors='replace')
+                    self.original_stdout.write(line)
                 self.original_stdout.flush()
 
         console_handler = ConsoleOnlyHandler(original_stdout)
