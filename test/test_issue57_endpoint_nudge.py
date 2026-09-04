@@ -50,6 +50,35 @@ class FPromptDetectionTest(unittest.TestCase):
         self.assertAlmostEqual(expected_y, universe.ty, places=6)
 
 
+class DeviceLabelRegionTest(unittest.TestCase):
+    """The device label must only be trusted when it sits in the upper half of
+    the screen (the character is facing the device); a lower-half label means
+    the character has its back to the device (review feedback)."""
+
+    def _make(self):
+        universe = simul_utils.UniverseUtils.__new__(simul_utils.UniverseUtils)
+        universe.screen = np.zeros((1080, 1920, 3), dtype=np.uint8)
+        universe.scx = 1.0
+        return universe
+
+    def test_label_in_upper_half_is_matched(self):
+        universe = self._make()
+        template = cv.imread(str(ROOT / "resource" / "imgs" / "gray_image" / "device.png"))
+        x, y = 900, 200  # upper half: facing the device
+        universe.screen[y:y + template.shape[0], x:x + template.shape[1]] = template
+        hit = universe._match_device_label()
+        self.assertIsNotNone(hit)
+        self.assertAlmostEqual(x + template.shape[1] / 2.0, hit[0], delta=2)
+        self.assertAlmostEqual(y + template.shape[0] / 2.0, hit[1], delta=2)
+
+    def test_label_in_lower_half_is_rejected(self):
+        universe = self._make()
+        template = cv.imread(str(ROOT / "resource" / "imgs" / "gray_image" / "device.png"))
+        x, y = 900, 800  # lower half: backed away, must not homing
+        universe.screen[y:y + template.shape[0], x:x + template.shape[1]] = template
+        self.assertIsNone(universe._match_device_label())
+
+
 class EndpointControllerTest(unittest.TestCase):
     @staticmethod
     def make_universe(results):

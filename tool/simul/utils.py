@@ -471,6 +471,38 @@ class UniverseUtils:
     # 下半部分说明角色背对装置（此时朝标签方向走是反向的）。因此仅在屏幕
     # 上半区匹配标签，同时也避免全屏匹配的开销。
     DEVICE_LABEL_BOX = (0.05, 0.95, 0.02, 0.52)
+    # 视角旋转与鼠标像素的换算系数（px/度），与 key_mouse_manager 一致。
+    PIXEL_PER_DEG = 16.5
+
+    def _match_template_in_box(self, image, template, box, scales=(1.0,),
+                               method=cv.TM_CCORR_NORMED):
+        """Return (center_x, center_y, score) of the best template match inside
+        the normalized box (x0,x1,y0,y1), in full-image pixel coordinates, or
+        None when no scale fits.  Shared by check(search_all=True) and
+        _match_device_label so the region multi-scale search exists once.
+        """
+        fx0, fx1, fy0, fy1 = box
+        h, w = image.shape[:2]
+        ox, oy = int(w * fx0), int(h * fy0)
+        region = image[oy : int(h * fy1), ox : int(w * fx1)]
+        best = None
+        for scale in scales:
+            t = cv.resize(
+                template, None,
+                fx=scale, fy=scale,
+                interpolation=cv.INTER_CUBIC,
+            )
+            if t.shape[0] >= region.shape[0] or t.shape[1] >= region.shape[1]:
+                continue
+            result = cv.matchTemplate(region, t, method)
+            _, max_val, _, max_loc = cv.minMaxLoc(result)
+            if best is None or max_val > best[2]:
+                best = (
+                    ox + max_loc[0] + t.shape[1] / 2.0,
+                    oy + max_loc[1] + t.shape[0] / 2.0,
+                    float(max_val),
+                )
+        return best
 
     def check(self, path, x, y, mask=None, threshold=None, use_binary=False,fresh=False, search_all=False):
         """
@@ -503,15 +535,18 @@ class UniverseUtils:
             # 与 (0.57,0.57)），固定点裁剪会漏检。全屏模板匹配可覆盖所有
             # 位置，但开销大（实测约 55ms/帧），故仅在 F_PROMPT_BOX 范围内
             # 搜索（覆盖已知位置并留有余量）。
-            fx0, fx1, fy0, fy1 = self.F_PROMPT_BOX
-            h_region = int(self.screen.shape[0] * fy1) - int(self.screen.shape[0] * fy0)
-            w_region = int(self.screen.shape[1] * fx1) - int(self.screen.shape[1] * fx0)
-            self._search_ox = int(self.screen.shape[1] * fx0)
-            self._search_oy = int(self.screen.shape[0] * fy0)
-            local_screen = self.screen[
-                self._search_oy : self._search_oy + h_region,
-                self._search_ox : self._search_ox + w_region,
-            ]
+            match = self._match_template_in_box(
+                self.screen, target, self.F_PROMPT_BOX,
+                method=cv.TM_CCORR_NORMED,
+            )
+            if match is None:
+                self.tm = -1.0
+                return False
+            # Coordinates used by this module are measured from the lower-right
+            # corner; _match_template_in_box already returns full-screen pixels.
+            max_val = match[2]
+            self.tx = (self.xx - match[0]) / self.xx
+            self.ty = (self.yy - match[1]) / self.yy
         else:
             if mask is None:
                 shape = target.shape
@@ -522,42 +557,31 @@ class UniverseUtils:
                     int(self.scx * mask_img.shape[1]),
                 )
             local_screen = self.get_local(x, y, shape)
-        if use_binary:
-            # 将截图和模板图像转换为灰度图
-            if len(local_screen.shape) == 3:
-                gray_screen = cv.cvtColor(local_screen, cv.COLOR_BGR2GRAY)
+            if use_binary:
+                # 将截图和模板图像转换为灰度图
+                if len(local_screen.shape) == 3:
+                    gray_screen = cv.cvtColor(local_screen, cv.COLOR_BGR2GRAY)
+                else:
+                    gray_screen = local_screen
+
+                if len(target.shape) == 3:
+                    gray_target = cv.cvtColor(target, cv.COLOR_BGR2GRAY)
+                else:
+                    gray_target = target
+
+                # 对截图和模板进行二值化处理
+                _, binary_screen = cv.threshold(gray_screen, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+                _, binary_target = cv.threshold(gray_target, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+
+                # 使用二值化图像进行匹配
+                result = cv.matchTemplate(binary_screen, binary_target, cv.TM_CCORR_NORMED)
             else:
-                gray_screen = local_screen
-
-            if len(target.shape) == 3:
-                gray_target = cv.cvtColor(target, cv.COLOR_BGR2GRAY)
-            else:
-                gray_target = target
-
-            # 对截图和模板进行二值化处理
-            _, binary_screen = cv.threshold(gray_screen, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
-            _, binary_target = cv.threshold(gray_target, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
-
-            # 使用二值化图像进行匹配
-            result = cv.matchTemplate(binary_screen, binary_target, cv.TM_CCORR_NORMED)
-        else:
-            try:
-                result = cv.matchTemplate(local_screen, target, cv.TM_CCORR_NORMED)
-            except Exception:
-                CUS_LOGGER.error(f"{path}匹配失败，源图像{local_screen.shape}，目标图像{target.shape}")
-                raise
-        min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
-        if search_all:
-            # Coordinates used by this module are measured from the lower-right
-            # corner.  Convert the region match back to that coordinate system
-            # instead of applying the fixed-crop offset formula.  The match was
-            # computed on the F_PROMPT_BOX crop, so add the crop offset before
-            # normalising against the full screen.
-            match_center_x = self._search_ox + max_loc[0] + 0.5 * target.shape[1]
-            match_center_y = self._search_oy + max_loc[1] + 0.5 * target.shape[0]
-            self.tx = (self.xx - match_center_x) / self.xx
-            self.ty = (self.yy - match_center_y) / self.yy
-        else:
+                try:
+                    result = cv.matchTemplate(local_screen, target, cv.TM_CCORR_NORMED)
+                except Exception:
+                    CUS_LOGGER.error(f"{path}匹配失败，源图像{local_screen.shape}，目标图像{target.shape}")
+                    raise
+            min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
             self.tx = x - (max_loc[0] - 0.5 * local_screen.shape[1] + 0.5 * target.shape[1]) / self.xx
             self.ty = y - (max_loc[1] - 0.5 * local_screen.shape[0] + 0.5 * target.shape[0]) / self.yy
         self.tm = max_val
@@ -1312,31 +1336,13 @@ class UniverseUtils:
             base_scale = float(getattr(self, "scx", 1.0)) or 1.0
         except (TypeError, ValueError):
             base_scale = 1.0
-        # 仅在上半区搜索标签（正面朝向才可见），坐标加回裁剪偏移后返回。
-        fx0, fx1, fy0, fy1 = self.DEVICE_LABEL_BOX
-        ox = int(gray.shape[1] * fx0)
-        oy = int(gray.shape[0] * fy0)
-        region = gray[
-            oy : int(gray.shape[0] * fy1),
-            ox : int(gray.shape[1] * fx1),
-        ]
-        best = None
-        for scale in (0.7, 0.85, 1.0, 1.15, 1.3, 1.5):
-            t = cv.resize(
-                template, None,
-                fx=scale * base_scale, fy=scale * base_scale,
-                interpolation=cv.INTER_CUBIC,
-            )
-            if t.shape[0] >= region.shape[0] or t.shape[1] >= region.shape[1]:
-                continue
-            result = cv.matchTemplate(region, t, cv.TM_CCOEFF_NORMED)
-            _, max_val, _, max_loc = cv.minMaxLoc(result)
-            if best is None or max_val > best[2]:
-                best = (
-                    ox + max_loc[0] + t.shape[1] / 2.0,
-                    oy + max_loc[1] + t.shape[0] / 2.0,
-                    float(max_val),
-                )
+        # 仅在上半区搜索标签（正面朝向才可见）；上半区匹配逻辑与
+        # check(search_all=True) 共用 _match_template_in_box。
+        best = self._match_template_in_box(
+            gray, template, self.DEVICE_LABEL_BOX,
+            scales=tuple(s * base_scale for s in (0.7, 0.85, 1.0, 1.15, 1.3, 1.5)),
+            method=cv.TM_CCOEFF_NORMED,
+        )
         if best is not None and best[2] >= threshold:
             return best
         return None
@@ -1353,7 +1359,7 @@ class UniverseUtils:
             cx, cy, score = hit
             half_w = float(getattr(self, "xx", 1920)) / 2.0
             # Same pixel-per-degree convention as move_direct_to_text.
-            dx_angle = (cx - half_w) / 16.5
+            dx_angle = (cx - half_w) / self.PIXEL_PER_DEG
             if abs(dx_angle) >= 0.5:
                 key_mouse_manager.mouse_move(dx_angle)
                 key_mouse_manager.wait()
@@ -3004,7 +3010,7 @@ class UniverseUtils:
             pos = get_text_position(self.get_screen())
             if pos:
                 CUS_LOGGER.debug(f"距离中心点{960 - pos[0][0]}，进行旋转")
-                key_mouse_manager.mouse_move((pos[0][0] - 960) / 16.5)
+                key_mouse_manager.mouse_move((pos[0][0] - self.xx / 2) / self.PIXEL_PER_DEG)
                 find=True
                 key_mouse_manager.wait()
                 break
