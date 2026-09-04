@@ -630,6 +630,13 @@ class UniverseUtils:
             else:
                 return -((-dx) ** 0.7)
 
+    def _turn_by(self, delta, update_ang=False):
+        """转视角 delta 度并等队列排空，update_ang=True 时同步 self.ang。"""
+        key_mouse_manager.mouse_move(delta)
+        key_mouse_manager.wait()
+        if update_ang:
+            self.ang = (self.ang + delta) % 360
+
     def move_to_end(self, i=0,mode=0,device=0):
         CUS_LOGGER.debug(f"一人前往未来……一人留在过去。(类型{mode})")
         dx = self.get_end_point(i,device)
@@ -643,29 +650,24 @@ class UniverseUtils:
             if dx is None:
                 CUS_LOGGER.debug('…找到那个新生的「我」…让他延续三千万世的徒劳。')
                 for k in [60,120,60,60,30,30,-60,-60,-60,-60,-60,-60]:
-                    key_mouse_manager.mouse_move(-k)
-                    key_mouse_manager.wait()
+                    self._turn_by(-k)
                     off += k
                     dx = self.get_end_point(device=device)
                     if dx is not None:
                         break
                 if dx is None:
-                    key_mouse_manager.mouse_move(off*1.03)
-                    key_mouse_manager.wait()
+                    self._turn_by(off*1.03)
                     CUS_LOGGER.warning(f"即便理智随身形一起化作焦炭，{factor}也会记得自己的使命……(旋转未找到终点)")
                     return 0
         CUS_LOGGER.debug(f"移动面向终点 参数{i}移动距离{dx}")
         if i == 0:
-            key_mouse_manager.mouse_move(dx / 3)
-            key_mouse_manager.wait()
+            self._turn_by(dx / 3)
         else:
-            key_mouse_manager.mouse_move(dx / 5)
-            key_mouse_manager.wait()
+            self._turn_by(dx / 5)
         if i == 0 and abs(dx / 3) > 30:
             dx = self.get_end_point(1,device=device)
             if dx is not None:
-                key_mouse_manager.mouse_move(dx / 4)
-                key_mouse_manager.wait()
+                self._turn_by(dx / 4)
         return 1
 
 
@@ -1361,8 +1363,7 @@ class UniverseUtils:
             # Same pixel-per-degree convention as move_direct_to_text.
             dx_angle = (cx - half_w) / self.PIXEL_PER_DEG
             if abs(dx_angle) >= 0.5:
-                key_mouse_manager.mouse_move(dx_angle)
-                key_mouse_manager.wait()
+                self._turn_by(dx_angle)
             if self._walk_legs_for_f(3, 0.3, hold=True):
                 return True
         return False
@@ -1415,16 +1416,12 @@ class UniverseUtils:
                     heading = None
             if heading is not None:
                 turn = (heading - self.ang + 180) % 360 - 180
-                key_mouse_manager.mouse_move(turn)
-                key_mouse_manager.wait()
-                self.ang = heading % 360
+                self._turn_by(turn, update_ang=True)
                 CUS_LOGGER.debug(
                     f"type3 endpoint aligned to stored heading {heading:.1f}"
                 )
             else:
-                key_mouse_manager.mouse_move(90)
-                key_mouse_manager.wait()
-                self.ang = (self.ang + 90) % 360
+                self._turn_by(90, update_ang=True)
 
             pan_angle = 360.0 / pan_steps
             leg_ticks = max(1, int(round(leg_seconds / 0.3)))
@@ -1438,8 +1435,7 @@ class UniverseUtils:
                 for _ in range(pan_steps):
                     if getattr(self, "_stop", False) or not self.is_run():
                         return False
-                    key_mouse_manager.mouse_move(pan_angle)
-                    key_mouse_manager.wait()
+                    self._turn_by(pan_angle)
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
                         return True
                     try:
@@ -1459,9 +1455,7 @@ class UniverseUtils:
                     if self._walk_legs_for_f(leg_ticks, 0.3, hold=True):
                         return True
                     # Turn 90 degrees so consecutive legs form a square spiral.
-                    key_mouse_manager.mouse_move(90)
-                    key_mouse_manager.wait()
-                    self.ang = (self.ang + 90) % 360
+                    self._turn_by(90, update_ang=True)
             return False
         finally:
             self._release_forward()
