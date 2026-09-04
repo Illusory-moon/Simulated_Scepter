@@ -476,11 +476,7 @@ class UniverseUtils:
 
     def _match_template_in_box(self, image, template, box, scales=(1.0,),
                                method=cv.TM_CCORR_NORMED):
-        """Return (center_x, center_y, score) of the best template match inside
-        the normalized box (x0,x1,y0,y1), in full-image pixel coordinates, or
-        None when no scale fits.  Shared by check(search_all=True) and
-        _match_device_label so the region multi-scale search exists once.
-        """
+        """在归一化区域 (x0,x1,y0,y1) 内多尺度匹配模板，返回 (center_x, center_y, score)，无匹配返回 None。"""
         fx0, fx1, fy0, fy1 = box
         h, w = image.shape[:2]
         ox, oy = int(w * fx0), int(h * fy0)
@@ -1244,10 +1240,8 @@ class UniverseUtils:
         # 此处变换为了目标角度
         self.ang = ang
         ds=get_dis(rel_loc, target_loc)
-        # Once the target is still far enough away, the minimap bearing is
-        # useful.  Keep the last such bearing for the final approach: position
-        # matching becomes noisy at the endpoint and repeatedly correcting from
-        # those samples can turn the character away from the interaction.
+        # 目标够远时小地图方位才可靠，存下最后一次供终点接近用；终点附近
+        # 定位噪声大，反复纠偏会把角色转离交互点。
         if mode == 1 and getattr(self, "target_type", None) == 3 and ds >= 12:
             self._endpoint_heading = self.ang
             self._endpoint_heading_target = tuple(target_loc)
@@ -1255,14 +1249,7 @@ class UniverseUtils:
         return ds
 
     def _walk_legs_for_f(self, legs, step_seconds=0.3, hold=True):
-        """Walk bounded legs and look for the F prompt after every leg.
-
-        hold=True keeps W pressed across all legs (one keyDown/keyUp pair);
-        hold=False taps W for step_seconds per leg.  W is released before
-        returning either way.  Shared by endpoint nudging (_nudge_forward_for_f),
-        device homing (_home_to_device) and the square-spiral legs of
-        _approach_type3_endpoint so all three reuse one walk-and-check loop.
-        """
+        """走 legs 段、每段后查一次 F。hold=True 全程按住 W，False 每段点按；退出前都会松开 W。"""
         if hold:
             key_mouse_manager.keyDown("w", force=True)
             key_mouse_manager.wait()
@@ -1298,12 +1285,7 @@ class UniverseUtils:
             self._release_forward()
 
     def _settle_input(self, duration):
-        """Run one bounded forward-movement leg.
-
-        The sleep is queue-ordered and interruptible (force ops such as
-        stop()/keyUp can cut it short); wait() then blocks until the queue
-        drains, so the following sample always sees the finished movement.
-        """
+        """移动一节的统一入口：sleep 走队列、可被强制操作打断，wait 保证截图时移动已完成。"""
         key_mouse_manager.sleep(max(0.0, duration))
         key_mouse_manager.wait()
 
@@ -1314,16 +1296,7 @@ class UniverseUtils:
         key_mouse_manager.clean()
 
     def _match_device_label(self, threshold=0.62):
-        """Locate the Jian Jian zhuangzhi name label on screen.
-
-        The recorded endpoint is only a map coordinate; on some maps the
-        device sits well beyond it (behind a wall or off the recorded
-        stroll), so probing in place never gets within prompt range.  The
-        in-game 觐见装置 label is always rendered above the device, so while
-        it is in view we can steer the camera toward it and walk straight at
-        it.  Returns (center_x, center_y, score) in game-window pixels or
-        None when the label is not on screen.
-        """
+        """在屏幕上定位觐见装置标签，返回 (center_x, center_y, score)，找不到返回 None。"""
         try:
             template = find_image_in_folder("gray_image/", "device.png")
         except Exception:
@@ -1369,30 +1342,7 @@ class UniverseUtils:
         return False
 
     def _approach_type3_endpoint(self, max_rings=4, pan_steps=8, leg_seconds=0.6):
-        """Deterministically find the endpoint interaction prompt (issue #57).
-
-        The recorded end position is exactly where the prompt was visible when
-        the map was recorded, so the interaction is always within a few metres
-        of the recorded coordinate.  get_loc() is +/-10 units noisy there and
-        the old mode=1 steering (derived from that noise) kept spinning the
-        character without ever facing the device.  This search is therefore
-        coordinate-free:
-
-        1. while panning, match the in-game 觐见装置 label on screen and, when
-           it is visible, steer the camera toward it and walk straight at it
-           (visual homing - handles devices that sit beyond the recorded
-           coordinate or behind small obstacles);
-        2. stand still and pan the camera a full circle, checking for the F
-           prompt on every step (the prompt is screen-space, so facing the
-           device is what matters);
-        3. walk a short leg in the last reliable bearing (captured while the
-           target was still >12 units away), then turn 90 degrees;
-        4. each ring pans another full circle while the legs form a square
-           spiral around the recorded point.
-
-        Everything is bounded: max_rings rings keep the runtime under roughly
-        a minute and the caller simply retries if the prompt never shows.
-        """
+        """issue #57 终点搜索：不依赖坐标——原地转圈查 F、看到装置标签就视觉寻的、按存下的可靠方位走正方形螺旋，全有界。"""
         max_rings = max(1, min(int(max_rings), 6))
         pan_steps = max(4, min(int(pan_steps), 12))
         leg_seconds = max(0.3, min(float(leg_seconds), 1.5))
@@ -1403,9 +1353,7 @@ class UniverseUtils:
             if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
                 return True
 
-            # Face the last reliable bearing so the first leg heads toward the
-            # device instead of a noise-derived direction.  Only reuse it when
-            # it was captured for this exact endpoint.
+            # 先转向存下的可靠方位再走第一段腿；该方位必须属于当前终点。
             heading = getattr(self, "_endpoint_heading", None)
             heading_target = getattr(self, "_endpoint_heading_target", None)
             if heading is not None and heading_target is not None:
@@ -1428,8 +1376,7 @@ class UniverseUtils:
             for ring in range(max_rings):
                 if getattr(self, "_stop", False) or not self.is_run():
                     return False
-                # Stand-still pan: a device right beside the character is found
-                # even when the character has been facing away from it.
+                # 站桩转圈：贴脸装置即使背对也能找到。
                 key_mouse_manager.keyUp("w", force=True)
                 key_mouse_manager.wait()
                 for _ in range(pan_steps):
