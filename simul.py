@@ -464,7 +464,7 @@ class SimulatedUniverse(UniverseUtils):
     def do_interaction(self):
         # is_killed：是否是禁用的交互（沉浸奖励、复活装置、下载装置）
         is_killed = False
-        if self._check_f_prompt(fresh=True):
+        if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
             for _ in range(4):
                 img = self.get_small_interaction_img(x=0.3181, y=0.4324, mask="mask_f")
                 text = self.ts.similar_list(self.tk.interacts, img)

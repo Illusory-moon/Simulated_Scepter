@@ -462,6 +462,12 @@ class UniverseUtils:
             )
         local_screen = self.get_local(x, y, shape, False)
         return local_screen
+    # 交互提示（F）可能出现的屏幕范围（归一化 x0,x1,y0,y1）。
+    # 实测 F 会出现在 (0.44,0.44)（旧固定点）与 (0.57,0.57)/(0.62,0.59)（
+    # 青女/觐见装置场景），在全屏以外的固定位置匹配会漏检；对整屏做模板
+    # 匹配又有明显开销，因此限定在交互提示实际可能出现的区域内搜索。
+    F_PROMPT_BOX = (0.20, 0.90, 0.25, 0.85)
+
     def check(self, path, x, y, mask=None, threshold=None, use_binary=False,fresh=False, search_all=False):
         """
         判断截图中匹配中心点附近是否存在匹配模板
@@ -491,8 +497,17 @@ class UniverseUtils:
         if search_all:
             # issue #57：F 提示位置随场景变化（如青女/觐见装置在屏幕
             # 右中 ~(0.62,0.59)，而固定点仅覆盖 (0.44,0.44)），固定点裁剪
-            # 会漏检。改为全屏模板匹配，任何位置都能命中。
-            local_screen = self.screen
+            # 会漏检。全屏模板匹配可覆盖所有位置，但开销大（实测约
+            # 100ms/帧），故仅在 F_PROMPT_BOX 范围内搜索。
+            fx0, fx1, fy0, fy1 = self.F_PROMPT_BOX
+            h_region = int(self.screen.shape[0] * fy1) - int(self.screen.shape[0] * fy0)
+            w_region = int(self.screen.shape[1] * fx1) - int(self.screen.shape[1] * fx0)
+            self._search_ox = int(self.screen.shape[1] * fx0)
+            self._search_oy = int(self.screen.shape[0] * fy0)
+            local_screen = self.screen[
+                self._search_oy : self._search_oy + h_region,
+                self._search_ox : self._search_ox + w_region,
+            ]
         else:
             if mask is None:
                 shape = target.shape
@@ -530,13 +545,14 @@ class UniverseUtils:
         min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
         if search_all:
             # Coordinates used by this module are measured from the lower-right
-            # corner.  Convert the full-screen match back to that coordinate
-            # system instead of applying the fixed-crop offset formula.
-            screen_height, screen_width = local_screen.shape[:2]
-            match_center_x = max_loc[0] + 0.5 * target.shape[1]
-            match_center_y = max_loc[1] + 0.5 * target.shape[0]
-            self.tx = (screen_width - match_center_x) / screen_width
-            self.ty = (screen_height - match_center_y) / screen_height
+            # corner.  Convert the region match back to that coordinate system
+            # instead of applying the fixed-crop offset formula.  The match was
+            # computed on the F_PROMPT_BOX crop, so add the crop offset before
+            # normalising against the full screen.
+            match_center_x = self._search_ox + max_loc[0] + 0.5 * target.shape[1]
+            match_center_y = self._search_oy + max_loc[1] + 0.5 * target.shape[0]
+            self.tx = (self.xx - match_center_x) / self.xx
+            self.ty = (self.yy - match_center_y) / self.yy
         else:
             self.tx = x - (max_loc[0] - 0.5 * local_screen.shape[1] + 0.5 * target.shape[1]) / self.xx
             self.ty = y - (max_loc[1] - 0.5 * local_screen.shape[0] + 0.5 * target.shape[0]) / self.yy
@@ -546,18 +562,6 @@ class UniverseUtils:
                 CUS_LOGGER.debug(f"匹配到图片记忆切片 {path} 相似度 {max_val} 阈值 {threshold}")
             self.last_info = path
         return max_val > threshold
-
-    def _check_f_prompt(self, fresh=False):
-        """Detect the interaction prompt independently of its HUD position."""
-        return self.check(
-            "f",
-            0.4443,
-            0.4417,
-            mask="mask_f1",
-            threshold=0.96,
-            fresh=fresh,
-            search_all=True,
-        )
 
     def get_end_point(self, mask=0,device=0):
         self.get_screen()
@@ -1100,7 +1104,7 @@ class UniverseUtils:
         if must_be is None and (self.ts.similar("区域") or self.ts.similar("觐见")):
             must_be='tp'
         while not ava and time.time()-tm<1.8:
-            if not self._check_f_prompt(fresh=True):
+            if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
                 if not self.is_run():
                     CUS_LOGGER.info("仿佛连深不见底的最初混沌，也能够烧却。")
                     ava = True
@@ -1111,11 +1115,11 @@ class UniverseUtils:
                 if not self.is_run():
                     CUS_LOGGER.info("…我以为，那就是世间最极致的力量，再无其他。")
                     ava=True
-                elif (not self._check_f_prompt(fresh=True)) and must_be == 'tp':
+                elif (not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True)) and must_be == 'tp':
                     CUS_LOGGER.info("或许只要短短万年的时光——它便会被烧成哀毁骨立的焦炭盗火行者了吧。")
                     ava=True
             else:
-                if not self._check_f_prompt(fresh=True):
+                if not self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
                     ava=True
 
         if ava:
@@ -1226,24 +1230,27 @@ class UniverseUtils:
         step_seconds = max(0.05, min(float(step_seconds), 0.4))
         try:
             self._release_forward()
-            self._settle_input(0.25)
             if not self.is_run():
                 return False
-            if self._check_f_prompt(fresh=True):
+            if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
                 return True
             for _ in range(steps):
                 key_mouse_manager.press("w", step_seconds)
                 if not self.is_run():
                     return False
-                self._settle_input(0.15)
-                if self._check_f_prompt(fresh=True):
+                if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
                     return True
             return False
         finally:
             self._release_forward()
 
     def _settle_input(self, duration):
-        """Wait for queued input and a fresh frame before the next sample."""
+        """Run one bounded forward-movement leg.
+
+        The sleep is queue-ordered and interruptible (force ops such as
+        stop()/keyUp can cut it short); wait() then blocks until the queue
+        drains, so the following sample always sees the finished movement.
+        """
         key_mouse_manager.sleep(max(0.0, duration))
         key_mouse_manager.wait()
 
@@ -1314,14 +1321,14 @@ class UniverseUtils:
             dx_angle = (cx - half_w) / 16.5
             if abs(dx_angle) >= 0.5:
                 key_mouse_manager.mouse_move(dx_angle)
-                self._settle_input(0.25)
+                key_mouse_manager.wait()
             key_mouse_manager.keyDown("w", force=True)
             for _ in range(3):
                 if getattr(self, "_stop", False) or not self.is_run():
                     key_mouse_manager.keyUp("w", force=True)
                     return False
                 self._settle_input(0.3)
-                if self._check_f_prompt(fresh=True):
+                if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
                     key_mouse_manager.keyUp("w", force=True)
                     return True
             key_mouse_manager.keyUp("w", force=True)
@@ -1358,10 +1365,9 @@ class UniverseUtils:
         leg_seconds = max(0.3, min(float(leg_seconds), 1.5))
         try:
             self._release_forward()
-            self._settle_input(0.25)
             if not self.is_run():
                 return False
-            if self._check_f_prompt(fresh=True):
+            if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
                 return True
 
             # Face the last reliable bearing so the first leg heads toward the
@@ -1401,8 +1407,8 @@ class UniverseUtils:
                     if getattr(self, "_stop", False) or not self.is_run():
                         return False
                     key_mouse_manager.mouse_move(pan_angle)
-                    self._settle_input(0.3)
-                    if self._check_f_prompt(fresh=True):
+                    key_mouse_manager.wait()
+                    if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
                         return True
                     try:
                         device_hit = self._match_device_label()
@@ -1424,7 +1430,7 @@ class UniverseUtils:
                             key_mouse_manager.keyUp("w", force=True)
                             return False
                         self._settle_input(0.3)
-                        if self._check_f_prompt(fresh=True):
+                        if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
                             key_mouse_manager.keyUp("w", force=True)
                             return True
                     key_mouse_manager.keyUp("w", force=True)
@@ -1626,7 +1632,7 @@ class UniverseUtils:
             if not self.get_loc():
                 CUS_LOGGER.info("结束寻路后后不在大地图界面，返回")
                 return
-            f_found = self._check_f_prompt(fresh=True)
+            f_found = self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True)
             if not f_found and self.target_type == 2:
                 # issue #57：交互点 F 提示需贴近才出现，先小碎步贴脸再检测
                 f_found = self._nudge_forward_for_f()
@@ -1677,7 +1683,7 @@ class UniverseUtils:
             if self.target_type == 3:
                 self.set_path_state("当前寻找终点")
                 if self._approach_type3_endpoint():
-                    CUS_LOGGER.info("type3 endpoint prompt detected")
+                    CUS_LOGGER.debug("type3 endpoint prompt detected")
                     key_mouse_manager.press("f", force=True)
                     key_mouse_manager.wait()
                     if self.nof(must_be="tp"):
@@ -3246,7 +3252,7 @@ class UniverseUtils:
             self.last_interact_time = time.time()
             self.target.discard((self.target_loc, 1))
             return
-        f_found = self._check_f_prompt(fresh=True)
+        f_found = self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True)
         if not f_found and self.target_type == 2:
             # issue #57：交互点 F 提示需贴近才出现，先小碎步贴脸再检测
             f_found = self._nudge_forward_for_f()
@@ -3304,9 +3310,10 @@ class UniverseUtils:
             else:
                 key_mouse_manager.click(0.5, 0.5)
         if self.target_type == 3:
-            CUS_LOGGER.info("approaching type3 endpoint")
+            CUS_LOGGER.debug("approaching type3 endpoint")
             if self._approach_type3_endpoint():
-                CUS_LOGGER.info("type3 endpoint prompt detected")
+                CUS_LOGGER.info("那一定是个不同以往的浪漫故事。")
+                CUS_LOGGER.debug("type3 endpoint prompt detected")
                 key_mouse_manager.press("f", force=True)
                 key_mouse_manager.wait()
                 if self.nof(must_be="tp"):

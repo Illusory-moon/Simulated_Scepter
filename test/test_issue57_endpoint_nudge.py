@@ -58,7 +58,7 @@ class EndpointControllerTest(unittest.TestCase):
         universe._endpoint_heading = 40.0
         universe._endpoint_heading_target = None
         universe.is_run = Mock(return_value=True)
-        universe._check_f_prompt = Mock(side_effect=results)
+        universe.check = Mock(side_effect=lambda *a, **k: results.pop(0) if results else False)
         universe._match_device_label = Mock(return_value=None)
         universe.get_screen = Mock()
         universe.get_loc = Mock(return_value=True)
@@ -220,7 +220,7 @@ class NavigationContractTest(unittest.TestCase):
     def test_type3_calls_bounded_controller_and_then_interacts(self):
         universe = self.make_universe(3)
         universe._approach_type3_endpoint = Mock(return_value=True)
-        universe._check_f_prompt = Mock(return_value=False)
+        universe.check = Mock(return_value=False)
         manager = Mock()
         with (
             patch("tool.simul.utils.key_mouse_manager", manager),
@@ -240,7 +240,7 @@ class NavigationContractTest(unittest.TestCase):
 
     def test_type2_uses_nudge_result_without_pressing_f_in_navigation(self):
         universe = self.make_universe(2)
-        universe._check_f_prompt = Mock(return_value=False)
+        universe.check = Mock(return_value=False)
         universe._nudge_forward_for_f = Mock(return_value=True)
         manager = Mock()
         with (
