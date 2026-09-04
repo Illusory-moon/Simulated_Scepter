@@ -463,9 +463,9 @@ class UniverseUtils:
         local_screen = self.get_local(x, y, shape, False)
         return local_screen
     # 交互提示（F）可能出现的屏幕范围（归一化 x0,x1,y0,y1）。
-    # 实测 F 会出现在 (0.44,0.44)（旧固定点）与 (0.57,0.57)/(0.62,0.59)（
-    # 青女/觐见装置场景），在全屏以外的固定位置匹配会漏检；对整屏做模板
-    # 匹配又有明显开销，因此限定在交互提示实际可能出现的区域内搜索。
+    # 实测 F 会出现在 (0.44,0.44)（旧固定点）与 (0.57,0.57)（实机截图模板
+    # 扫描 0.976 命中）两处；固定点匹配会漏检，而全屏匹配开销明显，因此
+    # 限定在覆盖已知位置并留有余量的区域内搜索。
     F_PROMPT_BOX = (0.20, 0.90, 0.25, 0.85)
 
     def check(self, path, x, y, mask=None, threshold=None, use_binary=False,fresh=False, search_all=False):
@@ -495,10 +495,10 @@ class UniverseUtils:
             dsize=(int(self.scx * target.shape[1]), int(self.scx * target.shape[0])),
         )
         if search_all:
-            # issue #57：F 提示位置随场景变化（如青女/觐见装置在屏幕
-            # 右中 ~(0.62,0.59)，而固定点仅覆盖 (0.44,0.44)），固定点裁剪
-            # 会漏检。全屏模板匹配可覆盖所有位置，但开销大（实测约
-            # 100ms/帧），故仅在 F_PROMPT_BOX 范围内搜索。
+            # issue #57：F 提示位置随场景变化（实测两处：固定点 (0.44,0.44)
+            # 与 (0.57,0.57)），固定点裁剪会漏检。全屏模板匹配可覆盖所有
+            # 位置，但开销大（实测约 55ms/帧），故仅在 F_PROMPT_BOX 范围内
+            # 搜索（覆盖已知位置并留有余量）。
             fx0, fx1, fy0, fy1 = self.F_PROMPT_BOX
             h_region = int(self.screen.shape[0] * fy1) - int(self.screen.shape[0] * fy0)
             w_region = int(self.screen.shape[1] * fx1) - int(self.screen.shape[1] * fx0)
