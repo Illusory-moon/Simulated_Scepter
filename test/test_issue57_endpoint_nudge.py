@@ -59,24 +59,33 @@ class DeviceLabelRegionTest(unittest.TestCase):
         universe = simul_utils.UniverseUtils.__new__(simul_utils.UniverseUtils)
         universe.screen = np.zeros((1080, 1920, 3), dtype=np.uint8)
         universe.scx = 1.0
+        universe.xx = 1920
+        universe.yy = 1080
+        universe._stop = False
+        universe.is_run = Mock(return_value=True)
+        universe.get_screen = Mock()
+        universe.check = Mock(return_value=False)
         return universe
 
-    def test_label_in_upper_half_is_matched(self):
+    def test_label_in_upper_half_steers_toward_device(self):
         universe = self._make()
         template = cv.imread(str(ROOT / "resource" / "imgs" / "gray_image" / "device.png"))
         x, y = 900, 200  # upper half: facing the device
         universe.screen[y:y + template.shape[0], x:x + template.shape[1]] = template
-        hit = universe._match_device_label()
-        self.assertIsNotNone(hit)
-        self.assertAlmostEqual(x + template.shape[1] / 2.0, hit[0], delta=2)
-        self.assertAlmostEqual(y + template.shape[0] / 2.0, hit[1], delta=2)
+        manager = Mock()
+        with patch("tool.simul.utils.key_mouse_manager", manager):
+            universe._home_to_device(max_legs=1)
+        self.assertTrue(manager.mouse_move.called)
 
     def test_label_in_lower_half_is_rejected(self):
         universe = self._make()
         template = cv.imread(str(ROOT / "resource" / "imgs" / "gray_image" / "device.png"))
         x, y = 900, 800  # lower half: backed away, must not homing
         universe.screen[y:y + template.shape[0], x:x + template.shape[1]] = template
-        self.assertIsNone(universe._match_device_label())
+        manager = Mock()
+        with patch("tool.simul.utils.key_mouse_manager", manager):
+            universe._home_to_device(max_legs=1)
+        self.assertFalse(manager.mouse_move.called)
 
 
 class EndpointControllerTest(unittest.TestCase):
@@ -88,8 +97,10 @@ class EndpointControllerTest(unittest.TestCase):
         universe._endpoint_heading_target = None
         universe.is_run = Mock(return_value=True)
         universe.check = Mock(side_effect=lambda *a, **k: results.pop(0) if results else False)
-        universe._match_device_label = Mock(return_value=None)
+        universe._match_template_in_box = Mock(return_value=None)
         universe.get_screen = Mock()
+        universe.screen = np.zeros((1080, 1920, 3), dtype=np.uint8)
+        universe.scx = 1.0
         universe.get_loc = Mock(return_value=True)
         universe.now_loc = (0.0, 0.0)
         universe.target_loc = (1.0, 1.0)
@@ -184,7 +195,6 @@ class EndpointControllerTest(unittest.TestCase):
         universe.ang = 73.0
         universe._endpoint_heading = 211.0
         universe._endpoint_heading_target = (1.0, 1.0)
-        universe._endpoint_heading_time = 0.0
         universe.target_loc = (2.0, 2.0)
         manager = self.manager()
         with patch("tool.simul.utils.key_mouse_manager", manager):
@@ -203,7 +213,7 @@ class EndpointControllerTest(unittest.TestCase):
         # appears, homing walks once and the second F check inside the walk
         # hits.
         universe = self.make_universe([False, False, False, True])
-        universe._match_device_label = Mock(return_value=(1100.0, 500.0, 0.8))
+        universe._match_template_in_box = Mock(return_value=(1100.0, 500.0, 0.8))
         manager = self.manager()
         with patch("tool.simul.utils.key_mouse_manager", manager):
             self.assertTrue(

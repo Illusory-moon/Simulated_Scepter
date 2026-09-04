@@ -142,7 +142,6 @@ class UniverseUtils:
         # Last reliable bearing used for the final approach to a type-3 target.
         self._endpoint_heading = None
         self._endpoint_heading_target = None
-        self._endpoint_heading_time = 0.0
         #地图集合
         self.img_set = []
         #是否拥有黄泉
@@ -1114,7 +1113,6 @@ class UniverseUtils:
         self.now_loc = (93,93)
         self._endpoint_heading = None
         self._endpoint_heading_target = None
-        self._endpoint_heading_time = 0.0
         self.first_mini = 1
         self.find=1
         self.red_threshold = 4500
@@ -1245,7 +1243,6 @@ class UniverseUtils:
         if mode == 1 and getattr(self, "target_type", None) == 3 and ds >= 12:
             self._endpoint_heading = self.ang
             self._endpoint_heading_target = tuple(target_loc)
-            self._endpoint_heading_time = time.time()
         return ds
 
     def _walk_legs_for_f(self, legs, step_seconds=0.3, hold=True):
@@ -1258,7 +1255,8 @@ class UniverseUtils:
                 if getattr(self, "_stop", False) or not self.is_run():
                     return False
                 if hold:
-                    self._settle_input(step_seconds)
+                    key_mouse_manager.sleep(step_seconds)
+                    key_mouse_manager.wait()  # 保序：截图需在移动完成后
                 else:
                     key_mouse_manager.press("w", step_seconds)
                     key_mouse_manager.wait()  # 保序：截图需在移动完成后
@@ -1284,57 +1282,36 @@ class UniverseUtils:
         finally:
             self._release_forward()
 
-    def _settle_input(self, duration):
-        """移动一节的统一入口：sleep 走队列、可被强制操作打断，wait 保证截图时移动已完成。"""
-        key_mouse_manager.sleep(max(0.0, duration))
-        key_mouse_manager.wait()
-
     def _release_forward(self):
         """Cancel queued movement and release W immediately."""
         key_mouse_manager.keyUp("w", force=True)
         key_mouse_manager.wait()
         key_mouse_manager.clean()
 
-    def _match_device_label(self, threshold=0.62):
-        """在屏幕上定位觐见装置标签，返回 (center_x, center_y, score)，找不到返回 None。"""
-        try:
-            template = find_image_in_folder("gray_image/", "device.png")
-        except Exception:
-            return None
-        if template is None:
-            return None
-        if len(self.screen.shape) == 3:
-            gray = cv.cvtColor(self.screen, cv.COLOR_BGR2GRAY)
-        else:
-            gray = self.screen
-        try:
-            base_scale = float(getattr(self, "scx", 1.0)) or 1.0
-        except (TypeError, ValueError):
-            base_scale = 1.0
-        # 仅在上半区搜索标签（正面朝向才可见）；上半区匹配逻辑与
-        # check(search_all=True) 共用 _match_template_in_box。
-        best = self._match_template_in_box(
-            gray, template, self.DEVICE_LABEL_BOX,
-            scales=tuple(s * base_scale for s in (0.7, 0.85, 1.0, 1.15, 1.3, 1.5)),
-            method=cv.TM_CCOEFF_NORMED,
-        )
-        if best is not None and best[2] >= threshold:
-            return best
-        return None
-
     def _home_to_device(self, max_legs=6):
-        """Steer toward the visible device label and walk until F appears."""
+        """朝可见的觐见装置标签转向并前进，直到 F 出现；找不到返回 False。"""
+        template = find_image_in_folder("gray_image/", "device.png")
+        if template is None:
+            return False
         for _ in range(max_legs):
             if getattr(self, "_stop", False) or not self.is_run():
                 return False
             self.get_screen()
-            hit = self._match_device_label()
-            if hit is None:
+            gray = cv.cvtColor(self.screen, cv.COLOR_BGR2GRAY)
+            hit = self._match_template_in_box(
+                gray, template, self.DEVICE_LABEL_BOX,
+                scales=tuple(s * self.scx for s in (0.7, 0.85, 1.0, 1.15, 1.3, 1.5)),
+                method=cv.TM_CCOEFF_NORMED,
+            )
+            if hit is None or hit[2] < 0.62:
                 return False
-            cx, cy, score = hit
+            CUS_LOGGER.debug(
+                f"type3 device label at ({hit[0]:.0f},"
+                f"{hit[1]:.0f}) sim={hit[2]:.3f}; homing"
+            )
             half_w = float(getattr(self, "xx", 1920)) / 2.0
             # Same pixel-per-degree convention as move_direct_to_text.
-            dx_angle = (cx - half_w) / self.PIXEL_PER_DEG
+            dx_angle = (hit[0] - half_w) / self.PIXEL_PER_DEG
             if abs(dx_angle) >= 0.5:
                 self._turn_by(dx_angle)
             if self._walk_legs_for_f(3, 0.3, hold=True):
@@ -1385,17 +1362,8 @@ class UniverseUtils:
                     self._turn_by(pan_angle)
                     if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
                         return True
-                    try:
-                        device_hit = self._match_device_label()
-                    except Exception:
-                        device_hit = None
-                    if device_hit is not None:
-                        CUS_LOGGER.debug(
-                            f"type3 device label at ({device_hit[0]:.0f},"
-                            f"{device_hit[1]:.0f}) sim={device_hit[2]:.3f}; homing"
-                        )
-                        if self._home_to_device():
-                            return True
+                    if self._home_to_device():
+                        return True
                 self.ang = (self.ang + pan_angle * pan_steps) % 360
                 # Leg: keep W held and walk forward on the current heading.
                 if ring < max_rings - 1:
