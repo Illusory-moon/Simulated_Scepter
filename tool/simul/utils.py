@@ -1233,7 +1233,6 @@ class UniverseUtils:
                 return True
             for _ in range(steps):
                 key_mouse_manager.press("w", step_seconds)
-                key_mouse_manager.wait()
                 if not self.is_run():
                     return False
                 self._settle_input(0.15)
@@ -1315,10 +1314,8 @@ class UniverseUtils:
             dx_angle = (cx - half_w) / 16.5
             if abs(dx_angle) >= 0.5:
                 key_mouse_manager.mouse_move(dx_angle)
-                key_mouse_manager.wait()
                 self._settle_input(0.25)
             key_mouse_manager.keyDown("w", force=True)
-            key_mouse_manager.wait()
             for _ in range(3):
                 if getattr(self, "_stop", False) or not self.is_run():
                     key_mouse_manager.keyUp("w", force=True)
@@ -1404,9 +1401,7 @@ class UniverseUtils:
                     if getattr(self, "_stop", False) or not self.is_run():
                         return False
                     key_mouse_manager.mouse_move(pan_angle)
-                    key_mouse_manager.wait()
-                    key_mouse_manager.sleep(0.3)
-                    key_mouse_manager.wait()
+                    self._settle_input(0.3)
                     if self._check_f_prompt(fresh=True):
                         return True
                     try:
@@ -1424,7 +1419,6 @@ class UniverseUtils:
                 # Leg: keep W held and walk forward on the current heading.
                 if ring < max_rings - 1:
                     key_mouse_manager.keyDown("w")
-                    key_mouse_manager.wait()
                     for _ in range(leg_ticks):
                         if getattr(self, "_stop", False) or not self.is_run():
                             key_mouse_manager.keyUp("w", force=True)
