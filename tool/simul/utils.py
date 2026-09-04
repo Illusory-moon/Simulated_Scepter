@@ -1228,6 +1228,35 @@ class UniverseUtils:
             self._endpoint_heading_time = time.time()
         return ds
 
+    def _walk_legs_for_f(self, legs, step_seconds=0.3, hold=True):
+        """Walk bounded legs and look for the F prompt after every leg.
+
+        hold=True keeps W pressed across all legs (one keyDown/keyUp pair);
+        hold=False taps W for step_seconds per leg.  W is released before
+        returning either way.  Shared by endpoint nudging (_nudge_forward_for_f),
+        device homing (_home_to_device) and the square-spiral legs of
+        _approach_type3_endpoint so all three reuse one walk-and-check loop.
+        """
+        if hold:
+            key_mouse_manager.keyDown("w", force=True)
+            key_mouse_manager.wait()
+        try:
+            for _ in range(max(1, int(legs))):
+                if getattr(self, "_stop", False) or not self.is_run():
+                    return False
+                if hold:
+                    self._settle_input(step_seconds)
+                else:
+                    key_mouse_manager.press("w", step_seconds)
+                    key_mouse_manager.wait()  # 保序：截图需在移动完成后
+                if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
+                    return True
+            return False
+        finally:
+            if hold:
+                key_mouse_manager.keyUp("w", force=True)
+                key_mouse_manager.wait()
+
     def _nudge_forward_for_f(self, steps=3, step_seconds=0.25):
         """Move a bounded number of short steps and look for the F prompt."""
         steps = max(0, int(steps))
@@ -1238,13 +1267,7 @@ class UniverseUtils:
                 return False
             if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
                 return True
-            for _ in range(steps):
-                key_mouse_manager.press("w", step_seconds)
-                if not self.is_run():
-                    return False
-                if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
-                    return True
-            return False
+            return self._walk_legs_for_f(steps, step_seconds, hold=False)
         finally:
             self._release_forward()
 
@@ -1334,17 +1357,8 @@ class UniverseUtils:
             if abs(dx_angle) >= 0.5:
                 key_mouse_manager.mouse_move(dx_angle)
                 key_mouse_manager.wait()
-            key_mouse_manager.keyDown("w", force=True)
-            for _ in range(3):
-                if getattr(self, "_stop", False) or not self.is_run():
-                    key_mouse_manager.keyUp("w", force=True)
-                    return False
-                self._settle_input(0.3)
-                if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
-                    key_mouse_manager.keyUp("w", force=True)
-                    return True
-            key_mouse_manager.keyUp("w", force=True)
-            key_mouse_manager.wait()
+            if self._walk_legs_for_f(3, 0.3, hold=True):
+                return True
         return False
 
     def _approach_type3_endpoint(self, max_rings=4, pan_steps=8, leg_seconds=0.6):
@@ -1436,17 +1450,8 @@ class UniverseUtils:
                 self.ang = (self.ang + pan_angle * pan_steps) % 360
                 # Leg: keep W held and walk forward on the current heading.
                 if ring < max_rings - 1:
-                    key_mouse_manager.keyDown("w")
-                    for _ in range(leg_ticks):
-                        if getattr(self, "_stop", False) or not self.is_run():
-                            key_mouse_manager.keyUp("w", force=True)
-                            return False
-                        self._settle_input(0.3)
-                        if self.check("f", 0.4443, 0.4417, mask="mask_f1", threshold=0.96, fresh=True, search_all=True):
-                            key_mouse_manager.keyUp("w", force=True)
-                            return True
-                    key_mouse_manager.keyUp("w", force=True)
-                    key_mouse_manager.wait()
+                    if self._walk_legs_for_f(leg_ticks, 0.3, hold=True):
+                        return True
                     # Turn 90 degrees so consecutive legs form a square spiral.
                     key_mouse_manager.mouse_move(90)
                     key_mouse_manager.wait()
