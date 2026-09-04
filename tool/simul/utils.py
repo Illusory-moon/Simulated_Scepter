@@ -467,6 +467,10 @@ class UniverseUtils:
     # 扫描 0.976 命中）两处；固定点匹配会漏检，而全屏匹配开销明显，因此
     # 限定在覆盖已知位置并留有余量的区域内搜索。
     F_PROMPT_BOX = (0.20, 0.90, 0.25, 0.85)
+    # 「觐见装置」标签只在角色正面朝向装置时出现在屏幕上半部分；标签出现在
+    # 下半部分说明角色背对装置（此时朝标签方向走是反向的）。因此仅在屏幕
+    # 上半区匹配标签，同时也避免全屏匹配的开销。
+    DEVICE_LABEL_BOX = (0.05, 0.95, 0.02, 0.52)
 
     def check(self, path, x, y, mask=None, threshold=None, use_binary=False,fresh=False, search_all=False):
         """
@@ -1285,6 +1289,14 @@ class UniverseUtils:
             base_scale = float(getattr(self, "scx", 1.0)) or 1.0
         except (TypeError, ValueError):
             base_scale = 1.0
+        # 仅在上半区搜索标签（正面朝向才可见），坐标加回裁剪偏移后返回。
+        fx0, fx1, fy0, fy1 = self.DEVICE_LABEL_BOX
+        ox = int(gray.shape[1] * fx0)
+        oy = int(gray.shape[0] * fy0)
+        region = gray[
+            oy : int(gray.shape[0] * fy1),
+            ox : int(gray.shape[1] * fx1),
+        ]
         best = None
         for scale in (0.7, 0.85, 1.0, 1.15, 1.3, 1.5):
             t = cv.resize(
@@ -1292,14 +1304,14 @@ class UniverseUtils:
                 fx=scale * base_scale, fy=scale * base_scale,
                 interpolation=cv.INTER_CUBIC,
             )
-            if t.shape[0] >= gray.shape[0] or t.shape[1] >= gray.shape[1]:
+            if t.shape[0] >= region.shape[0] or t.shape[1] >= region.shape[1]:
                 continue
-            result = cv.matchTemplate(gray, t, cv.TM_CCOEFF_NORMED)
+            result = cv.matchTemplate(region, t, cv.TM_CCOEFF_NORMED)
             _, max_val, _, max_loc = cv.minMaxLoc(result)
             if best is None or max_val > best[2]:
                 best = (
-                    max_loc[0] + t.shape[1] / 2.0,
-                    max_loc[1] + t.shape[0] / 2.0,
+                    ox + max_loc[0] + t.shape[1] / 2.0,
+                    oy + max_loc[1] + t.shape[0] / 2.0,
                     float(max_val),
                 )
         if best is not None and best[2] >= threshold:
